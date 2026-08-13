@@ -50,6 +50,8 @@ public:
         left = mX;
         return true;
     }
+    virtual bool HitTest(float px, float py);
+    virtual bool hasHitTestBounds() { return true; }
 
     // Accessors
       

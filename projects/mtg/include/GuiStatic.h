@@ -36,14 +36,16 @@ protected:
 public:
     Player * player;
     virtual void Render();
+    virtual bool Contains(float px, float py) const;
     GuiAvatar(float x, float y, bool hasFocus, Player * player, Corner corner, GuiAvatars* parent);
     virtual ostream& toString(ostream& out) const;
 };
 
 struct GuiGameZone: public GuiStatic
 {
-    static const int Width = 20;
-    static const int Height = 25;
+    static const int Width = 30;
+    static const int Height = 30; // touch-friendly zone buttons; trimmed from 34 so the 5-zone
+                                  // rail clears the enlarged avatar at the bottom-right corner
     vector<CardView*> cards;
 
 public:
@@ -51,6 +53,7 @@ public:
     CardDisplay * cd;
     int showCards;
     virtual void Render();
+    virtual bool Contains(float px, float py) const;
     virtual bool CheckUserInput(JButton key);
     virtual void Update(float dt);
     GuiGameZone(float x, float y, bool hasFocus, MTGGameZone * zone, GuiAvatars* parent);

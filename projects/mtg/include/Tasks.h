@@ -112,6 +112,9 @@ public:
     void addRandomTask(int diff = 100);
     void removeTask(Task *task);
     void passOneDay();
+    // In-memory tally of in-game days elapsed (bumped once per passOneDay = once per duel).
+    // Used by the shop to cool down the "New Cards" refresh cost. Resets on app launch.
+    static int sDaysElapsed;
     void getDoneTasks(GameObserver* observer, GameApp * _app, vector<Task*>* result);
     int getTaskCount();
 

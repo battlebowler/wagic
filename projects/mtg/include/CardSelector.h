@@ -40,6 +40,10 @@ public:
     virtual void Add(PlayGuiObject*) = 0;
     virtual void Remove(PlayGuiObject*) = 0;
     virtual bool CheckUserInput(JButton key) = 0;
+    // Finger-anchored browsing: move the selection to whatever selectable element is
+    // under the point (x, y) in game coordinates, without activating it.
+    virtual void HoverAt(float /*x*/, float /*y*/) {}
+    virtual void ClearPreview() {} // hide any lingering big-card preview
     virtual void PushLimitor() = 0;
     virtual void PopLimitor() = 0;
     virtual void Limit(LimitorFunctor<PlayGuiObject>* inLimitor, CardView::SelectorZone inZone) = 0;
@@ -83,6 +87,8 @@ public:
     void Add(PlayGuiObject*);
     void Remove(PlayGuiObject*);
     bool CheckUserInput(JButton key);
+    void HoverAt(float x, float y);
+    void ClearPreview();
     void Update(float dt);
     void Render();
     void Push();

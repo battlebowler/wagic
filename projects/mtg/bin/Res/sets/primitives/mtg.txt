@@ -43839,7 +43839,7 @@ toughness=2
 [card]
 name=Frostwind Invoker
 abilities=flying
-auto={8}:all(creature|myBattlefield) flying ueot
+auto={8}:flying all(creature|myBattlefield) ueot
 text={8}: Creatures you control gain flying until end of turn.
 mana={4}{U}
 type=Creature
@@ -94866,7 +94866,7 @@ toughness=1
 [/card]
 [card]
 name=Reverent Mantra
-other={E(other *[white]|myhand)} name(Exile a White Card from Hand)
+other={E(*[white]|myhand)} name(Exile a White Card from Hand)
 auto=choice name(all creatures gain protection from white) lord(creature) protection from white
 auto=choice name(all creatures gain protection from blue) lord(creature) protection from blue
 auto=choice name(all creatures gain protection from black) lord(creature) protection from black
@@ -100795,7 +100795,7 @@ type=Artifact
 [card]
 name=Scroll of the Masters
 auto=@movedTo(*[-creature]|mystack):counter(0/0,1,Lore)
-auto={3}{T}:thisforeach(counter{0/0.1.Lore}) target(creature|mybattlefield) 1/1 ueot
+auto={3}{T}:thisforeach(counter{0/0.1.Lore}) 1/1 target(creature|mybattlefield) ueot
 text=Whenever you cast a noncreature spell, put a lore counter on Scroll of the Masters. -- {3}{T}: Target creature you control gets +1/+1 until end of turn for each lore counter on Scroll of the Masters.
 mana={2}
 type=Artifact
@@ -103365,10 +103365,10 @@ type=Sorcery
 [/card]
 [card]
 name=Shamble Back
-target=creature|graveyard
+target=creature|mygraveyard
 auto=moveto(exile)
-auto=_ZOMBIETOKEN_
 auto=life:2 controller
+auto=_ZOMBIETOKEN_
 text=Exile target creature card from a graveyard. Put a 2/2 black Zombie creature token onto the battlefield. You gain 2 life.
 mana={B}
 type=Sorcery

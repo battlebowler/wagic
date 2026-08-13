@@ -62,12 +62,17 @@ void GuiPlay::HorzStack::Enstack(CardView* card)
 {
     card->x = x + baseX;
     card->y = y + baseY;
-    if (total < 8)
-        x += CARD_WIDTH;
-    else if (total < 16)
-        x += (SCREEN_WIDTH - 200 - baseX) / total;
+    // Uniform, stable spacing: use a FIXED step so adding/removing a permanent doesn't
+    // re-space (shift) the whole row, which looked jittery/uneven. The step stays tight no
+    // matter the count (this is why playing your last card no longer spreads the row out).
+    // Only when the row would ACTUALLY overflow the play area do we compress evenly to fit.
+    const float kStep = 29.0f;
+    float avail = SCREEN_WIDTH * 0.82f - baseX; // room from the row's base to the right-edge UI
+    if (avail < kStep) avail = kStep;
+    if (total <= 1 || (float) total * kStep <= avail)
+        x += kStep;                 // tight, uniform spacing while the row fits
     else
-        x += (SCREEN_WIDTH - 50 - baseX) / total;
+        x += avail / total;          // compress evenly only on genuine overflow
 }
 
 void GuiPlay::VertStack::Enstack(CardView* card)
@@ -238,7 +243,10 @@ void GuiPlay::Replace()
         }
     }
 
-    opponentSpells.reset(opponentSpellsN, 18, 60);
+    // Opponent artifacts/enchantments column: pushed down from y=60 to y=90 so it clears
+    // the top-left opponent avatar (which occupies ~y18-63); still well above the
+    // battlefield line (y=145). Self artifacts stay put (self avatar is bottom-RIGHT).
+    opponentSpells.reset(opponentSpellsN, 18, 90);
     selfSpells.reset(selfSpellsN, 18, 215);
 
     for (iterator it = cards.begin(); it != end_spells; ++it)
@@ -252,15 +260,14 @@ void GuiPlay::Replace()
                     opponentSpells.Enstack(*it);
             }
         }
-    float x = 24 + opponentSpells.nextX();
-    //seperated the variable X into 2 different variables. There are 2 players here!!
-    //we should not be using a single variable to determine the positioning of cards!!
-    float myx = 24 + selfSpells.nextX();
-    opponentLands.reset(opponentLandsN,x, 50);
-    opponentCreatures.reset(opponentCreaturesN, x, 95);
-    battleField.reset(x, 145);//what does this variable do? I can comment it out with no repercussions...is this being double handled?
-    selfCreatures.reset(selfCreaturesN, myx, 195);
-    selfLands.reset(selfLandsN, myx, 240);
+    float x = (SCREEN_WIDTH * 0.10f) + opponentSpells.nextX();
+    float myx = (SCREEN_WIDTH * 0.10f) + selfSpells.nextX();
+    float fixedBaseX = SCREEN_WIDTH * 0.15f;
+    opponentLands.reset(opponentLandsN, fixedBaseX, 50);
+    opponentCreatures.reset(opponentCreaturesN, fixedBaseX, 95);
+    battleField.reset(x, 145);
+    selfCreatures.reset(selfCreaturesN, fixedBaseX, 195);
+    selfLands.reset(selfLandsN, fixedBaseX, 240);
 
     for (iterator it = end_spells; it != cards.end(); ++it)
     {
@@ -301,12 +308,15 @@ void GuiPlay::Render()
 {
     battleField.Render();
 
+    // Pass 1: lands, creatures and planeswalkers (plus attack lines). Enchantments/
+    // artifacts (the "spells" row) are drawn in a second pass so they sit ON TOP of the
+    // lands instead of being hidden behind them.
     for (iterator it = cards.begin(); it != cards.end(); ++it)
     {
         //draw line when attacking planeswalker
         if((*it)->card && (*it)->card->isAttacker())
         {
-            Damageable * dtarget = ((Damageable *)(*it)->card->isAttacking); 
+            Damageable * dtarget = ((Damageable *)(*it)->card->isAttacking);
             if(dtarget && dtarget->type_as_damageable == Damageable::DAMAGEABLE_MTGCARDINSTANCE)
             {
                 MTGCardInstance * ctarget = ((MTGCardInstance *)(*it)->card->isAttacking);
@@ -331,17 +341,7 @@ void GuiPlay::Render()
             else
                 opponentCreatures.Render(*it, cards.begin(), end_spells);
         }
-        else if(!(*it)->card->hasType(Subtypes::TYPE_PLANESWALKER) && !(*it)->card->hasType(Subtypes::TYPE_BATTLE))
-        {
-            if (!(*it)->card->target)
-            {
-                if (mpDuelLayers->getRenderedPlayer() == (*it)->card->controller())
-                    selfSpells.Render(*it, cards.begin(), end_spells);
-                else
-                    opponentSpells.Render(*it, cards.begin(), end_spells);
-            }
-        }
-        else
+        else if (((*it)->card->hasType(Subtypes::TYPE_PLANESWALKER) || (*it)->card->hasType(Subtypes::TYPE_BATTLE)))
         {
             if (!(*it)->card->target)
             {
@@ -349,6 +349,22 @@ void GuiPlay::Render()
                     selfPlaneswalker.Render(*it, cards.begin(), end_spells);
                 else
                     opponentPlaneswalker.Render(*it, cards.begin(), end_spells);
+            }
+        }
+    }
+
+    // Pass 2: enchantments / artifacts (the "spells" row), drawn on top of the lands.
+    for (iterator it = cards.begin(); it != cards.end(); ++it)
+    {
+        if (!(*it)->card->isLand() && !(*it)->card->isCreature()
+            && !(*it)->card->hasType(Subtypes::TYPE_PLANESWALKER) && !(*it)->card->hasType(Subtypes::TYPE_BATTLE))
+        {
+            if (!(*it)->card->target)
+            {
+                if (mpDuelLayers->getRenderedPlayer() == (*it)->card->controller())
+                    selfSpells.Render(*it, cards.begin(), end_spells);
+                else
+                    opponentSpells.Render(*it, cards.begin(), end_spells);
             }
         }
     }

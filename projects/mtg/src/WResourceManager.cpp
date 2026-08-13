@@ -852,12 +852,10 @@ bool ResourceManagerImpl::fileOK(const string& filename)
     return JFileSystem::GetInstance()->FileExists(filename);
 }
 
-void ResourceManagerImpl::InitFonts(const std::string& inLang)
-{
+void ResourceManagerImpl::InitFonts(const std::string& inLang) {
     unsigned int idOffset = 0;
 
-    if (inLang.compare("cn") == 0)
-    {
+    if (inLang.compare("cn") == 0) {
         mFontFileExtension = kExtension_gbk;
         LoadWFont("simon", 12, Fonts::MAIN_FONT);
         LoadWFont("pspf3", 16, Fonts::MENU_FONT);
@@ -868,8 +866,7 @@ void ResourceManagerImpl::InitFonts(const std::string& inLang)
         idOffset = Fonts::kSingleByteFontOffset;
     }
 
-    if (inLang.compare("jp") == 0)
-    {
+    if (inLang.compare("jp") == 0) {
         mFontFileExtension = kExtension_font;
         LoadWFont("simon", 12, Fonts::MAIN_FONT);
         LoadWFont("f3", 16, Fonts::MENU_FONT);
@@ -880,8 +877,7 @@ void ResourceManagerImpl::InitFonts(const std::string& inLang)
     }
 
     mFontFileExtension = kExtension_png;
-    
-    
+
 #if defined (PSP)
     LoadWFont("pspsimon", 11, Fonts::MAIN_FONT + idOffset);
     GetWFont(Fonts::MAIN_FONT)->SetTracking(-1);
@@ -889,11 +885,15 @@ void ResourceManagerImpl::InitFonts(const std::string& inLang)
     LoadWFont("pspmagic", 16, Fonts::MAGIC_FONT + idOffset);
 #else
     LoadWFont("simon", 11, Fonts::MAIN_FONT + idOffset);
-    GetWFont(Fonts::MAIN_FONT)->SetTracking(-1);
+    GetWFont(Fonts::MAIN_FONT + idOffset)->SetTracking(-1);
+    GetWFont(Fonts::MAIN_FONT + idOffset)->SetScale(SCALE);
     LoadWFont("f3", 16, Fonts::MENU_FONT + idOffset);
+    GetWFont(Fonts::MENU_FONT + idOffset)->SetScale(SCALE);
     LoadWFont("magic", 16, Fonts::MAGIC_FONT + idOffset);
+    GetWFont(Fonts::MAGIC_FONT + idOffset)->SetScale(SCALE);
 #endif
     LoadWFont("smallface", 7, Fonts::SMALLFACE_FONT + idOffset);
+    GetWFont(Fonts::SMALLFACE_FONT + idOffset)->SetScale(SCALE);
 }
 
 int ResourceManagerImpl::ReloadWFonts()

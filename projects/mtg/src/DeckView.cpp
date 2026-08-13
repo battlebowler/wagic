@@ -3,6 +3,7 @@
 #include "GameOptions.h"
 #include "CardGui.h"
 #include "CardDescriptor.h"
+#include "MTGDeck.h"
 
 const float DeckView::no_user_activity_show_card_delay = 0.1f;
 
@@ -101,6 +102,9 @@ void DeckView::renderCard(int index, int alpha, bool asThumbnail, bool griddeckv
 
     if (!cardPosition.card) return;
 
+    // Show a foil sheen for cards the player owns as foil (collection tracks foilCount).
+    bool isFoil = deck() && deck()->parent && deck()->parent->getFoilCount(cardPosition.card->getId()) > 0;
+
     if (!WResourceManager::Instance()->IsThreaded())
     {
         JQuadPtr backQuad = WResourceManager::Instance()->GetQuad(kGenericCardID);
@@ -128,41 +132,46 @@ void DeckView::renderCard(int index, int alpha, bool asThumbnail, bool griddeckv
             if (quad == backQuad)
             {
                 quad->SetColor(ARGB(255,255,255,255));
-                float _scale = cardPosition.scale * (285 / quad->mHeight);
+                float _scale = cardPosition.scale * (SCREEN_HEIGHT_F / 272.0f) * (285 / quad->mHeight);
                 JRenderer::GetInstance()->RenderQuad(quad.get(), cardPosition.x, cardPosition.y, 0.0f, _scale, _scale);
             }
             else
             {
                 int mode = !options[Options::DISABLECARDS].number ? DrawMode::kNormal : DrawMode::kText;
-                Pos pos = Pos(cardPosition.x, cardPosition.y, cardPosition.scale * 285 / 250, 0.0, 255);
-                CardGui::DrawCard(cardPosition.card, pos, mode, asThumbnail, true);
+                Pos pos = Pos(cardPosition.x, cardPosition.y, cardPosition.scale * (SCREEN_HEIGHT_F / 272.0f) * 285 / 250, 0.0, 255);
+                CardGui::DrawCard(cardPosition.card, pos, mode, asThumbnail, true, false, isFoil);
             }
         }
         else
         {
-            Pos pos = Pos(cardPosition.x, cardPosition.y, cardPosition.scale * 285 / 250, 0.0, 255);
+            Pos pos = Pos(cardPosition.x, cardPosition.y, cardPosition.scale * (SCREEN_HEIGHT_F / 272.0f) * 285 / 250, 0.0, 255);
             CardGui::DrawCard(cardPosition.card, pos, DrawMode::kText, asThumbnail, true);
         }
     }
     else
     {//NORMAL VIEW WITH IMAGES
         int mode = !options[Options::DISABLECARDS].number ? DrawMode::kNormal : DrawMode::kText;
-        Pos pos = Pos(cardPosition.x, cardPosition.y, cardPosition.scale * 285 / 250, 0.0, 255);
-        CardGui::DrawCard(cardPosition.card, pos, mode, asThumbnail, true, griddeckview);
+        Pos pos = Pos(cardPosition.x, cardPosition.y, cardPosition.scale * (SCREEN_HEIGHT_F / 272.0f) * 285 / 250, 0.0, 255);
+        CardGui::DrawCard(cardPosition.card, pos, mode, asThumbnail, true, griddeckview, isFoil);
     }
     int quadAlpha = alpha;
     if (!deck()->count(cardPosition.card)) quadAlpha /= 2;
     quadAlpha = 255 - quadAlpha;
     if (quadAlpha > 0)
     {
-        JRenderer::GetInstance()->FillRect(cardPosition.x - cardPosition.scale * 100.0f, cardPosition.y - cardPosition.scale * 142.5f, cardPosition.scale * 200.0f, cardPosition.scale * 285.0f,
-                                           ARGB(quadAlpha,0,0,0));
+        float cardScaleFactor = (SCREEN_HEIGHT_F / 272.0f);
+        JRenderer::GetInstance()->FillRect(
+                cardPosition.x - cardPosition.scale * cardScaleFactor * 100.0f,
+                cardPosition.y - cardPosition.scale * cardScaleFactor * 142.5f,
+                cardPosition.scale * cardScaleFactor * 200.0f,
+                cardPosition.scale * cardScaleFactor * 285.0f,
+                ARGB(quadAlpha,0,0,0));
     }
     if (last_user_activity < 3)
     {
         int fontAlpha = alpha;
-        float qtY = cardPosition.y - 115 * cardPosition.scale;
-        float qtX = cardPosition.x + 62 * cardPosition.scale;
+        float qtY = cardPosition.y - 115 * cardPosition.scale * (SCREEN_HEIGHT_F / 272.0f);
+        float qtX = cardPosition.x + 62 * cardPosition.scale * (SCREEN_HEIGHT_F / 272.0f);
         char buffer[4096];
         sprintf(buffer, "x%i", deck()->count(cardPosition.card));
         WFont * font = mFont;

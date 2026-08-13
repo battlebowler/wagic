@@ -69,7 +69,9 @@ JGuiController::JGuiController(JGE* jge, int id, JGuiListener* listener) :
     mActionButton = JGE_BTN_OK;
     mCancelButton = JGE_BTN_MENU;
 
-    mStyle = JGUI_STYLE_WRAPPING;
+    // No wrapping: lists clamp at the first/last item instead of jumping back to the
+    // other end. This matches touch scrolling expectations (a swipe past the end stops).
+    mStyle = 0;
 
     mActive = true;
 }
@@ -92,6 +94,98 @@ void JGuiController::Render()
 bool JGuiController::CheckUserInput(JButton key)
 {
     if (!mCount) return false;
+
+    // Touch-first one-tap: if a tap coordinate is pending, act on the object the tap
+    // actually lands on and consume it (along with the OK that accompanies the tap),
+    // so selecting and activating happen together in a single tap instead of the old
+    // "tap to select, tap again to confirm" behaviour.
+    {
+        int x = -1, y = -1;
+        if (mEngine->GetLeftClickCoordinates(x, y))
+        {
+            // Buttons (position-aware) get first crack at the tap.
+            for (size_t i = 0; i < mButtons.size(); i++)
+            {
+                if (mButtons[i]->ButtonPressed())
+                {
+                    mEngine->LeftClickedProcessed();
+                    return true;
+                }
+            }
+
+            if (mObjects.size())
+            {
+                // Prefer real bounds hit-testing: find the item whose bounds contain the
+                // tap (nearest anchor wins if several overlap).
+                int n = -1;
+                float best = 0.0f;
+                bool anyBounds = false;
+                for (int i = 0; i < mCount; i++)
+                {
+                    if (mObjects[i] == NULL)
+                        continue;
+                    if (mObjects[i]->hasHitTestBounds())
+                        anyBounds = true;
+                    if (mObjects[i]->HitTest((float)x, (float)y))
+                    {
+                        float top = 0.0f, left = 0.0f;
+                        mObjects[i]->getTopLeft(top, left);
+                        float d = (top - y) * (top - y) + (left - x) * (left - x);
+                        if (n < 0 || d < best)
+                        {
+                            best = d;
+                            n = i;
+                        }
+                    }
+                }
+
+                // Fallback for controllers whose items don't report hit-test bounds yet:
+                // pick the nearest object by anchor (legacy behaviour) so they keep
+                // working. When items DO report bounds, a miss deliberately selects
+                // nothing (so tapping empty space no longer activates a far-off item).
+                if (n < 0 && !anyBounds)
+                {
+                    unsigned int minDistance2 = (unsigned int)-1;
+                    for (int i = 0; i < mCount; i++)
+                    {
+                        if (mObjects[i] == NULL)
+                            continue;
+                        float top = 0.0f, left = 0.0f;
+                        if (mObjects[i]->getTopLeft(top, left))
+                        {
+                            unsigned int d = (unsigned int)((top - y) * (top - y) + (left - x) * (left - x));
+                            if (d < minDistance2)
+                            {
+                                minDistance2 = d;
+                                n = i;
+                            }
+                        }
+                    }
+                }
+
+                if (n >= 0)
+                {
+                    if (n != mCurr && mObjects[mCurr] != NULL && mObjects[mCurr]->Leaving(JGE_BTN_DOWN))
+                    {
+                        mCurr = n;
+                        mObjects[mCurr]->Entering();
+                    }
+                    // Activate the tapped item.
+                    if (mObjects[mCurr] != NULL && mObjects[mCurr]->ButtonPressed())
+                    {
+                        if (mListener != NULL)
+                            mListener->ButtonPressed(mId, mObjects[mCurr]->GetId());
+                    }
+                }
+
+                mEngine->LeftClickedProcessed();
+                mEngine->ResetInput();
+                return true;
+            }
+            mEngine->LeftClickedProcessed();
+        }
+    }
+
     if (key == mActionButton)
     {
         if (!mObjects.empty() && mObjects[mCurr] != NULL && mObjects[mCurr]->ButtonPressed())
@@ -150,59 +244,8 @@ bool JGuiController::CheckUserInput(JButton key)
         }
         return true;
     }
-    else
-    { // a dude may have clicked somewhere, we're gonna select the closest object from where he clicked
-        int x = -1, y = -1;
-        unsigned int distance2;
-        unsigned int minDistance2 = -1;
-        int n = mCurr;
-        if (mEngine->GetLeftClickCoordinates(x, y))
-        {
-            // first scan the buttons on the screen and then process the other gui elements
-            for (size_t i = 0; i < mButtons.size(); i++)
-            {
-                if (mButtons[i]->ButtonPressed())
-                {
-                    mEngine->LeftClickedProcessed();
-                    return true;
-                }
-            }
-            
-            if (mObjects.size())
-            {
-                for (int i = 0; i < mCount; i++)
-                {
-                    float top, left;
-                    if (mObjects[i]->getTopLeft(top, left))
-                    {
-                        distance2 = (top - y) * (top - y) + (left - x) * (left - x);
-                        if (distance2 < minDistance2)
-                        {
-                            minDistance2 = distance2;
-                            n = i;
-                        }
-                        else
-                            break;
-                    }
-                }
-                
-                if (n != mCurr && mObjects[mCurr] != NULL && mObjects[mCurr]->Leaving(JGE_BTN_DOWN))
-                {
-                    mCurr = n;
-                    mObjects[mCurr]->Entering();
-                }
-                // if the same object was selected process click
-                else if (n == mCurr && mObjects[mCurr] != NULL && mObjects[mCurr]->Leaving(JGE_BTN_OK))
-                {
-                    mObjects[mCurr]->Entering();
-                }
-                mEngine->LeftClickedProcessed();
-                mEngine->ResetInput();
-                return true;
-            }
-            mEngine->LeftClickedProcessed();
-        }
-    }
+    // Taps (click coordinates) are handled up-front at the top of this function as a
+    // one-tap select+activate, so there is no separate "closest object" handling here.
     return false;
 }
 

@@ -1,29 +1,29 @@
-    #include "PrecompiledHeader.h"
+#include "PrecompiledHeader.h"
 
 #include "DeckMenuItem.h"
 #include "Translate.h"
 #include "WResourceManager.h"
 #include <algorithm>
 
-#define ITEM_PX_WIDTH 190.0f
-#define kItemXOffset 22
-#define kItemYHeight 30
+#define ITEM_PX_WIDTH (SCREEN_WIDTH_F * (190.0f / 480.0f))
+#define kItemXOffset ((int)(SCREEN_WIDTH_F * (22.0f / 480.0f)))
+#define kItemYHeight ((int)(SCREEN_HEIGHT_F * (30.0f / 272.0f)))
 
 const int kHorizontalScrollSpeed = 30; // higher numbers mean faster scrolling
 
 float DeckMenuItem::mYOffset = 0;
 
 DeckMenuItem::DeckMenuItem(DeckMenu* _parent, int id, int fontId, string text, float x, float y, bool hasFocus, bool autoTranslate, DeckMetaData *deckMetaData)
-                        : JGuiObject(id), parent(_parent), fontId(fontId), mX(x), mY(y)
+        : JGuiObject(id), parent(_parent), fontId(fontId), mX(x), mY(y)
 {
     WFont * mFont = WResourceManager::Instance()->GetWFont(fontId);
     mMetaData = deckMetaData;
     mText = trim(text);
     mIsValidSelection = false;
-    
+
     if (autoTranslate)
-        mText = _(mText);    
-    
+        mText = _(mText);
+
 
     mHasFocus = hasFocus;
     float newImageWidth = 0.0f;
@@ -38,7 +38,7 @@ DeckMenuItem::DeckMenuItem(DeckMenu* _parent, int id, int fontId, string text, f
     }
 
     float titleStringWidth = mFont->GetStringWidth( mText.c_str() );
-    mTitleResetWidth = (titleStringWidth - newImageWidth )/ 2; 
+    mTitleResetWidth = (titleStringWidth - newImageWidth )/ 2;
     mScrollEnabled = titleStringWidth  > ( ITEM_PX_WIDTH - newImageWidth );
     mScrollerOffset = 0.0f;
 
@@ -47,14 +47,14 @@ DeckMenuItem::DeckMenuItem(DeckMenu* _parent, int id, int fontId, string text, f
         mIsValidSelection = true;
         Entering();
     }
-    
+
     if (mMetaData && mMetaData->getAvatarFilename().size() > 0)
     {
         mImageFilename = mMetaData->getAvatarFilename();
-        if(!(WResourceManager::Instance()->RetrieveTexture(mImageFilename))) 
+        if(!(WResourceManager::Instance()->RetrieveTexture(mImageFilename)))
             mImageFilename = "baka.jpg"; // if the AI deck has no specific avatar we will display the default "baka.jpg" image.
-    } 
-    else 
+    }
+    else
     {
         // this is a non-deck menu item (ie "Random", "Cancel", etc
         switch(id)
@@ -69,19 +69,19 @@ DeckMenuItem::DeckMenuItem(DeckMenu* _parent, int id, int fontId, string text, f
                 mImageFilename = "noavatar.jpg";
                 break;
             case kEvilTwinMenuID:
-                {
-                    mImageFilename = "avatar.jpg";
-                    break;
-                }
+            {
+                mImageFilename = "avatar.jpg";
+                break;
+            }
             default:
-                 mImageFilename = "noavatar.jpg";
-                // do nothing.  
+                mImageFilename = "noavatar.jpg";
+                // do nothing.
                 break;
         }
-        
+
     }
-    
-    
+
+
     mDisplayInitialized = false;
 
 }
@@ -96,10 +96,10 @@ void DeckMenuItem::Update(float dt)
 
 void DeckMenuItem::RenderWithOffset(float yOffset)
 {
-  mYOffset = yOffset;
+    mYOffset = yOffset;
 
     WFont * mFont = WResourceManager::Instance()->GetWFont(fontId);
-    
+
     if (!( mHasFocus && mScrollEnabled ))
         mScrollerOffset = 0;
     if (!mHasFocus && mScrollEnabled)
@@ -110,7 +110,7 @@ void DeckMenuItem::RenderWithOffset(float yOffset)
         mFont->SetScale(SCALE_SELECTED);
     else
         mFont->SetScale(SCALE_NORMAL);
-    
+
     mFont->DrawString(mText.c_str(), mX, mY + yOffset, JGETEXT_CENTER, offSet, ITEM_PX_WIDTH);
     mDisplayInitialized = true;
     //Render a "new" icon for decks that have never been played yet
@@ -137,7 +137,7 @@ void DeckMenuItem::checkUserClick()
 {
     int x1 = -1, y1 = -1;
     if (mEngine->GetLeftClickCoordinates(x1, y1))
-    {   
+    {
         mIsValidSelection = false;
         int x2 = kItemXOffset, y2 = static_cast<int>(mY + mYOffset);
         if ( (x1 >= x2) && (x1 <= (x2 + ITEM_PX_WIDTH)) && (y1 >= y2) && (y1 < (y2 + kItemYHeight)))
@@ -157,7 +157,7 @@ void DeckMenuItem::Entering()
 
 bool DeckMenuItem::Leaving(JButton)
 {
-    // check to see if the user clicked on the object, if so return true.  
+    // check to see if the user clicked on the object, if so return true.
     checkUserClick();
     mHasFocus = false;
     return true;
@@ -166,6 +166,16 @@ bool DeckMenuItem::Leaving(JButton)
 bool DeckMenuItem::ButtonPressed()
 {
     return mIsValidSelection;
+}
+
+bool DeckMenuItem::HitTest(float px, float py)
+{
+    // Same row bounds as checkUserClick(): the item occupies a fixed-width row anchored
+    // at kItemXOffset, mY + mYOffset.
+    float x2 = (float)kItemXOffset;
+    float y2 = mY + mYOffset;
+    return (px >= x2 && px <= x2 + (float)ITEM_PX_WIDTH &&
+            py >= y2 && py <= y2 + (float)kItemYHeight);
 }
 
 void DeckMenuItem::Relocate(float x, float y)
@@ -195,9 +205,9 @@ string DeckMenuItem::getDeckName() const
 ostream& DeckMenuItem::toString(ostream& out) const
 {
     return out << "DeckMenuItem ::: mHasFocus : " << mHasFocus
-                 << " ; parent : " << parent
-                 << " ; mText : " << mText
-                 << " ; mX,mY : " << mX << "," << mY;
+               << " ; parent : " << parent
+               << " ; mText : " << mText
+               << " ; mX,mY : " << mX << "," << mY;
 }
 
 DeckMenuItem::~DeckMenuItem()

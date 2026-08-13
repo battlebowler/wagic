@@ -52,4 +52,31 @@ static inline Target* closest(vector<Target*>& cards, Limitor* limitor, float x,
     return card;
 }
 
+// Touch-first hit-test: return the element whose rendered bounds actually contain
+// the point (x, y), or NULL if the tap landed on empty space. When overlapping
+// elements (e.g. fanned hand cards) both contain the point, the one whose center
+// is nearest the tap wins, which matches the topmost/most-relevant card.
+template<typename Target>
+static inline Target* hitTest(vector<Target*>& cards, Limitor* limitor, float x, float y)
+{
+    Target* hit = NULL;
+    float curdist = 1000000.0f; // This is bigger than any possible distance
+    for (typename vector<Target*>::iterator it = cards.begin(); it != cards.end(); ++it)
+    {
+        if ((*it)->actA < 32)
+            continue;
+        if ((NULL != limitor) && (!limitor->select(*it)))
+            continue;
+        if (!(*it)->Contains(x, y))
+            continue;
+        float dist = ((*it)->actX - x) * ((*it)->actX - x) + ((*it)->actY - y) * ((*it)->actY - y);
+        if (dist < curdist)
+        {
+            curdist = dist;
+            hit = *it;
+        }
+    }
+    return hit;
+}
+
 #endif

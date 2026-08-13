@@ -26,6 +26,22 @@ void Pos::UpdateNow()
     actZ = zoom;
     actA = alpha;
 }
+bool Pos::Contains(float px, float py) const
+{
+    // Use the actual (animated) scale so the hit region matches what is drawn.
+    float scale = (actZ > 0.f) ? actZ : zoom;
+    float halfW = 0.5f * scale * width;
+    float halfH = 0.5f * scale * height;
+
+    // width/height are only populated once the element has been rendered at least
+    // once; treat an unsized element as untouchable rather than a zero-size point.
+    if (halfW <= 0.f || halfH <= 0.f)
+        return false;
+
+    return (px >= actX - halfW && px <= actX + halfW &&
+            py >= actY - halfH && py <= actY + halfH);
+}
+
 void Pos::Render()
 {
 }

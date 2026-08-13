@@ -15,12 +15,16 @@
 
 namespace DeckMenuConst
 {
-    const float kVerticalMargin = 16;
-    const float kHorizontalMargin = 20;
-    const float kLineHeight = 25;
-    const float kDescriptionVerticalBoxPadding = -5;
-    const float kDescriptionHorizontalBoxPadding = 5;
-    
+    // All spatial constants expressed as fractions of screen dimensions
+    // so they track the background image stretch on any device/aspect ratio.
+    // Original PSP values in comments for reference.
+
+    const float kVerticalMargin = 16.0f / 272.0f;                  // was 16
+    const float kHorizontalMargin = 20.0f / 480.0f;                // was 20
+    const float kLineHeight = 25.0f / 272.0f;                      // was 25
+    const float kDescriptionVerticalBoxPadding = -5.0f / 272.0f;   // was -5
+    const float kDescriptionHorizontalBoxPadding = 5.0f / 480.0f;  // was 5
+
     const float kVerticalScrollSpeed = 7.0f;
 
     const int DETAILED_INFO_THRESHOLD = 20;
@@ -31,50 +35,55 @@ hgeParticleSystem* DeckMenu::stars = NULL;
 
 //
 //  For the additional info window, maximum characters per line is roughly 30 characters across.
-//  TODO:        
+//  TODO:
 //    *** Need to make this configurable in a file somewhere to allow for class reuse
 
 DeckMenu::DeckMenu(int id, JGuiListener* listener, int fontId, const string _title, const int&, bool showDetailsOverride, bool chooseOpponent) :
-JGuiController(JGE::GetInstance(), id, listener), fontId(fontId), mShowDetailsScreen( showDetailsOverride )
+        JGuiController(JGE::GetInstance(), id, listener), fontId(fontId), mShowDetailsScreen( showDetailsOverride )
 {
 
     backgroundName = "DeckMenuBackdrop";
     mAlwaysShowDetailsButton = false;
     mSelectedDeck = NULL;
-    mY = 50;
-    mWidth = 176;
-    mX = 115;
 
-    titleX = 110; // center point in title box
-    titleY = 15;
-    titleWidth = 180; // width of inner box of title
+    // All positions as fractions of screen dimensions.
+    // Original PSP values (for 480x272) in comments.
+    mY = SCREEN_HEIGHT_F * (50.0f / 272.0f);       // was 50
+    mWidth = SCREEN_WIDTH_F * (176.0f / 480.0f);    // was 176
+    mX = SCREEN_WIDTH_F * (115.0f / 480.0f);        // was 115
 
-    descX = 260 + DeckMenuConst::kDescriptionHorizontalBoxPadding;
-    descY = 100 + DeckMenuConst::kDescriptionVerticalBoxPadding;
-    descHeight = 145;
-    descWidth = 195;
+    titleX = SCREEN_WIDTH_F * (110.0f / 480.0f);    // was 110
+    titleY = SCREEN_HEIGHT_F * (15.0f / 272.0f);     // was 15
+    titleWidth = SCREEN_WIDTH_F * (180.0f / 480.0f); // was 180
 
-    detailedInfoBoxX = 400;
-    detailedInfoBoxY = 235;
-    starsOffsetX = 50;
+    descX = SCREEN_WIDTH_F * (260.0f / 480.0f) + SCREEN_WIDTH_F * DeckMenuConst::kDescriptionHorizontalBoxPadding;
+    descY = SCREEN_HEIGHT_F * (100.0f / 272.0f) + SCREEN_HEIGHT_F * DeckMenuConst::kDescriptionVerticalBoxPadding;
+    descHeight = SCREEN_HEIGHT_F * (145.0f / 272.0f);   // was 145
+    descWidth = SCREEN_WIDTH_F * (195.0f / 480.0f);     // was 195
 
-    statsX = 300;
-    statsY = 15;
-    statsHeight = 50;
-    statsWidth = 227;
+    detailedInfoBoxX = SCREEN_WIDTH_F * (400.0f / 480.0f);  // was 400
+    detailedInfoBoxY = SCREEN_HEIGHT_F * (235.0f / 272.0f);  // was 235
+    starsOffsetX = SCREEN_WIDTH_F * (50.0f / 480.0f);        // was 50
 
-    avatarX = 232;
-    avatarY = 11;
+    statsX = SCREEN_WIDTH_F * (300.0f / 480.0f);    // was 300
+    statsY = SCREEN_HEIGHT_F * (15.0f / 272.0f);     // was 15
+    statsHeight = SCREEN_HEIGHT_F * (50.0f / 272.0f); // was 50
+    statsWidth = SCREEN_WIDTH_F * (227.0f / 480.0f);  // was 227
+
+    avatarX = SCREEN_WIDTH_F * (232.0f / 480.0f);   // was 232
+    avatarY = SCREEN_HEIGHT_F * (11.0f / 272.0f);     // was 11
 
     menuInitialized = false;
 
-    float scrollerWidth = 200.0f;
-    float scrollerHeight = 28.0f;
-    mScroller = NEW VerticalTextScroller(Fonts::MAIN_FONT, 14, 235, scrollerWidth, scrollerHeight, DeckMenuConst::kVerticalScrollSpeed);
+    float scrollerWidth = SCREEN_WIDTH_F * (200.0f / 480.0f);   // was 200
+    float scrollerHeight = SCREEN_HEIGHT_F * (28.0f / 272.0f);   // was 28
+    float scrollerX = SCREEN_WIDTH_F * (14.0f / 480.0f);         // was 14
+    float scrollerY = SCREEN_HEIGHT_F * (235.0f / 272.0f);       // was 235
+    mScroller = NEW VerticalTextScroller(Fonts::MAIN_FONT, scrollerX, scrollerY, scrollerWidth, scrollerHeight, DeckMenuConst::kVerticalScrollSpeed);
 
     mAutoTranslate = true;
     maxItems = 6;
-    mHeight = 2 * DeckMenuConst::kVerticalMargin + (maxItems * DeckMenuConst::kLineHeight);
+    mHeight = SCREEN_HEIGHT_F * (2 * DeckMenuConst::kVerticalMargin + (maxItems * DeckMenuConst::kLineHeight));
 
     // we want to cap the deck titles to 15 characters to avoid overflowing deck names
     title = _(_title);
@@ -92,22 +101,22 @@ JGuiController(JGE::GetInstance(), id, listener), fontId(fontId), mShowDetailsSc
     else
         titleFontScale = SCALE_NORMAL;
 
-    mSelectionTargetY = selectionY = DeckMenuConst::kVerticalMargin;
+    mSelectionTargetY = selectionY = mY + SCREEN_HEIGHT_F * DeckMenuConst::kVerticalMargin;
 
     if (NULL == stars)
         stars = NEW hgeParticleSystem(WResourceManager::Instance()->RetrievePSI("stars.psi", WResourceManager::Instance()->GetQuad("stars").get()));
     stars->FireAt(mX, mY);
-    
+
     const string detailedInfoString = _("info");
     WFont *descriptionFont = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
 
     float stringWidth = descriptionFont->GetStringWidth(detailedInfoString.c_str());
-    float boxStartX = detailedInfoBoxX - stringWidth / 2 + 20;
+    float boxStartX = detailedInfoBoxX - stringWidth / 2 + SCREEN_WIDTH_F * (20.0f / 480.0f);
     //dismiss button?
-#if defined PSP   
-    dismissButton = NEW InteractiveButton( this, DeckMenuConst::kDetailedInfoButtonId, Fonts::MAIN_FONT, detailedInfoString, boxStartX+25, detailedInfoBoxY-10.0f, JGE_BTN_CANCEL);
+#if defined PSP
+    dismissButton = NEW InteractiveButton( this, DeckMenuConst::kDetailedInfoButtonId, Fonts::MAIN_FONT, detailedInfoString, boxStartX + SCREEN_WIDTH_F * (25.0f / 480.0f), detailedInfoBoxY - SCREEN_HEIGHT_F * (10.0f / 272.0f), JGE_BTN_CANCEL);
 #else
-    dismissButton = NEW InteractiveButton( this, DeckMenuConst::kDetailedInfoButtonId, Fonts::MAIN_FONT, detailedInfoString, boxStartX+30, detailedInfoBoxY+4.5f, JGE_BTN_CANCEL);
+    dismissButton = NEW InteractiveButton( this, DeckMenuConst::kDetailedInfoButtonId, Fonts::MAIN_FONT, detailedInfoString, boxStartX + SCREEN_WIDTH_F * (30.0f / 480.0f), detailedInfoBoxY + SCREEN_HEIGHT_F * (4.5f / 272.0f), JGE_BTN_CANCEL);
 #endif
     JGuiController::Add(dismissButton, true);
 
@@ -117,28 +126,22 @@ JGuiController(JGE::GetInstance(), id, listener), fontId(fontId), mShowDetailsSc
 void DeckMenu::RenderDeckManaColors()
 {
     // display the deck mana colors if known
-    // We only want to display the mana symbols on the game screens and not the Deck Editor screens.  
-    // Need a better way to determine where/when to display the mana symbols.  Perhaps make it a property setting.
     bool displayDeckMana = backgroundName.find("DeckMenuBackdrop") != string::npos;
-    // current set of coordinates puts the mana symbols to the right of the last stat info in the upper right
-    // box of the deck selection screen.
-    //float manaIconX = 398;
-    //float manaIconY = 55;
-    float manaIconX = 288;
-    float manaIconY = 248;
-    if (mSelectedDeck &&displayDeckMana)
+    float manaIconX = SCREEN_WIDTH_F * (288.0f / 480.0f);   // was 288
+    float manaIconY = SCREEN_HEIGHT_F * (248.0f / 272.0f);   // was 248
+    float manaIconSpacing = SCREEN_WIDTH_F * (26.0f / 480.0f); // was 26
+    if (mSelectedDeck && displayDeckMana)
     {
         string deckManaColors = mSelectedDeck->getColorIndex().c_str();
         if (deckManaColors.size() >= 6)
-        {   
+        {
             // due to space constraints don't display icons for colorless mana.
             for( int colorIdx = Constants::MTG_COLOR_ARTIFACT; colorIdx < Constants::MTG_COLOR_WASTE; ++colorIdx )
-            {               
+            {
                 if ( (deckManaColors.at(colorIdx) == '1') != 0)
                 {
-                    //JRenderer::GetInstance()->FillCircle(manaIconX,manaIconY,8.5f,ARGB(240,255,255,5));
                     JRenderer::GetInstance()->RenderQuad(manaIcons[colorIdx].get(), manaIconX, manaIconY, 0, 0.6f, 0.6f);
-                    manaIconX += 26;
+                    manaIconX += manaIconSpacing;
                 }
             }
         }
@@ -151,7 +154,7 @@ void DeckMenu::RenderBackground()
 {
     ostringstream bgFilename;
 #if !defined (PSP)
-    if(backgroundName.find("menubgdeckeditor") != string::npos) //Now it's possibile to randomly use up to 10 background images for deck editor selection.
+    if(backgroundName.find("menubgdeckeditor") != string::npos)
         bgFilename << backgroundName << ".jpg";
     else
         bgFilename << backgroundName << ".png";
@@ -165,13 +168,12 @@ void DeckMenu::RenderBackground()
     static bool loadBackground = true;
     if (loadBackground)
     {
-        //Erwan 2010/07/11 the TEXTURE_SUB_5551 below is useless, JGE doesn't support it for png. I'm letting it here to avoid causing a bug, but it should be removed
         JQuadPtr background = WResourceManager::Instance()->RetrieveTempQuad(bgFilename.str(), TEXTURE_SUB_5551);
         if (background.get())
         {
             float scaleX = SCREEN_WIDTH_F / background.get()->mWidth;
             float scaleY = SCREEN_HEIGHT_F / background.get()->mHeight;
-            JRenderer::GetInstance()->RenderQuad(background.get(), 0, 0,0,scaleX, scaleY);
+            JRenderer::GetInstance()->RenderQuad(background.get(), 0, 0, 0, scaleX, scaleY);
         }
         else
             loadBackground = false;
@@ -204,10 +206,10 @@ bool DeckMenu::showDetailsScreen()
 
 void DeckMenu::initMenuItems()
 {
-    float sY = mY + DeckMenuConst::kVerticalMargin;
+    float sY = mY + SCREEN_HEIGHT_F * DeckMenuConst::kVerticalMargin;
     for (int i = startId; i < mCount; ++i)
     {
-        float y = mY + DeckMenuConst::kVerticalMargin + i * DeckMenuConst::kLineHeight;
+        float y = mY + SCREEN_HEIGHT_F * DeckMenuConst::kVerticalMargin + i * SCREEN_HEIGHT_F * DeckMenuConst::kLineHeight;
         DeckMenuItem * currentMenuItem = static_cast<DeckMenuItem*> (mObjects[i]);
         currentMenuItem->Relocate(mX, y);
         if (currentMenuItem->hasFocus()) sY = y;
@@ -252,18 +254,18 @@ void DeckMenu::Render()
     JQuadPtr menupanel;
     JQuadPtr menuholder;
 #if defined (PSP)
-    avatarholder = WResourceManager::Instance()->RetrieveTempQuad("pspavatarholder.png");//new graphics avatarholder for PSP
-    menupanel = WResourceManager::Instance()->RetrieveTempQuad("pspmenupanel.jpg");//new graphics menupanel for PSP
-    menuholder = WResourceManager::Instance()->RetrieveTempQuad("pspmenuholder.png");//new graphics menuholder for PSP
+    avatarholder = WResourceManager::Instance()->RetrieveTempQuad("pspavatarholder.png");
+    menupanel = WResourceManager::Instance()->RetrieveTempQuad("pspmenupanel.jpg");
+    menuholder = WResourceManager::Instance()->RetrieveTempQuad("pspmenuholder.png");
 #else
-    avatarholder = WResourceManager::Instance()->RetrieveTempQuad("avatarholder.png");//new graphics avatarholder
+    avatarholder = WResourceManager::Instance()->RetrieveTempQuad("avatarholder.png");
     if(isOpponent){
-        menupanel = WResourceManager::Instance()->RetrieveTempQuad("menupanel2.jpg");//try to load the new graphics menupanel for opponent.
+        menupanel = WResourceManager::Instance()->RetrieveTempQuad("menupanel2.jpg");
         if(!menupanel.get())
-            menupanel = WResourceManager::Instance()->RetrieveTempQuad("menupanel.jpg");//fallback to new graphics menupanel for player
+            menupanel = WResourceManager::Instance()->RetrieveTempQuad("menupanel.jpg");
     } else
-        menupanel = WResourceManager::Instance()->RetrieveTempQuad("menupanel.jpg");//new graphics menupanel for player
-    menuholder = WResourceManager::Instance()->RetrieveTempQuad("menuholder.png");//new graphics menuholder
+        menupanel = WResourceManager::Instance()->RetrieveTempQuad("menupanel.jpg");
+    menuholder = WResourceManager::Instance()->RetrieveTempQuad("menuholder.png");
 #endif
     bool inDeckMenu = backgroundName.find("DeckMenuBackdrop") != string::npos;
     float modAvatarX = 0.f;
@@ -271,13 +273,13 @@ void DeckMenu::Render()
 
     if(inDeckMenu)
     {
-        modAvatarX =26.f;
-        modAvatarY =1.f;
+        modAvatarX = SCREEN_WIDTH_F * (26.0f / 480.0f);    // was 26
+        modAvatarY = SCREEN_HEIGHT_F * (1.0f / 272.0f);     // was 1
     }
     else
     {
-        modAvatarX =-76.f;
-        modAvatarY =-1.5f;
+        modAvatarX = SCREEN_WIDTH_F * (-76.0f / 480.0f);   // was -76
+        modAvatarY = SCREEN_HEIGHT_F * (-1.5f / 272.0f);    // was -1.5
     }
     if (!menuInitialized)
     {
@@ -288,21 +290,22 @@ void DeckMenu::Render()
     }
 
     if (avatarholder.get() && menupanel.get() && inDeckMenu)//bg panel
-         renderer->RenderQuad(menupanel.get(), 225.f, 0, 0 ,SCREEN_WIDTH_F / avatarholder.get()->mWidth, SCREEN_HEIGHT_F / avatarholder.get()->mHeight);
+        renderer->RenderQuad(menupanel.get(), SCREEN_WIDTH_F * (225.0f / 480.0f), 0, 0 ,SCREEN_WIDTH_F / avatarholder.get()->mWidth, SCREEN_HEIGHT_F / avatarholder.get()->mHeight);
 
     RenderBackground();//background deck menu
     mScroller->Render();
 
     if (menuholder.get() && inDeckMenu)//menuholder
-         renderer->RenderQuad(menuholder.get(), 0, 0, 0 ,SCREEN_WIDTH_F / menuholder.get()->mWidth, SCREEN_HEIGHT_F / menuholder.get()->mHeight);
+        renderer->RenderQuad(menuholder.get(), 0, 0, 0 ,SCREEN_WIDTH_F / menuholder.get()->mWidth, SCREEN_HEIGHT_F / menuholder.get()->mHeight);
 
+    float lineHeight = SCREEN_HEIGHT_F * DeckMenuConst::kLineHeight;
     if (timeOpen < 1) height *= timeOpen > 0 ? timeOpen : -timeOpen;
-    
+
     for (int i = startId; i < startId + maxItems; i++)
     {
-        if (i > mCount - 1) break;        
+        if (i > mCount - 1) break;
         DeckMenuItem *currentMenuItem = static_cast<DeckMenuItem*> (mObjects[i]);
-        if (currentMenuItem->getY() - DeckMenuConst::kLineHeight * startId < mY + height - DeckMenuConst::kLineHeight + 7)
+        if (currentMenuItem->getY() - lineHeight * startId < mY + height - lineHeight + SCREEN_HEIGHT_F * (7.0f / 272.0f))
         {
             // only load stats for visible items in the list
             DeckMetaData* metaData = currentMenuItem->getMetaData();
@@ -318,14 +321,14 @@ void DeckMenu::Render()
 
                 // display the "more info" button if special condition is met
                 if (showDetailsScreen())
-                {                    
+                {
                     dismissButton->setIsSelectionValid(true);
                     dismissButton->Render();
                 }
                 else
                 {
                     dismissButton->setIsSelectionValid(false);
-                }//detailed info???
+                }
                 // display the avatar image
                 string currentAvatarImageName = currentMenuItem->getImageFilename();
                 if (currentAvatarImageName.size() > 0)
@@ -333,8 +336,10 @@ void DeckMenu::Render()
                     JQuadPtr quad = WResourceManager::Instance()->RetrieveTempQuad(currentAvatarImageName, TEXTURE_SUB_AVATAR);
                     if(quad.get())
                     {
-                        float xscale = 37.f / quad->mWidth;//orig 35.f
-                        float yscale = 50.f / quad->mHeight;
+                        float avatarW = SCREEN_WIDTH_F * (37.0f / 480.0f);   // was 37
+                        float avatarH = SCREEN_HEIGHT_F * (50.0f / 272.0f);   // was 50
+                        float xscale = avatarW / quad->mWidth;
+                        float yscale = avatarH / quad->mHeight;
                         if (currentMenuItem->getText() == "Evil Twin")
                         {
                             JQuad * evil = quad.get();
@@ -344,7 +349,7 @@ void DeckMenu::Render()
                                 renderer->RenderQuad(avatarholder.get(), 0, 0, 0 ,SCREEN_WIDTH_F / avatarholder.get()->mWidth, SCREEN_HEIGHT_F / avatarholder.get()->mHeight);
 
                             renderer->RenderQuad(quad.get(), avatarX+modAvatarX, avatarY+modAvatarY, 0, xscale, yscale);
-                            renderer->DrawRect(avatarX+modAvatarX, avatarY+modAvatarY,37.f,50.f,ARGB(200,3,3,3));
+                            renderer->DrawRect(avatarX+modAvatarX, avatarY+modAvatarY, avatarW, avatarH, ARGB(200,3,3,3));
                             evil = NULL;
                         }
                         else
@@ -354,16 +359,16 @@ void DeckMenu::Render()
                                 renderer->RenderQuad(avatarholder.get(), 0, 0, 0 ,SCREEN_WIDTH_F / avatarholder.get()->mWidth, SCREEN_HEIGHT_F / avatarholder.get()->mHeight);
 
                             renderer->RenderQuad(quad.get(), avatarX+modAvatarX, avatarY+modAvatarY, 0, xscale, yscale);
-                            renderer->DrawRect(avatarX+modAvatarX, avatarY+modAvatarY,37.f,50.f,ARGB(200,3,3,3));
+                            renderer->DrawRect(avatarX+modAvatarX, avatarY+modAvatarY, avatarW, avatarH, ARGB(200,3,3,3));
                         }
                     }
                 }
-                
+
                 // fill in the description part of the screen
                 string text = wordWrap(_(currentMenuItem->getDescription()), descWidth, descriptionFont->mFontID );
                 descriptionFont->SetColor(ARGB(255,255,255,255));
                 descriptionFont->DrawString(text.c_str(), descX, descY);
-                
+
                 // fill in the statistical portion
                 if (currentMenuItem->hasMetaData())
                 {
@@ -372,17 +377,17 @@ void DeckMenu::Render()
                     oss << currentMenuItem->getDeckStatsSummary();
                     descriptionFont->SetColor(ARGB(255,255,255,255));
                     if(inDeckMenu)
-                        descriptionFont->DrawString(oss.str(), statsX+2, statsY-2);
+                        descriptionFont->DrawString(oss.str(), statsX + SCREEN_WIDTH_F * (2.0f / 480.0f), statsY - SCREEN_HEIGHT_F * (2.0f / 272.0f));
                     else
-                        descriptionFont->DrawString(oss.str(), statsX-86, statsY-4);
+                        descriptionFont->DrawString(oss.str(), statsX - SCREEN_WIDTH_F * (86.0f / 480.0f), statsY - SCREEN_HEIGHT_F * (4.0f / 272.0f));
                 }
-                
+
                 // change the font color of the current menu item
                 mFont->SetColor(ARGB(255,255,255,255));
             }
             else // reset the font color to be slightly muted
                 mFont->SetColor(ARGB(150,255,255,255));
-            currentMenuItem->RenderWithOffset(-DeckMenuConst::kLineHeight * startId);
+            currentMenuItem->RenderWithOffset(-lineHeight * startId);
         }
     }
     //psp
@@ -393,7 +398,7 @@ void DeckMenu::Render()
         mFont->SetColor(ARGB(255,255,255,255));
         mFont->DrawString(title.c_str(), titleX, titleY, JGETEXT_CENTER);
     }
-    
+
     renderer->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE);
     stars->Render();
     renderer->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA);
@@ -403,22 +408,28 @@ void DeckMenu::Render()
 void DeckMenu::Update(float dt)
 {
     JGuiController::Update(dt);
-    
+    UpdateVisuals(dt);
+}
+
+void DeckMenu::UpdateVisuals(float dt)
+{
     if (mCurr > startId + maxItems - 1)
         startId = mCurr - maxItems + 1;
-    else if (mCurr < startId) 
+    else if (mCurr < startId)
         startId = mCurr;
 
     stars->Update(dt);
     selectionT += 3 * dt;
     selectionY += (mSelectionTargetY - selectionY) * 8 * dt;
 
-    float starsX = starsOffsetX + ((mWidth - 2 * DeckMenuConst::kHorizontalMargin) * (1 + cos(selectionT)) / 2);
-    float starsY = selectionY + 5 * cos(selectionT * 2.35f) + DeckMenuConst::kLineHeight / 2 - DeckMenuConst::kLineHeight * startId;
+    float lineHeight = SCREEN_HEIGHT_F * DeckMenuConst::kLineHeight;
+    float horizMargin = SCREEN_WIDTH_F * DeckMenuConst::kHorizontalMargin;
+    float starsX = starsOffsetX + ((mWidth - 2 * horizMargin) * (1 + cos(selectionT)) / 2);
+    float starsY = selectionY + SCREEN_HEIGHT_F * (5.0f / 272.0f) * cos(selectionT * 2.35f) + lineHeight / 2 - lineHeight * startId;
     stars->MoveTo(starsX, starsY);
-    
-    // 
-    
+
+    //
+
     if (timeOpen < 0)
     {
         timeOpen += dt * 10;
@@ -434,31 +445,33 @@ void DeckMenu::Update(float dt)
         mClosed = false;
         timeOpen += dt * 10;
     }
-    if (mScroller) 
+    if (mScroller)
         mScroller->Update(dt);
-    
+
 }
 
 void DeckMenu::Add(int id, const string& text, const string& desc, bool forceFocus, DeckMetaData * deckMetaData)
 {
-    DeckMenuItem * menuItem = NEW DeckMenuItem(this, id, fontId, text, 0, 
-            mY + DeckMenuConst::kVerticalMargin + mCount * DeckMenuConst::kLineHeight, (mCount == 0), mAutoTranslate, deckMetaData);
+    float lineHeight = SCREEN_HEIGHT_F * DeckMenuConst::kLineHeight;
+    float vertMargin = SCREEN_HEIGHT_F * DeckMenuConst::kVerticalMargin;
+    DeckMenuItem * menuItem = NEW DeckMenuItem(this, id, fontId, text, 0,
+                                               mY + vertMargin + mCount * lineHeight, (mCount == 0), mAutoTranslate, deckMetaData);
     Translator * t = Translator::GetInstance();
     map<string, string>::iterator it = t->deckValues.find(text);
     string deckDescription = "";
-    
+
     if (it != t->deckValues.end()) //translate decks desc
         deckDescription = it->second;
     else
         deckDescription = deckMetaData ? deckMetaData->getDescription() : desc;
 
     if(deckMetaData && deckMetaData->isCommanderDeck())
-        deckDescription = deckDescription + " (" + _("CMD") + ")"; // It will show a CMD suffix for Commander Decks.
+        deckDescription = deckDescription + " (" + _("CMD") + ")";
 
     menuItem->setDescription(deckDescription);
 
     JGuiController::Add(menuItem);
-    if (mCount <= maxItems) mHeight += DeckMenuConst::kLineHeight;
+    if (mCount <= maxItems) mHeight += lineHeight;
 
     if (forceFocus)
     {
@@ -478,11 +491,11 @@ void DeckMenu::updateScroller()
     {
         ostringstream taskDescription;
         taskDescription << "Credits: " << setw(4) << (*it)->getReward() << " / "
-            << "Days Left: " << (*it)->getExpiration() << endl 
-            << (*it)->getDesc() << endl << endl;
+                        << "Days Left: " << (*it)->getExpiration() << endl
+                        << (*it)->getDesc() << endl << endl;
         mScroller->Add(taskDescription.str());
     }
-    
+
 }
 
 void DeckMenu::Close()

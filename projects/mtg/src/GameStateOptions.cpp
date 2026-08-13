@@ -14,6 +14,7 @@ namespace GameStateOptionsConst
     const int kBackToMainMenuID = 2;
     const int kNewProfileID = 4;
     const int kReloadID = 5;
+    const int kManageDataID = 6;
 }
 
 static std::string kBgFile = "";
@@ -55,6 +56,10 @@ void GameStateOptions::Start()
    // optionsList->Add(NEW OptionInteger(Options::INTERRUPTMYABILITIES, "Interrupt my abilities"));
     //this is a dev option, not meant for standard play. uncomment if you need to see abilities you own hitting the stack.
     optionsList->Add(NEW OptionInteger(Options::INTERRUPT_SECONDMAIN, "Interrupt opponent's end of turn"));
+#if defined (ANDROID)
+    // Import / export / download data. Replaces the old swipe-out admin menu.
+    optionsList->Add(NEW WGuiButton(NEW WGuiHeader("Import / Export / Download Data"), -102, GameStateOptionsConst::kManageDataID, this));
+#endif
     optionsList->Add(NEW WGuiButton(NEW WGuiHeader("Back to Main Menu"), -102, GameStateOptionsConst::kBackToMainMenuID, this));
     optionsList->Add(NEW WGuiButton(NEW WGuiHeader("Save And Exit"), -102, GameStateOptionsConst::kSaveAndBackToMainMenuID, this));
     optionsTabs = NEW WGuiTabMenu();
@@ -83,8 +88,8 @@ void GameStateOptions::Start()
     optionsList->Add(NEW WGuiHeader("Interface Options"));
     optionsList->Add(NEW WDecoEnum(NEW OptionInteger(Options::SORTINGSETS, "Sort sets by", Constants::BY_DATE, 1,
                     Constants::BY_NAME, "", Constants::BY_SECTOR))); // Now sets can be sorted by sector(orderindex) or name or release date.
-    optionsList->Add(NEW WDecoEnum(NEW OptionInteger(Options::CLOSEDHAND, "Closed hand", 1, 1, 0)));
-    optionsList->Add(NEW WDecoEnum(NEW OptionInteger(Options::HANDDIRECTION, "Hand direction", 1, 1, 0)));
+//    optionsList->Add(NEW WDecoEnum(NEW OptionInteger(Options::CLOSEDHAND, "Closed hand", 1, 1, 0)));
+//    optionsList->Add(NEW WDecoEnum(NEW OptionInteger(Options::HANDDIRECTION, "Hand direction", 1, 1, 0)));
     optionsList->Add(NEW WDecoEnum(NEW OptionInteger(Options::MANADISPLAY, "Mana display", 3, 1, 0)));
     optionsList->Add(NEW OptionInteger(Options::REVERSETRIGGERS, "Reverse left and right triggers"));
     optionsList->Add(NEW OptionInteger(Options::DISABLECARDS, "Disable card images"));
@@ -325,20 +330,19 @@ void GameStateOptions::Render()
 
     WFont * mFont = WResourceManager::Instance()->GetWFont(Fonts::MAGIC_FONT);
     mFont->SetColor(ARGB(255,200,200,200));
-    mFont->SetScale(1.0);
-    float startpos = 272 - timer;
+    mFont->SetScale(1.0f * SCALE);
+    float startpos = SCREEN_HEIGHT_F - timer;
     float pos = startpos;
     int size = sizeof(CreditsText) / sizeof(CreditsText[0]);
 
     for (int i = 0; i < size; i++)
     {
-        pos = startpos + 20 * i;
+        pos = startpos + 20 * SCALE_Y * i;
         if (pos > -20 && pos < SCREEN_HEIGHT + 20)
         {
             mFont->DrawString(CreditsText[i], SCREEN_WIDTH / 2, pos, JGETEXT_CENTER);
         }
     }
-
     if (pos < -20)
         timer = 0;
 
@@ -373,6 +377,12 @@ void GameStateOptions::ButtonPressed(int controllerId, int controlId)
             break;
         case GameStateOptionsConst::kReloadID:
             mReload = true;
+            break;
+        case GameStateOptionsConst::kManageDataID:
+#if defined (ANDROID)
+            // Ask the Android layer to open the native import/export/download panel.
+            JGE::GetInstance()->sendJNICommand("admin");
+#endif
             break;
         }
     else

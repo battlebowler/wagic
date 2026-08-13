@@ -137,8 +137,17 @@ string SimplePopup::getDetailedInformation(string)
 void SimplePopup::Update(float)
 {
     JButton key = mEngine->ReadButton();
+    // Touch-friendly: tapping anywhere (including the Info button that opened this popup)
+    // dismisses it, instead of requiring a tap on the small dismiss button. The listener's
+    // handler for this popup id closes and deletes the popup.
+    int x, y;
+    if (mEngine->GetLeftClickCoordinates(x, y))
+    {
+        mEngine->LeftClickedProcessed();
+        if (mListener) mListener->ButtonPressed(mId, kInfoMenuID);
+        return;
+    }
     CheckUserInput(key);
- 
 }
 
 // drawing routines

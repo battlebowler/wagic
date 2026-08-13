@@ -12,6 +12,27 @@
 #include "GuiMana.h"
 #include "Trash.h"
 #include "DuelLayers.h"
+#include "GameOptions.h"
+#include "WResourceManager.h"
+#include "WFont.h"
+#include "Translate.h"
+#include "JRenderer.h"
+
+namespace
+{
+    // The phase-advance tap target is the top-right phase text ("(your turn) Main
+    // phase 1", drawn by GuiPhaseBar). It has no button/visual of its own: tapping that
+    // corner advances the phase. Computed at runtime because SCREEN_WIDTH_F is only
+    // correct once the real screen size is known.
+    inline void getNextPhaseRect(float& x, float& y, float& w, float& h)
+    {
+        w = SCREEN_WIDTH_F * 0.40f;   // right ~40%, covering the phase text
+        h = 26.0f;                    // top strip where the phase text sits
+        x = SCREEN_WIDTH_F - w;
+        y = 0.0f;
+    }
+
+}
 
 void DuelLayers::CheckUserInput(int isAI)
 {
@@ -20,10 +41,50 @@ void DuelLayers::CheckUserInput(int isAI)
     JGE* jge = observer->getInput();
     if(!jge) return;
 
+    // Finger-anchored browsing: while the finger is dragging, move the selection to the
+    // card/element under it (with its preview) instead of stepping through with the
+    // directional presses the swipe also emits. Drain those presses so they don't fight
+    // the drag. A tap (no drag) still activates via the normal path below.
+    if (!isAI)
+    {
+        int dragX, dragY;
+        if (jge->GetDragCoordinates(dragX, dragY))
+        {
+            if (mCardSelector)
+                mCardSelector->HoverAt((float)dragX, (float)dragY);
+            while (jge->ReadButton()) {}
+            jge->LeftClickedProcessed();
+            return;
+        }
+    }
+
     while ((key = jge->ReadButton()) || jge->GetLeftClickCoordinates(x, y))
     {
         if ((!isAI) && ((0 != key) ||  jge->GetLeftClickCoordinates(x, y)))
         {
+            // A fresh tap dismisses any lingering big card preview right away. If the tap
+            // lands on a battlefield card, CardSelector re-shows that card's preview during
+            // dispatch below; a tap on anything else (hand, avatar, phase button, empty
+            // space) leaves it cleared.
+            if (mCardSelector && jge->GetLeftClickCoordinates(x, y))
+                mCardSelector->ClearPreview();
+            // (Game menu / return to main menu is opened by the system Back gesture —
+            // an edge swipe — which maps to JGE_BTN_MENU; no on-screen button needed.)
+            // On-screen Next Phase button: a tap inside its bounds advances the phase.
+            float npx, npy, npw, nph;
+            getNextPhaseRect(npx, npy, npw, nph);
+            if (jge->GetLeftClickCoordinates(x, y) &&
+                x >= npx && x <= npx + npw &&
+                y >= npy && y <= npy + nph)
+            {
+                JButton phaseTrigger = options[Options::REVERSETRIGGERS].number ? JGE_BTN_NEXT : JGE_BTN_PREV;
+                jge->LeftClickedProcessed();
+                // Dispatch the phase trigger immediately on this tap (stack first so a
+                // pending interrupt still gets priority, then the phase handler).
+                if (!stack->CheckUserInput(phaseTrigger))
+                    action->CheckUserInput(phaseTrigger);
+                break;
+            }
             if (stack->CheckUserInput(key)) {
                 jge->LeftClickedProcessed();
                 break;
@@ -99,7 +160,10 @@ DuelLayers::DuelLayers(GameObserver* go, int playerViewIndex) :
     action->Add(NEW HUDDisplay(go, -1));
 
     Add(NEW GuiMana(20, 20, getRenderedPlayerOpponent()));
-    Add(NEW GuiMana(440, 20, getRenderedPlayer()));
+    // Player's mana pool anchored to the top-right, just under the phase name, so it no
+    // longer sits on top of the big card preview (which occupies the lower right). Kept
+    // ~45px in from the right edge because the pool renders slightly right of its anchor.
+    Add(NEW GuiMana(SCREEN_WIDTH_F - 45.0f, 20.0f, getRenderedPlayer()));
     Add(stack = NEW ActionStack(go));
     Add(combat = NEW GuiCombat(go));
     Add(action);
@@ -155,6 +219,9 @@ void DuelLayers::Render()
     }
     for (int i = nbitems - 1; i >= 0; --i)
         objects[i]->Render();
+    // (No on-screen Next Phase button: tapping the top-right phase text advances the
+    // phase. No on-screen menu button: the system Back gesture / edge swipe opens the
+    // game menu. See CheckUserInput.)
 }
 
 int DuelLayers::receiveEvent(WEvent * e)

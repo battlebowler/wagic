@@ -15,6 +15,12 @@ struct Pos
     void UpdateNow();
     virtual void Render();
     void Render(JQuad*);
+
+    // Touch hit-testing: returns true if the point (px, py), expressed in game
+    // coordinates, lies within this element's rendered bounds. Elements are drawn
+    // centered on (actX, actY) at scale actZ, so the footprint is
+    // width*actZ by height*actZ around that center.
+    virtual bool Contains(float px, float py) const;
 };
 
 #endif // _POS_H_

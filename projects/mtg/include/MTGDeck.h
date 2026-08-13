@@ -216,6 +216,9 @@ protected:
 public:
     MTGAllCards * database;
     map<int, int> cards;
+    // How many of the owned copies of each card id are FOIL (foilCount[id] <= cards[id]).
+    // Saved as "#FOIL:<id>" lines so older saves (no such lines) simply have zero foils.
+    map<int, int> foilCount;
     string meta_desc;
     string meta_name;
     bool meta_commander;
@@ -242,6 +245,11 @@ public:
     void replaceSB(vector<string> newSB = vector<string>());
     void replaceCMD(vector<string> newCMD = vector<string>());
     void replaceDNG(vector<string> newDNG = vector<string>());
+    // Foil ownership helpers. addFoil/removeFoil adjust the foil count (clamped to [0,
+    // cards[id]]); getFoilCount returns how many owned copies of the card are foil.
+    int getFoilCount(int cardid);
+    void addFoil(int cardid, int n = 1);
+    void removeFoil(int cardid, int n = 1);
     string getFilename();
     int save();
     int save(const string& destFileName, bool useExpandedDescriptions, const string& deckTitle, const string& deckDesc);

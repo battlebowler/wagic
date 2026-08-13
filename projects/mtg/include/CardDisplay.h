@@ -19,6 +19,11 @@ public:
     CardDisplay(int id, GameObserver* game, int x, int y, JGuiListener * listener = NULL, TargetChooser * tc = NULL,
             int nb_displayed_items = 7);
     void AddCard(MTGCardInstance * _card);
+    // Focus a card by index (e.g. to show a pulled foil big in the pack reveal).
+    void setCurrentCard(int i) { if (i >= 0 && i < (int) mObjects.size()) mCurr = i; }
+    // Nearest pack-reveal thumbnail to a screen point (-1 if none). Thumbnail x/y are set
+    // each frame in Render(norect); used for finger-anchored swipe selection.
+    int thumbAtPoint(float px, float py) const;
     void rotateLeft();
     void rotateRight();
     bool CheckUserInput(JButton key);

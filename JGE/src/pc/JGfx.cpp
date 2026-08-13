@@ -2525,7 +2525,7 @@ void JRenderer::Enable2D()
 
     mCurrentRenderMode = MODE_2D;
 
-    glViewport (0, 0, (GLsizei)SCREEN_WIDTH, (GLsizei)SCREEN_HEIGHT);	// Reset The Current Viewport
+    glViewport (0, 0, (GLsizei)mActualWidth, (GLsizei)mActualHeight);	// Use real device pixels for viewport	// Reset The Current Viewport
 #if (!defined GL_ES_VERSION_2_0) && (!defined GL_VERSION_2_0)
     glMatrixMode (GL_PROJECTION);										// Select The Projection Matrix
     glLoadIdentity ();													// Reset The Projection Matrix

@@ -8,7 +8,7 @@
 using namespace std;
 
 #define SCALE_SELECTED      1.2f
-#define SCALE_NORMAL        1.0f
+#define SCALE_NORMAL        SCALE
 
 class hgeParticleSystem;
 
@@ -28,12 +28,18 @@ protected:
     JQuad * onQuad;
     JQuad * offQuad;
     hgeParticleSystem* mParticleSys;
+    float mHitHalfWidth; // horizontal half-extent of the tap zone (non-row items)
+    bool mRowSelect;     // true for a horizontal-row icon: any tap in the row band hits it,
+                         // and the controller then picks the horizontally-nearest icon
 
 public:
     MenuItem(int id, WFont *font, string text, float x, float y, JQuad * _off, JQuad * _on, const char * particle, JQuad * particleQuad, bool hasFocus = false);
     ~MenuItem();
     virtual void Render();
     virtual void Update(float dt);
+
+    void setHitHalfWidth(float w) { mHitHalfWidth = w; }
+    void setRowSelect(bool v) { mRowSelect = v; }
 
     virtual void Entering();
     virtual bool Leaving(JButton key);
@@ -45,6 +51,8 @@ public:
         return true;
     }
     ;
+    virtual bool HitTest(float px, float py);
+    virtual bool hasHitTestBounds() { return true; }
 
     virtual ostream& toString(ostream& out) const;
 };

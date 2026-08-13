@@ -8,7 +8,7 @@
 #include "Translate.h"
 
 DeckEditorMenu::DeckEditorMenu(int id, JGuiListener* listener, int fontId, const string& _title, DeckDataWrapper *_selectedDeck, StatsWrapper *stats) :
-    DeckMenu(id, listener, fontId, _title), selectedDeck(_selectedDeck), stw(stats)
+        DeckMenu(id, listener, fontId, _title), selectedDeck(_selectedDeck), stw(stats)
 {
 #if !defined (PSP)
     //Now it's possibile to randomly use up to 10 background images for deck editor selection (if random index is 0, it will be rendered the default "menubgdeckeditor.jpg" image).
@@ -28,50 +28,54 @@ DeckEditorMenu::DeckEditorMenu(int id, JGuiListener* listener, int fontId, const
     mShowDetailsScreen = false;
     deckTitle = selectedDeck ? selectedDeck->parent->meta_name : "";
 
-    mX = 123;
-    mY = 70;
-    starsOffsetX = 50;
+    // All positions as fractions of screen dimensions.
+    // Original PSP values (for 480x272) in comments.
+    mX = SCREEN_WIDTH_F * (123.0f / 480.0f);        // was 123
+    mY = SCREEN_HEIGHT_F * (70.0f / 272.0f);         // was 70
+    starsOffsetX = SCREEN_WIDTH_F * (50.0f / 480.0f); // was 50
 
-    //titleX = 110; // center point in title box
     if(selectedDeck)
     {
 #if defined PSP
-        titleX = (SCREEN_WIDTH_F/2.f) + 10;
+        titleX = (SCREEN_WIDTH_F/2.f) + SCREEN_WIDTH_F * (10.0f / 480.0f);
 #else
         titleX = (SCREEN_WIDTH_F/2.f);
 #endif
-        titleY = 13;
+        titleY = SCREEN_HEIGHT_F * (13.0f / 272.0f);  // was 13
     }
     else
     {
-        titleX = SCREEN_WIDTH_F/6.5f; // center point in title box
-        titleY = 25;
+        titleX = SCREEN_WIDTH_F/6.5f;
+        titleY = SCREEN_HEIGHT_F * (25.0f / 272.0f);  // was 25
     }
-    titleWidth = 180; // width of inner box of title
+    titleWidth = SCREEN_WIDTH_F * (180.0f / 480.0f);  // was 180
 
-    descX = 275;
-    descY = 80;
-    descHeight = 154;
-    descWidth = 175;
+    descX = SCREEN_WIDTH_F * (275.0f / 480.0f);       // was 275
+    descY = SCREEN_HEIGHT_F * (80.0f / 272.0f);        // was 80
+    descHeight = SCREEN_HEIGHT_F * (154.0f / 272.0f);   // was 154
+    descWidth = SCREEN_WIDTH_F * (175.0f / 480.0f);    // was 175
 
-    statsHeight = 50;
-    statsWidth = 185;
-    statsX = 280;
-    statsY = 12;
+    statsHeight = SCREEN_HEIGHT_F * (50.0f / 272.0f);   // was 50
+    statsWidth = SCREEN_WIDTH_F * (185.0f / 480.0f);    // was 185
+    statsX = SCREEN_WIDTH_F * (280.0f / 480.0f);        // was 280
+    statsY = SCREEN_HEIGHT_F * (12.0f / 272.0f);         // was 12
 
-    avatarX = 222;
-    avatarY = 8;
+    avatarX = SCREEN_WIDTH_F * (222.0f / 480.0f);       // was 222
+    avatarY = SCREEN_HEIGHT_F * (8.0f / 272.0f);          // was 8
 
-    float scrollerWidth = 80;
+    float scrollerWidth = SCREEN_WIDTH_F * (80.0f / 480.0f);  // was 80
+    float scrollerX = SCREEN_WIDTH_F * (40.0f / 480.0f);       // was 40
+    float scrollerY = SCREEN_HEIGHT_F * (230.0f / 272.0f);     // was 230
+    float scrollerH = SCREEN_HEIGHT_F * (100.0f / 272.0f);     // was 100
     SAFE_DELETE(mScroller); // need to delete the scroller init in the base class
-    mScroller = NEW VerticalTextScroller(Fonts::MAIN_FONT, 40, 230, scrollerWidth, 100);
+    mScroller = NEW VerticalTextScroller(Fonts::MAIN_FONT, scrollerX, scrollerY, scrollerWidth, scrollerH);
 
 }
 
 void DeckEditorMenu::Render()
 {
     JRenderer *r = JRenderer::GetInstance();
-    r->FillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, ARGB(200,0,0,0));//bg??
+    r->FillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, ARGB(200,0,0,0));
 
     DeckMenu::Render();
     if (deckTitle.size() > 0)
@@ -81,10 +85,10 @@ void DeckEditorMenu::Render()
         DWORD currentColor = mainFont->GetColor();
         mainFont->SetColor(ARGB(255,255,255,255));
 #if defined PSP
-        mainFont->DrawString(deckTitle.c_str(), (SCREEN_WIDTH_F / 2)-modt+10, (statsHeight / 2)+4, JGETEXT_CENTER);
+        mainFont->DrawString(deckTitle.c_str(), (SCREEN_WIDTH_F / 2)-modt + SCREEN_WIDTH_F * (10.0f / 480.0f), (statsHeight / 2) + SCREEN_HEIGHT_F * (4.0f / 272.0f), JGETEXT_CENTER);
 #else
-        mainFont->DrawString(deckTitle.c_str(), (SCREEN_WIDTH_F / 2)-modt, (statsHeight / 2)+4, JGETEXT_CENTER);
-#endif 
+        mainFont->DrawString(deckTitle.c_str(), (SCREEN_WIDTH_F / 2)-modt, (statsHeight / 2) + SCREEN_HEIGHT_F * (4.0f / 272.0f), JGETEXT_CENTER);
+#endif
         mainFont->SetColor(currentColor);
     }
 
@@ -97,34 +101,34 @@ void DeckEditorMenu::drawDeckStatistics()
     ostringstream deckStatsString;
 
     deckStatsString
-        << _("------- Deck Summary -----") << endl
-        << _("Cards: ") << stw->cardCount << "      Sideboard: " << selectedDeck->parent->Sideboard.size() << endl
-        << _("Creatures: ") << setw(2) << stw->countCreatures
-        << _("  Enchantments: ") << stw->countEnchantments << endl
-        << _("Instants: ") << setw(4) << stw->countInstants
-        << _("   Sorceries:      ") << setw(2) << stw->countSorceries << endl
-        << _("Lands: ")
-        << _("A: ") << setw(2) << left  << stw->countLandsPerColor[ Constants::MTG_COLOR_ARTIFACT ] + stw->countBasicLandsPerColor[ Constants::MTG_COLOR_ARTIFACT ] << " "
-        << _("G: ") << setw(2) << left  << stw->countLandsPerColor[ Constants::MTG_COLOR_GREEN ] + stw->countLandsPerColor[ Constants::MTG_COLOR_GREEN ] << " "
-        << _("R: ") << setw(2) << left  << stw->countLandsPerColor[ Constants::MTG_COLOR_RED ] + stw->countBasicLandsPerColor[ Constants::MTG_COLOR_RED ] << " "
-        << _("U: ") << setw(2) << left  << stw->countLandsPerColor[ Constants::MTG_COLOR_BLUE ] + stw->countBasicLandsPerColor[ Constants::MTG_COLOR_BLUE ] << " "
-        << _("B: ") << setw(2) << left  << stw->countLandsPerColor[ Constants::MTG_COLOR_BLACK ] + stw->countBasicLandsPerColor[ Constants::MTG_COLOR_BLACK ] << " "
-        << _("W: ") << setw(2) << left  << stw->countLandsPerColor[ Constants::MTG_COLOR_WHITE ] + stw->countBasicLandsPerColor[ Constants::MTG_COLOR_WHITE ] << endl
-        << _("  --- Card color count ---  ") << endl
-        << _("A: ") << setw(2) << left  << selectedDeck->getCount(Constants::MTG_COLOR_ARTIFACT) << " "
-        << _("G: ") << setw(2) << left << selectedDeck->getCount(Constants::MTG_COLOR_GREEN) << " "
-        << _("U: ") << setw(2) << left << selectedDeck->getCount(Constants::MTG_COLOR_BLUE) << " "
-        << _("R: ") << setw(2) << left << selectedDeck->getCount(Constants::MTG_COLOR_RED) << " "
-        << _("B: ") << setw(2) << left << selectedDeck->getCount(Constants::MTG_COLOR_BLACK) << " "
-        << _("W: ") << setw(2) << left << selectedDeck->getCount(Constants::MTG_COLOR_WHITE) << endl
+            << _("------- Deck Summary -----") << endl
+            << _("Cards: ") << stw->cardCount << "      Sideboard: " << selectedDeck->parent->Sideboard.size() << endl
+            << _("Creatures: ") << setw(2) << stw->countCreatures
+            << _("  Enchantments: ") << stw->countEnchantments << endl
+            << _("Instants: ") << setw(4) << stw->countInstants
+            << _("   Sorceries:      ") << setw(2) << stw->countSorceries << endl
+            << _("Lands: ")
+            << _("A: ") << setw(2) << left  << stw->countLandsPerColor[ Constants::MTG_COLOR_ARTIFACT ] + stw->countBasicLandsPerColor[ Constants::MTG_COLOR_ARTIFACT ] << " "
+            << _("G: ") << setw(2) << left  << stw->countLandsPerColor[ Constants::MTG_COLOR_GREEN ] + stw->countLandsPerColor[ Constants::MTG_COLOR_GREEN ] << " "
+            << _("R: ") << setw(2) << left  << stw->countLandsPerColor[ Constants::MTG_COLOR_RED ] + stw->countBasicLandsPerColor[ Constants::MTG_COLOR_RED ] << " "
+            << _("U: ") << setw(2) << left  << stw->countLandsPerColor[ Constants::MTG_COLOR_BLUE ] + stw->countBasicLandsPerColor[ Constants::MTG_COLOR_BLUE ] << " "
+            << _("B: ") << setw(2) << left  << stw->countLandsPerColor[ Constants::MTG_COLOR_BLACK ] + stw->countBasicLandsPerColor[ Constants::MTG_COLOR_BLACK ] << " "
+            << _("W: ") << setw(2) << left  << stw->countLandsPerColor[ Constants::MTG_COLOR_WHITE ] + stw->countBasicLandsPerColor[ Constants::MTG_COLOR_WHITE ] << endl
+            << _("  --- Card color count ---  ") << endl
+            << _("A: ") << setw(2) << left  << selectedDeck->getCount(Constants::MTG_COLOR_ARTIFACT) << " "
+            << _("G: ") << setw(2) << left << selectedDeck->getCount(Constants::MTG_COLOR_GREEN) << " "
+            << _("U: ") << setw(2) << left << selectedDeck->getCount(Constants::MTG_COLOR_BLUE) << " "
+            << _("R: ") << setw(2) << left << selectedDeck->getCount(Constants::MTG_COLOR_RED) << " "
+            << _("B: ") << setw(2) << left << selectedDeck->getCount(Constants::MTG_COLOR_BLACK) << " "
+            << _("W: ") << setw(2) << left << selectedDeck->getCount(Constants::MTG_COLOR_WHITE) << endl
 
-        << _(" --- Average Cost --- ") << endl
-        << _("Creature: ") << setprecision(2) << stw->avgCreatureCost << endl
-        << _("Mana: ") << setprecision(2) << stw->avgManaCost << "   "
-        << _("Spell: ") << setprecision(2) << stw->avgSpellCost << endl;
+            << _(" --- Average Cost --- ") << endl
+            << _("Creature: ") << setprecision(2) << stw->avgCreatureCost << endl
+            << _("Mana: ") << setprecision(2) << stw->avgManaCost << "   "
+            << _("Spell: ") << setprecision(2) << stw->avgSpellCost << endl;
 
     WFont *mainFont = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
-    mainFont->DrawString(deckStatsString.str().c_str(), descX, descY + 25);
+    mainFont->DrawString(deckStatsString.str().c_str(), descX, descY + SCREEN_HEIGHT_F * (25.0f / 272.0f));
 }
 
 DeckEditorMenu::~DeckEditorMenu()

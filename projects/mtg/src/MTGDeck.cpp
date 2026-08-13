@@ -965,6 +965,13 @@ MTGDeck::MTGDeck(const string& config_file, MTGAllCards * _allcards, int meta_on
                     meta_unlockRequirements = s.substr(found + 7);
                     continue;
                 }
+                found = s.find("FOIL:");
+                if (found != string::npos)
+                {
+                    int fid = atoi(s.substr(found + 5).c_str());
+                    if (fid) foilCount[fid]++; // clamped to owned copies in getFoilCount()
+                    continue;
+                }
                 found = s.find("SB:"); // Now it's possible to add cards to Sideboard even using their Name instead of ID such as normal deck cards.
                 if (found != string::npos && database)
                 {
@@ -1346,6 +1353,9 @@ int MTGDeck::remove(int cardid)
     if (cards.find(cardid) == cards.end() || cards[cardid] == 0) return 0;
     cards[cardid]--;
     total_cards--;
+    // A removed copy may have been a foil; never let the foil count exceed remaining copies.
+    if (foilCount.count(cardid) && foilCount[cardid] > cards[cardid])
+        foilCount[cardid] = cards[cardid];
     //initCounters();
     return 1;
 }
@@ -1354,6 +1364,33 @@ int MTGDeck::remove(MTGCard * card)
 {
     if (!card) return 0;
     return (remove(card->getId()));
+}
+
+int MTGDeck::getFoilCount(int cardid)
+{
+    map<int, int>::iterator it = foilCount.find(cardid);
+    if (it == foilCount.end())
+        return 0;
+    int owned = (cards.find(cardid) != cards.end()) ? cards[cardid] : 0;
+    return (it->second > owned) ? owned : it->second; // never report more foils than owned
+}
+
+void MTGDeck::addFoil(int cardid, int n)
+{
+    // Store the raw foil count (NOT clamped to owned here): the copy may not be in `cards`
+    // yet at add time (e.g. a pack foil is recorded before the collection is rebuilt).
+    // getFoilCount() and save() clamp to the owned-copy count on read/write.
+    int cur = 0;
+    map<int, int>::iterator it = foilCount.find(cardid);
+    if (it != foilCount.end()) cur = it->second;
+    cur += n;
+    if (cur < 0) cur = 0;
+    foilCount[cardid] = cur;
+}
+
+void MTGDeck::removeFoil(int cardid, int n)
+{
+    addFoil(cardid, -n);
 }
 
 int MTGDeck::save()
@@ -1409,6 +1446,14 @@ int MTGDeck::save(const string& destFileName, bool useExpandedDescriptions, cons
                     file << writer;
                 }
             }
+        }
+        //save foil ownership: one "#FOIL:<id>" line per foil copy (clamped to owned copies).
+        for (map<int, int>::iterator fit = foilCount.begin(); fit != foilCount.end(); ++fit)
+        {
+            int owned = (cards.find(fit->first) != cards.end()) ? cards[fit->first] : 0;
+            int nfoil = (fit->second > owned) ? owned : fit->second;
+            for (int j = 0; j < nfoil; j++)
+                file << "#FOIL:" << fit->first << "\n";
         }
         //save sideboards
         if(Sideboard.size())

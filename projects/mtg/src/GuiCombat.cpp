@@ -311,17 +311,22 @@ bool GuiCombat::CheckUserInput(JButton key)
     if(observer->getInput()->GetLeftClickCoordinates(x, y))
     {
         // determine if OK button was clicked on
-        if (ok.width)
+        if (ok.width && didClickOnButton(ok, x, y))
         {
-            if (didClickOnButton(ok, x, y))
-            {
-                cursor_pos = OK;
-            }
+            cursor_pos = OK;
         }
         // position selected card
-        if (BLK == cursor_pos)
+        else if (BLK == cursor_pos && activeAtk)
         {
-            DamagerDamaged* selectedCard = closest<GuiCombatTrue> (activeAtk->blockers, NULL, static_cast<float> (x), static_cast<float> (y));
+            // Touch-first: only react to a tap that actually lands on one of the
+            // blockers; a tap on empty space is ignored rather than snapping to the
+            // nearest blocker (and, via the accompanying OK, assigning damage to it).
+            DamagerDamaged* selectedCard = hitTest<DamagerDamaged> (activeAtk->blockers, NULL, static_cast<float> (x), static_cast<float> (y));
+            if (!selectedCard)
+            {
+                observer->getInput()->LeftClickedProcessed();
+                return true;
+            }
             // find the index into the vector where the current selected card is.
             int c1 = 0, c2 = 0;
             int i = 0;
@@ -373,9 +378,15 @@ bool GuiCombat::CheckUserInput(JButton key)
             }
             else if (ATK == cursor_pos)
             {
-                active = activeAtk->blockers.front();
-                active->zoom = kZoom_level3;
-                cursor_pos = BLK;
+                // Only descend into per-blocker ordering if this attacker actually has
+                // blockers; blockers.front() on an empty vector is undefined behaviour
+                // and crashed when confirming an unblocked attacker.
+                if (activeAtk && !activeAtk->blockers.empty())
+                {
+                    active = activeAtk->blockers.front();
+                    active->zoom = kZoom_level3;
+                    cursor_pos = BLK;
+                }
             }
             else if (OK == cursor_pos)
             {

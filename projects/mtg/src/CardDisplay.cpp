@@ -39,6 +39,22 @@ void CardDisplay::AddCard(MTGCardInstance * _card)
     Add(card);
 }
 
+int CardDisplay::thumbAtPoint(float px, float /*py*/) const
+{
+    // The pack-reveal thumbnails form one horizontal strip, so browse by X alone: a swipe
+    // anywhere across the reveal selects the card whose column the finger is over.
+    int best = -1;
+    float bestDx = 1e9f;
+    for (size_t i = 0; i < mObjects.size(); i++)
+    {
+        CardGui * cg = (CardGui *) mObjects[i];
+        if (!cg) continue;
+        float dx = fabs(cg->x - px);
+        if (dx < bestDx) { bestDx = dx; best = (int) i; }
+    }
+    return best;
+}
+
 void CardDisplay::init(MTGGameZone * zone)
 {
     resetObjects();
@@ -242,27 +258,97 @@ void CardDisplay::Render(bool norect)
     //if(norect)
        // r->FillRect(0,0,SCREEN_WIDTH_F,SCREEN_HEIGHT_F,ARGB(180,5,5,5));
 
-    if(norect)
+    if (norect)
     {
-        //info
-        r->FillRect(static_cast<float> (x), static_cast<float> (10), static_cast<float> (nb_displayed_items * 30 + 20), 192,
-                    ARGB(200,5,5,5));
-        r->DrawRect(static_cast<float> (x), static_cast<float> (10), static_cast<float> (nb_displayed_items * 30 + 20), 192,
-                    ARGB(255,240,240,240));
-        r->DrawRect(static_cast<float> (x)+1, static_cast<float> (10)+1, static_cast<float> (nb_displayed_items * 30 + 20)-2, 192-2,
-                    ARGB(255,89,89,89));
+        // ---- Booster pack reveal (redesigned) ----
+        // Dim the shop background so the opened cards stand out.
+        r->FillRect(0, 0, SCREEN_WIDTH_F, SCREEN_HEIGHT_F, ARGB(224, 8, 8, 12));
+        if (!mObjects.size()) return;
+        int n = (int) mObjects.size();
 
-        //navi
-        r->FillRect(static_cast<float> (x), static_cast<float> (y), static_cast<float> (nb_displayed_items * 30 + 20), 50,
-                    ARGB(200,5,5,5));
-        r->DrawRect(static_cast<float> (x), static_cast<float> (y), static_cast<float> (nb_displayed_items * 30 + 20), 50,
-                    ARGB(255,240,240,240));
-        r->DrawRect(static_cast<float> (x)+1, static_cast<float> (y)+1, static_cast<float> (nb_displayed_items * 30 + 20)-2, 50-2,
-                    ARGB(255,89,89,89));
+        // Thumbnail row of every card in the pack, centered along the bottom (above the
+        // credits bar). Tap one to inspect it; the selected one is highlighted.
+        float cellW = (SCREEN_WIDTH_F - 24.0f) / n;
+        if (cellW > 30.0f) cellW = 30.0f;
+        float rowY = SCREEN_HEIGHT_F - 44.0f;
+        float startX = (SCREEN_WIDTH_F - n * cellW) / 2.0f + cellW / 2.0f;
+        for (int i = 0; i < n; i++)
+        {
+            if (!mObjects[i]) continue;
+            CardGui * cg = (CardGui *) mObjects[i];
+            cg->x = startX + i * cellW;
+            cg->y = rowY;
+            // Only the selected thumbnail is enlarged. Forcing zoom from mCurr every frame
+            // avoids stale Entering() zoom (tapping/dragging away always shrinks the rest).
+            cg->zoom = (i == mCurr) ? 1.4f : 1.0f;
+            if (i == mCurr)
+                r->FillRect(cg->x - cellW / 2 + 1, rowY - 24, cellW - 2, 48, ARGB(120, 235, 205, 120));
+            cg->Render();
+        }
+
+        // Big selected card on the left, with its name + rules text to the right.
+        if (mObjects[mCurr])
+        {
+            CardGui * cardg = (CardGui *) mObjects[mCurr];
+            Pos pos = Pos(SCREEN_WIDTH_F * 0.26f, SCREEN_HEIGHT_F * 0.40f, 0.72f, 0.0f, 255);
+            int drawMode = observer ? observer->getCardSelector()->GetDrawMode() : DrawMode::kNormal;
+            cardg->DrawCard(pos, drawMode);
+
+            float tx = SCREEN_WIDTH_F * 0.52f;
+            float colW = SCREEN_WIDTH_F * 0.42f; // right-hand text column width
+            mFont->SetColor(ARGB(255, 240, 230, 140));
+            mFont->SetScale(1.3f);
+            mFont->DrawString(cardg->card->data->name.c_str(), tx, 30);
+            mFont->SetScale(0.85f);
+            mFont->SetColor(ARGB(255, 235, 235, 235));
+
+            // Skip rules text for basic lands (they only show a mana letter like "w").
+            if (cardg->card->getRarity() != Constants::RARITY_L)
+            {
+                // Rebuild the full text, then word-wrap it manually to the column width
+                // (the raw formatted lines are pre-wrapped narrow for the tiny card box).
+                string raw;
+                const std::vector<string>& txt = cardg->card->data->getFormattedText(true);
+                for (std::vector<string>::const_iterator it = txt.begin(); it != txt.end(); ++it)
+                {
+                    if (!raw.empty()) raw.append(" ");
+                    raw.append(*it);
+                }
+                float lineY = 52.0f;
+                float lineH = mFont->GetHeight() + 1.0f;
+                size_t p = 0;
+                string line;
+                while (p < raw.size())
+                {
+                    size_t sp = raw.find(' ', p);
+                    string word = (sp == string::npos) ? raw.substr(p) : raw.substr(p, sp - p);
+                    p = (sp == string::npos) ? raw.size() : sp + 1;
+                    if (word.empty()) continue;
+                    string test = line.empty() ? word : line + " " + word;
+                    if (!line.empty() && mFont->GetStringWidth(test.c_str()) > colW)
+                    {
+                        mFont->DrawString(line.c_str(), tx, lineY);
+                        lineY += lineH;
+                        line = word;
+                    }
+                    else
+                        line = test;
+                }
+                if (!line.empty())
+                    mFont->DrawString(line.c_str(), tx, lineY);
+            }
+            mFont->SetScale(1.0f);
+            mFont->SetColor(ARGB(255, 255, 255, 255));
+        }
+
+        mFont->SetColor(ARGB(180, 205, 205, 205));
+        mFont->DrawString("Tap a card to inspect  -  Back to close", SCREEN_WIDTH_F / 2, 8, JGETEXT_CENTER);
+        mFont->SetColor(ARGB(255, 255, 255, 255));
+        return;
     }
-    else
-        r->DrawRect(static_cast<float> (x), static_cast<float> (y), static_cast<float> (nb_displayed_items * 30 + 20), 50,
-                    ARGB(255,255,255,255));
+
+    // No outline box for the in-game zone view — the cards themselves show the boundaries,
+    // so the old white rectangle (drawn even for an empty zone) is redundant.
     if (!mObjects.size()) return;
     for (int i = start_item; i < start_item + nb_displayed_items && i < (int)(mObjects.size()); i++)
     {

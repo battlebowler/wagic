@@ -590,8 +590,17 @@ void GameStateDuel::Update(float dt)
         break;
 
     case DUEL_STATE_DECK1_DETAILED_INFO:
+        if (popupScreen) popupScreen->Update(dt);
+        else setGamePhase(DUEL_STATE_CHOOSE_DECK1); // no popup -> don't dereference null
+        // Keep the background menu's particle animation running while the info popup is
+        // up (input still goes only to the popup, which was updated above). Without this
+        // the animation appears frozen until the popup is dismissed.
+        if (deckmenu) deckmenu->UpdateVisuals(dt);
+        break;
     case DUEL_STATE_DECK2_DETAILED_INFO:
-        popupScreen->Update(dt);
+        if (popupScreen) popupScreen->Update(dt);
+        else setGamePhase(DUEL_STATE_CHOOSE_DECK2_TO_PLAY);
+        if (opponentMenu) opponentMenu->UpdateVisuals(dt);
         break;
 
     case DUEL_STATE_CHOOSE_DECK1:
@@ -1386,7 +1395,7 @@ void GameStateDuel::ButtonPressed(int controllerId, int controlId)
         setGamePhase(DUEL_STATE_CNOGMENU_IS_CLOSING);
         break;
     case DUEL_MENU_DETAILED_DECK1_INFO:
-        if ((popupScreen || deckmenu->showDetailsScreen()))
+        if (popupScreen) // guard: the body dereferences popupScreen; NULL here froze the game
         {
             DeckMetaData* selectedDeck = deckmenu->getSelectedDeck();
             if (!popupScreen->isClosed())
@@ -1403,7 +1412,7 @@ void GameStateDuel::ButtonPressed(int controllerId, int controlId)
         }
         break;
     case DUEL_MENU_DETAILED_DECK2_INFO:
-        if ((popupScreen || opponentMenu->showDetailsScreen()))
+        if (popupScreen) // guard: the body dereferences popupScreen; NULL here froze the game
         {
             DeckMetaData* selectedDeck = opponentMenu->getSelectedDeck();
             if (!popupScreen->isClosed())

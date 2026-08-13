@@ -164,6 +164,15 @@ class JGE
   int mLastLeftClickX;
   int mlastLeftClickY;
 
+  // Touch drag position (finger being dragged, distinct from a click/tap). Used for
+  // finger-anchored browsing (e.g. the in-game hand): the selection follows the finger
+  // without activating anything.
+  int mDragX;
+  int mDragY;
+
+  static int mScreenWidth;
+  static int mScreenHeight;
+
   friend void Run();
 
  public:
@@ -188,6 +197,11 @@ class JGE
 
   void Pause();
   void Resume();
+
+  static void SetScreenWidth(int width);
+  static void SetScreenHeight(int height);
+  static int  GetScreenWidth();
+  static int  GetScreenHeight();
 
   //////////////////////////////////////////////////////////////////////////
   /// Return argv.
@@ -344,6 +358,12 @@ class JGE
   // Getter, may have to move that in the JGuiListener
   // Returns false if nothing has been clicked, true otherwise
   bool GetLeftClickCoordinates(int& x, int& y);
+
+  // Touch drag position (finger-anchored browsing). Set continuously while the finger
+  // is dragging; distinct from a click so it moves selection without activating.
+  void Dragging(int x, int y);
+  void DragProcessed();
+  bool GetDragCoordinates(int& x, int& y);
 
 
   // Scroll events - currently triggered by SDL JOYBALL events

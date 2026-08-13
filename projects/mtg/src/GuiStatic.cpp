@@ -187,6 +187,23 @@ void GuiAvatar::Render()
     PlayGuiObject::Render();
 }
 
+bool GuiAvatar::Contains(float px, float py) const
+{
+    // The avatar icon is Width x Height (scaled by actZ). A TOP_LEFT avatar anchors
+    // its top-left at (actX, actY); a BOTTOM_RIGHT avatar anchors its bottom-right
+    // there. Mirror that so taps hit the icon as drawn.
+    float w = Width * actZ;
+    float h = Height * actZ;
+    float left = actX;
+    float top = actY;
+    if (corner == BOTTOM_RIGHT)
+    {
+        left = actX - w;
+        top = actY - h;
+    }
+    return (px >= left && px <= left + w && py >= top && py <= top + h);
+}
+
 ostream& GuiAvatar::toString(ostream& out) const
 {
     return out << "GuiAvatar ::: avatarRed : " << avatarRed << " ; currentLife : " << currentLife << " ; currentpoisonCount : "
@@ -320,9 +337,26 @@ void GuiGameZone::Render()
         }
     }
 
+    // Button background so each zone reads as an explicit, tappable button (mobile). The
+    // whole box (not just the icon) is the tap target — width/height feed Contains().
+    {
+        JRenderer * br = JRenderer::GetInstance();
+        float bw = GuiGameZone::Width * actZ;
+        float bh = GuiGameZone::Height * actZ;
+        // Flat grey panel matching the interrupt dialog (89,89,89) with a light border;
+        // focused zone gets a warm highlight border.
+        br->FillRect(actX, actY, bw, bh, ARGB((int)actA, 89, 89, 89));
+        br->DrawRect(actX, actY, bw, bh, ARGB((int)actA,
+                     mHasFocus ? 240 : 210, mHasFocus ? 220 : 210, mHasFocus ? 120 : 210));
+        width = bw;
+        height = bh;
+    }
+
     //render small card quad
     if(quad)
+    {
         JRenderer::GetInstance()->RenderQuad(quad.get(), actX+modx, actY+mody, 0.0, scale2 * actZ, scale2 * actZ);
+    }
     /*if(overlay)
         JRenderer::GetInstance()->RenderQuad(overlay.get(), actX, actY, 0.0, scale2 * actZ, scale2 * actZ);*/
 
@@ -387,17 +421,42 @@ void GuiGameZone::ButtonPressed(int, int)
     zone->owner->getObserver()->ButtonPressed(this);
 }
 
+bool GuiGameZone::Contains(float px, float py) const
+{
+    // Zones (library, graveyard, exile, ...) draw their icon top-left anchored at
+    // (actX, actY); width/height are captured during Render.
+    if (width <= 0.f || height <= 0.f)
+        return false;
+    return (px >= actX && px <= actX + width &&
+            py >= actY && py <= actY + height);
+}
+
 bool GuiGameZone::CheckUserInput(JButton key)
 {
     if (showCards)
         return cd->CheckUserInput(key);
-    else if(type == GUI_LIBRARY && zone->nb_cards && !showCards && key == JGE_BTN_OK && mHasFocus)
+    else if(type == GUI_LIBRARY && zone->nb_cards && !showCards && key == JGE_BTN_OK)
     {
-        bool activateclick = true;
-        
         int top = zone->nb_cards - 1;
         MTGCardInstance * card = zone->cards[top];
         GameObserver * game = card->getObserver();
+
+        // Touch-first: when this OK came from a tap, only draw from the library if the
+        // tap actually landed on the pile (otherwise let it fall through to the card
+        // selector, so tapping empty space does nothing even while the pile is focused).
+        // A keyboard/gamepad OK still requires the pile to be the focused element.
+        int cx, cy;
+        if (game && game->getInput() && game->getInput()->GetLeftClickCoordinates(cx, cy))
+        {
+            if (!Contains(static_cast<float>(cx), static_cast<float>(cy)))
+                return false;
+        }
+        else if (!mHasFocus)
+        {
+            return false;
+        }
+
+        bool activateclick = true;
         if(game)
         {
             TargetChooser * tc = game->getCurrentTargetChooser();
@@ -439,7 +498,10 @@ GuiGameZone::GuiGameZone(float x, float y, bool hasFocus, MTGGameZone* zone, Gui
     GuiStatic(static_cast<float> (GuiGameZone::Height), x, y, hasFocus, parent), zone(zone)
 {
     
-    cd = NEW CardDisplay(0, zone->owner->getObserver(),y > 150 ? static_cast<int> (x)-235:static_cast<int> (x)+23, static_cast<int> (y), this);
+    // Open the card list toward screen-center: right-edge (self) buttons open it to the
+    // left, left-edge (opponent) buttons open it to the right, so it never runs off-screen.
+    int cdx = (x > SCREEN_WIDTH / 2) ? static_cast<int>(x) - 235 : static_cast<int>(x) + 35;
+    cd = NEW CardDisplay(0, zone->owner->getObserver(), cdx, static_cast<int> (y), this);
     cd->zone = zone;
     showCards = 0;
 }

@@ -206,6 +206,18 @@ float SimpleButton::GetWidth()
     return result;
 }
 
+bool SimpleButton::HitTest(float px, float py)
+{
+    // The label is drawn horizontally centred on mX with its top at mY + mYOffset.
+    WFont * mFont = WResourceManager::Instance()->GetWFont(mFontId);
+    float w = GetWidth();
+    float h = mFont ? mFont->GetHeight() : 12.0f;
+    // A little vertical padding makes narrow rows easier to hit.
+    float top = mY + mYOffset - 2.0f;
+    float bottom = mY + mYOffset + h + 2.0f;
+    return (px >= mX - w * 0.5f && px <= mX + w * 0.5f && py >= top && py <= bottom);
+}
+
 float SimpleButton::GetEnlargedWidth()
 {
     WFont * mFont = WResourceManager::Instance()->GetWFont(mFontId);

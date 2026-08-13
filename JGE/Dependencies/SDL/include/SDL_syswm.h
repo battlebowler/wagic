@@ -33,16 +33,6 @@
 #include "SDL_video.h"
 #include "SDL_version.h"
 
-/* Include <windows.h> before begin_code.h to avoid packing mismatch:
-   begin_code.h sets #pragma pack(push,4), but winnt.h (Windows 10 SDK)
-   asserts LARGE_INTEGER has 8-byte alignment at default packing. */
-#if defined(SDL_VIDEO_DRIVER_WINDOWS)
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-#endif
-
 #include "begin_code.h"
 /* Set up for C function definitions, even when using C++ */
 #ifdef __cplusplus
@@ -53,7 +43,7 @@ extern "C" {
 
 /**
  *  \file SDL_syswm.h
- *
+ *  
  *  Your application has access to a special type of event ::SDL_SYSWMEVENT,
  *  which contains window-manager specific information and arrives whenever
  *  an unhandled window event occurs.  This event is ignored by default, but
@@ -64,7 +54,8 @@ struct SDL_SysWMinfo;
 #else
 
 #if defined(SDL_VIDEO_DRIVER_WINDOWS)
-/* already included above */
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 #endif
 
 /* This is the structure for custom window manager events */

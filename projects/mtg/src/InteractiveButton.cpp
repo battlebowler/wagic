@@ -61,7 +61,11 @@ bool InteractiveButton::ButtonPressed()
 
 void InteractiveButton::Render()
 {
-    if (!isSelectionValid()) return;
+    // Always render the button and its label. Previously the label only appeared while
+    // the button was being pressed (a hover-style reveal), which on touch meant the
+    // button names were never visible. isSelectionValid() is now only used to highlight
+    // the currently-pressed button.
+    bool pressed = isSelectionValid();
     JRenderer *renderer = JRenderer::GetInstance();
     WFont *mainFont = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
     const string detailedInfoString = _(getText());
@@ -87,7 +91,8 @@ void InteractiveButton::Render()
     {
         renderer->RenderQuad(buttonImage.get(), buttonXOffset - buttonImage.get()->mWidth/2, buttonYOffset + mainFontHeight/2, 0, pspIconsSize, pspIconsSize);
     }
-    //mainFont->SetColor(ARGB(255, 0, 0, 0));
+    mainFont->SetColor(ARGB(255, 255, 255, 255));
+    (void)pressed;
     mainFont->DrawString(detailedInfoString, buttonXOffset, buttonYOffset);
 }
 

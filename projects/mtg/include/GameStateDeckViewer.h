@@ -35,7 +35,8 @@ enum
     SBMENU_ADD_SB = 804,
     SBMENU_ADD_CMD = 805,
     SBMENU_ADD_DNG = 806,
-    SBMENU_ADD_CANCEL = 807
+    SBMENU_ADD_CANCEL = 807,
+    SBMENU_SELL = 808
 };
 
 // enums for menu options
@@ -100,6 +101,7 @@ private:
     string newDeckname;
     bool isAIDeckSave;
     bool mSwitching;
+    bool mPendingSell;
 
     enum AvailableView{
         CAROUSEL_VIEW,

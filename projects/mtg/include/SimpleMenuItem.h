@@ -10,7 +10,7 @@
 using std::string;
 
 #define SCALE_SELECTED      1.2f
-#define SCALE_NORMAL        1.0f
+#define SCALE_NORMAL        SCALE
 
 class SimpleMenuItem: public SimpleButton
 {

@@ -232,6 +232,7 @@ void MTGCardInstance::initMTGCI()
     CDdamaged = 0;
     blinked = false;
     isExtraCostTarget = false;
+    foil = false;
     morphed = false;
     exerted = false;
     turningOver = false;

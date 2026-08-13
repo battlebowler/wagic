@@ -107,7 +107,7 @@ void GridDeckView::Render()
 {
     int firstVisibleCard = 2;
     int lastVisibleCard = mCards.size() - 2;
-    bool mode = options[Options::GDVLARGEIMAGE].number?false:true;
+    bool mode = false; // always use full card images on Android
     bool prefetch = options[Options::CARDPREFETCHING].number?true:false;
 
     if(!mScrollEasing.finished())
@@ -182,11 +182,7 @@ MTGCard * GridDeckView::Click(int x, int y)
 
     if(mScrollEasing.finished() && mSlideEasing.finished())
     { //clicked and no animations running
-        if(n == mCurrentSelection)
-        {
-            return getActiveCard();
-        }
-        else if(n < 4)
+        if(n < 4)
         {
             changePositionAnimated(-1);
         }
@@ -196,8 +192,11 @@ MTGCard * GridDeckView::Click(int x, int y)
         }
         else
         {
+            // Touch-first one-tap: select the tapped card and return it right away
+            // instead of requiring a second tap on the already-selected card.
             mCurrentSelection = n;
             dirtyCardPos = true;
+            return getActiveCard();
         }
     }
 

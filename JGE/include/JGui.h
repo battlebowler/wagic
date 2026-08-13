@@ -68,6 +68,27 @@ public:
     }
     ;
 
+    // Touch hit-testing: return true if the point (x, y) is within this object's
+    // rendered bounds. Default false (unknown bounds) so that a tap on an object that
+    // does not implement this is simply ignored rather than activating the wrong item.
+    // (Named HitTest rather than Contains to avoid clashing with Pos::Contains in the
+    // play-area classes that multiply-inherit both JGuiObject and Pos.)
+    virtual bool HitTest(float /*x*/, float /*y*/)
+    {
+        return false;
+    }
+    ;
+
+    // Whether HitTest() implements real bounds for this object. When every item in a
+    // controller reports true, a tap that misses them all does nothing; otherwise the
+    // controller falls back to legacy "nearest object" selection so un-migrated widgets
+    // keep working.
+    virtual bool hasHitTestBounds()
+    {
+        return false;
+    }
+    ;
+
     int GetId();
 };
 

@@ -32,8 +32,8 @@
 #define glClearDepthf glClearDepth
 #endif
 
-#define ACTUAL_SCREEN_WIDTH (SCREEN_WIDTH)
-#define ACTUAL_SCREEN_HEIGHT (SCREEN_HEIGHT)
+#define ACTUAL_SCREEN_WIDTH (DEVICE_WIDTH)
+#define ACTUAL_SCREEN_HEIGHT (DEVICE_HEIGHT)
 #define ACTUAL_RATIO ((GLfloat)ACTUAL_SCREEN_WIDTH / (GLfloat)ACTUAL_SCREEN_HEIGHT)
 
 enum eDisplayMode
@@ -120,8 +120,16 @@ public: /* For easy interfacing with JGE static functions */
     int mMouseDownX;
     int mMouseDownY;
 
+    // Touch drag tracking (for swipe-to-scroll / swipe-to-browse).
+    int   mLastTouchX;
+    int   mLastTouchY;
+    float mScrollAccumX;
+    float mScrollAccumY;
+    bool  mTouchMoved;
+
 public:
-    SdlApp() : Surf_Display(NULL), window(NULL), lastMouseUpTime(0), lastFingerDownTime(0), Running(true), mMouseDownX(0), mMouseDownY(0)
+    SdlApp() : Surf_Display(NULL), window(NULL), lastMouseUpTime(0), lastFingerDownTime(0), Running(true), mMouseDownX(0), mMouseDownY(0),
+               mLastTouchX(0), mLastTouchY(0), mScrollAccumX(0.0f), mScrollAccumY(0.0f), mTouchMoved(false)
     {
     }
 
@@ -282,7 +290,12 @@ public:
 
         case SDL_JOYBALLMOTION:
             DebugTrace("Flick gesture detected, x: " << Event->jball.xrel << ", y: " << Event->jball.yrel);
-            g_engine->Scroll(Event->jball.xrel, Event->jball.yrel);
+            // Superseded by the FINGERMOTION drag-scroll in OnTouchEvent, which drives
+            // scrolling/browsing uniformly via directional navigation. The old flick ->
+            // OnScroll path is left disabled to avoid double input and screen-specific
+            // side effects (e.g. GameStateDuel::OnScroll firing an interrupt on a
+            // vertical flick).
+            // g_engine->Scroll(Event->jball.xrel, Event->jball.yrel);
             break;
         }
     }
@@ -601,59 +614,126 @@ void SdlApp::OnTouchEvent(const SDL_TouchFingerEvent& event)
 {
     // only respond to the first finger for mouse type movements - any additional finger
     // should be ignored, and will come through instead as a multigesture event
-    if (event.fingerId == 0)
-    {
-        if (event.y >= viewPort.y &&
-            event.y <= viewPort.y + viewPort.h &&
-            event.x >= viewPort.x &&
-            event.x <= viewPort.x + viewPort.w)
-        {
-            int actualWidth = (int) JRenderer::GetInstance()->GetActualWidth();
-            int actualHeight = (int) JRenderer::GetInstance()->GetActualHeight();
+    if (event.fingerId != 0)
+        return;
 
-            Uint32 eventTime = SDL_GetTicks();
-            if (event.type == SDL_FINGERDOWN)
-            {
-                mMouseDownX = event.x;
-                mMouseDownY = event.y;
-
-                lastFingerDownTime = eventTime;
-            }
-
+    int actualWidth = (int) JRenderer::GetInstance()->GetActualWidth();
+    int actualHeight = (int) JRenderer::GetInstance()->GetActualHeight();
+    Uint32 eventTime = SDL_GetTicks();
 
 #if (defined ANDROID) || (defined IOS)
-            if (event.type == SDL_FINGERUP)
+    // Touch-first model:
+    //   * FINGERDOWN records the start of the gesture.
+    //   * FINGERMOTION drives scrolling/browsing: as the finger drags, we emit
+    //     directional navigation presses (content follows the finger) once the drag
+    //     passes a per-step distance. Every screen already consumes these as list
+    //     scrolling / hand & battlefield browsing, so this works everywhere. This is
+    //     handled on MOTION (not UP) because SDL reports the finger-up position as the
+    //     last motion point, so a quick flick carries almost no delta at UP.
+    //   * FINGERUP with no drag is a TAP: deliver the (reliable) down position plus OK
+    //     so the game hit-tests and activates exactly what was touched.
+    //
+    // Scrolling/browsing is handled regardless of the viewport so a swipe works even
+    // when it starts on the hand cards at the very bottom of the screen; only the tap's
+    // coordinate mapping is anchored to the viewport.
+    // Distance the finger must travel to advance one step. Larger = slower scrolling.
+    const float kScrollStepX = 0.11f * (float)actualWidth;
+    const float kScrollStepY = 0.10f * (float)actualHeight;
+
+    if (event.type == SDL_FINGERDOWN)
+    {
+        mMouseDownX = event.x;
+        mMouseDownY = event.y;
+        mLastTouchX = event.x;
+        mLastTouchY = event.y;
+        mScrollAccumX = 0.0f;
+        mScrollAccumY = 0.0f;
+        mTouchMoved = false;
+        lastFingerDownTime = eventTime;
+        g_engine->DragProcessed();
+    }
+    else if (event.type == SDL_FINGERMOTION)
+    {
+        // Continuously report the finger position as a drag, so screens that support
+        // finger-anchored browsing (the in-game hand/battlefield) can move the selection
+        // to whatever is under the finger. Screens that don't read this (lists/menus)
+        // still scroll via the directional presses emitted below.
+        g_engine->Dragging(
+            ((event.x - viewPort.x) * SCREEN_WIDTH) / actualWidth,
+            ((event.y - viewPort.y) * SCREEN_HEIGHT) / actualHeight);
+
+        mScrollAccumX += (float)(event.x - mLastTouchX);
+        mScrollAccumY += (float)(event.y - mLastTouchY);
+        mLastTouchX = event.x;
+        mLastTouchY = event.y;
+
+        // Commit whole steps along the dominant axis of the current drag. Direction is
+        // "direct" (the selection follows the finger): drag left moves selection left,
+        // drag up moves selection up.
+        if (fabsf(mScrollAccumX) > fabsf(mScrollAccumY))
+        {
+            while (kScrollStepX > 0.0f && fabsf(mScrollAccumX) >= kScrollStepX)
             {
-                if (eventTime - lastFingerDownTime <= kTapEventTimeout)
-                {
-                    // treat an up finger within 50 pixels of the down finger coords as a double click event
-                    if (abs(mMouseDownX - event.x) < kHitzonePliancy && abs(mMouseDownY - event.y) < kHitzonePliancy)
-                    {
-                    	DebugTrace("Pressing OK BUtton");
-                        g_engine->HoldKey_NoRepeat(JGE_BTN_OK);
-                    }
-                }
+                g_engine->HoldKey_NoRepeat((mScrollAccumX < 0.0f) ? JGE_BTN_LEFT : JGE_BTN_RIGHT);
+                mScrollAccumX += (mScrollAccumX < 0.0f) ? kScrollStepX : -kScrollStepX;
+                mScrollAccumY = 0.0f;
+                mTouchMoved = true;
             }
-      		else      
-#endif
-			g_engine->LeftClicked(
-                ((event.x - viewPort.x) * SCREEN_WIDTH) / actualWidth,
-                ((event.y - viewPort.y) * SCREEN_HEIGHT) / actualHeight);
-	
+        }
+        else
+        {
+            while (kScrollStepY > 0.0f && fabsf(mScrollAccumY) >= kScrollStepY)
+            {
+                g_engine->HoldKey_NoRepeat((mScrollAccumY < 0.0f) ? JGE_BTN_UP : JGE_BTN_DOWN);
+                mScrollAccumY += (mScrollAccumY < 0.0f) ? kScrollStepY : -kScrollStepY;
+                mScrollAccumX = 0.0f;
+                mTouchMoved = true;
+            }
         }
     }
+    else if (event.type == SDL_FINGERUP)
+    {
+        g_engine->DragProcessed();
+        // A tap: the finger never dragged far enough to scroll. Only honour it if the
+        // down position was inside the game viewport; use that (reliable) down position
+        // rather than the up coordinate (which SDL fills with the last motion point).
+        if (!mTouchMoved &&
+            mMouseDownY >= viewPort.y && mMouseDownY <= viewPort.y + viewPort.h &&
+            mMouseDownX >= viewPort.x && mMouseDownX <= viewPort.x + viewPort.w)
+        {
+            g_engine->LeftClicked(
+                ((mMouseDownX - viewPort.x) * SCREEN_WIDTH) / actualWidth,
+                ((mMouseDownY - viewPort.y) * SCREEN_HEIGHT) / actualHeight);
+            g_engine->HoldKey_NoRepeat(JGE_BTN_OK);
+        }
+    }
+#else
+    if (event.y >= viewPort.y &&
+        event.y <= viewPort.y + viewPort.h &&
+        event.x >= viewPort.x &&
+        event.x <= viewPort.x + viewPort.w)
+    {
+        if (event.type == SDL_FINGERDOWN)
+        {
+            mMouseDownX = event.x;
+            mMouseDownY = event.y;
+            lastFingerDownTime = eventTime;
+        }
+        g_engine->LeftClicked(
+            ((event.x - viewPort.x) * SCREEN_WIDTH) / actualWidth,
+            ((event.y - viewPort.y) * SCREEN_HEIGHT) / actualHeight);
+    }
+#endif
 }
 
 bool SdlApp::OnInit()
 {
 	int window_w, window_h;
 
-	if(SDL_Init(SDL_INIT_EVERYTHING & ~SDL_INIT_HAPTIC) < 0)
+	if(SDL_Init(SDL_INIT_EVERYTHING) < 0) 
 	{
 		return false;
 	}
-
-	SDL_putenv("SDL_VIDEO_CENTERED=1");
 
 	const SDL_VideoInfo *pVideoInfo = SDL_GetVideoInfo();
 	DebugTrace("Video Display : h " << pVideoInfo->current_h << ", w " << pVideoInfo->current_w);
@@ -685,39 +765,17 @@ bool SdlApp::OnInit()
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
 
+	if((Surf_Display = SDL_SetVideoMode(window_w, window_h, 32,
 #ifdef ANDROID
-	Surf_Display = SDL_SetVideoMode(window_w, window_h, 32, SDL_OPENGL | SDL_FULLSCREEN | SDL_WINDOW_BORDERLESS);
+		SDL_OPENGL | SDL_FULLSCREEN | SDL_WINDOW_BORDERLESS)) == NULL)
+	{
 #else
-	Surf_Display = SDL_SetVideoMode(window_w, window_h, 32, SDL_OPENGL | SDL_RESIZABLE);
-	if (!Surf_Display)
+		SDL_OPENGL | SDL_RESIZABLE )) == NULL)
 	{
-		// Retry without MSAA — many modern GL drivers reject the multisample request
-		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);
-		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
-		Surf_Display = SDL_SetVideoMode(window_w, window_h, 32, SDL_OPENGL | SDL_RESIZABLE);
-	}
 #endif
-	if (!Surf_Display)
-	{
-		MessageBoxA(NULL, SDL_GetError(), "SDL_SetVideoMode failed", MB_OK | MB_ICONERROR);
 		return false;
 	}
 	SDL_WM_SetCaption(g_launcher->GetName(), "");
-
-#ifdef WIN32
-	{
-		// Center on primary monitor — SDL 1.2 may place the window off-screen
-		HWND hwnd = FindWindowA(NULL, g_launcher->GetName());
-		if (hwnd)
-		{
-			int sw = GetSystemMetrics(SM_CXSCREEN);
-			int sh = GetSystemMetrics(SM_CYSCREEN);
-			RECT wr; GetWindowRect(hwnd, &wr);
-			int ww = wr.right - wr.left, wh = wr.bottom - wr.top;
-			SetWindowPos(hwnd, HWND_TOP, (sw - ww) / 2, (sh - wh) / 2, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
-		}
-	}
-#endif
 
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);		// Black Background (yes that's the way fuckers)
 #if (defined GL_ES_VERSION_2_0) || (defined GL_VERSION_2_0)

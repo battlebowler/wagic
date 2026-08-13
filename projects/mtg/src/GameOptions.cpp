@@ -333,6 +333,10 @@ GameOptions::GameOptions(string filename)
 
 int GameOptions::load()
 {
+    // Defaults are hard coded to a horizontal and visible hand
+    (*this)[Options::CLOSEDHAND].number = OptionClosedHand::VISIBLE;
+    (*this)[Options::HANDDIRECTION].number = OptionHandDirection::HORIZONTAL;
+
     std::string contents;
     if (JFileSystem::GetInstance()->readIntoString(mFilename, contents))
     {

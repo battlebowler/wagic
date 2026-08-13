@@ -1,45 +1,47 @@
-# Wagic the Homebrew
+# Wagic (Android Fork)
 
-[![Build Status](https://travis-ci.org/WagicProject/wagic.png?branch=master)](https://travis-ci.com/WagicProject/wagic)
-[![Build status](https://ci.appveyor.com/api/projects/status/7j4fbr6m62aqej59/branch/master)](https://ci.appveyor.com/project/xawotihs/wagic/branch/master)
-[![Coverage Status](https://coveralls.io/repos/WagicProject/wagic/badge.png?branch=master)](https://coveralls.io/r/WagicProject/wagic?branch=master)
+This repository is a modernized fork of Wagic, the Homebrew, focused exclusively on Android development.
 
-## Description
+---
 
-**Wagic, the Homebrew** is a C++ game engine that allows to play card games against an AI on:
-- Android (phones and tablets) 
-- iOS (iPhone/iPad)
-- Sony PSP
-- Windows desktops 
-- MacOS
-- Linux and derivatives like Maemo or Meego 
+## Overview
 
-It is highly customizable and allows the player to tweak the rules, create their own cards, their own themes, etc... 
+The original Wagic project supports multiple legacy platforms and build systems. This fork is intended to steamline the build pipeline for Android development and migrate the build system to Android Studio/Gradle.
 
-#### [Download from GitHub Releases!](https://github.com/WagicProject/wagic/releases)
+---
 
-![Screenshot of shop from wololo.net](docs/img/shop.jpg)
+## Goals
 
+- Deprecate non-Android platforms (PSP, iOS, desktop, legacy ports)
+- Replace legacy build systems with a modern Gradle-based pipeline
+- Simplify project structure for easier development and debugging
+- Remove/replace outdated dependencies where possible
+- Keep the game and card logic up-to-date with main Wagic repo
 
-### Documentation
+---
 
-Info, downloads, discussions and more at http://wololo.net/forum/index.php (archived as of 16 Nov 2022).
+## Vision
 
-Chat with the community on the [**Wagic - MTG Game** Discord](https://discord.com/invite/JHK5pVaK5p) (Feb 2023).
+This fork aims to transform Wagic into a clean, maintainable, and extensible Android codebase.
 
-Developer information from the [Wagic Wiki](https://github.com/WagicProject/wagic/wiki) is also included in the [wagic/docs/](docs) folder.
+The long-term goal:
+- Easier feature development
+- Improved performance and stability
+- Integration into automated build pipelines
 
+---
 
-### Sample round play-through video
+### Build Requirements
 
-[![Wagic, The Homebrew sample playthrough](docs/img/Wagic%2C%20The%20Homebrew%20sample%20playthrough.jpg)](http://www.youtube.com/watch?v=WUFSAPZuDIk)
+- Android Studio (latest recommended)
+- Android SDK
+- Android NDK (required for native components)
 
-*Wagic, The Homebrew sample playthrough on YouTube by Rolz73, 6 Feb 2014*
+---
 
+### Build Instructions
 
-## Sister projects
-
-- [WagicSyntaxPlugin
-](https://github.com/Vitty85/WagicSyntaxPlugin), a Wagic developer tool by Vitty85 for [Notepad++](https://notepad-plus-plus.org/downloads/)
-- [Forge](https://www.slightlymagic.net/forum/viewforum.php?f=26), a Java-based game engine similar to Wagic ([Source](https://github.com/Card-Forge/forge/))
-- [XMage](http://xmage.today/), a Java-based online multiplayer digital CCG ([Source](https://github.com/magefree/mage))
+1. Open the Android subproject in Android Studio (wagic-Android\projects\mtg\Android)
+2. Allow Gradle to sync  
+3. Select a device or emulator  
+4. Run the `Wagic` module

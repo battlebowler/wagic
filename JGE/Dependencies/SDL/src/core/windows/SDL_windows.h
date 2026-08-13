@@ -30,7 +30,7 @@
 #define UNICODE 1
 #endif
 #undef _WIN32_WINNT
-#define _WIN32_WINNT  0x600   /* Minimum Vista for Windows 10 SDK compatibility */
+#define _WIN32_WINNT  0x500   /* Need 0x410 for AlphaBlend() and 0x500 for EnumDisplayDevices() */
 
 #include <windows.h>
 

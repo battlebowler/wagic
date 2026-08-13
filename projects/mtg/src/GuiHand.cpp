@@ -121,45 +121,80 @@ GuiHandSelf::~GuiHandSelf()
 void GuiHandSelf::Repos()
 {
     float y = 48.0;
+
     if (Closed == state && OptionClosedHand::VISIBLE == options[Options::CLOSEDHAND].number)
     {
-        float dist = 180.0f / cards.size();
-        if (dist > 20)
-            dist = 20.0;
-        else
-            y = 40.0;
-        for (vector<CardView*>::iterator it = cards.begin(); it != cards.end(); ++it)
+        if (OptionHandDirection::HORIZONTAL == options[Options::HANDDIRECTION].number)
         {
-            (*it)->x = ClosedRowX;
-            (*it)->y = y;
-            y += dist;
+            float spacing = 30.0f;
+
+            // Shift entire hand left by one card width
+            float startX = SCREEN_WIDTH - 30.0f - CardGui::Width;
+
+            // Push up by half card height
+            //float yPos = SCREEN_HEIGHT - 30.0f - (CardGui::Height * 0.5f);
+            float yPos = SCREEN_HEIGHT - 30.0f;
+
+            for (vector<CardView*>::reverse_iterator it = cards.rbegin(); it != cards.rend(); ++it)
+            {
+                (*it)->x = startX;
+                (*it)->y = yPos;
+                startX -= spacing;
+            }
+        }
+        else
+        {
+            float dist = 180.0f / cards.size();
+            if (dist > 20)
+                dist = 20.0;
+            else
+                y = 40.0;
+
+            for (vector<CardView*>::iterator it = cards.begin(); it != cards.end(); ++it)
+            {
+                (*it)->x = ClosedRowX;
+                (*it)->y = y;
+                y += dist;
+            }
         }
     }
     else
     {
         bool q = (Closed == state);
+
         if (OptionHandDirection::HORIZONTAL == options[Options::HANDDIRECTION].number)
         {
-            y = SCREEN_WIDTH - 30;
+            float cardWidth = CardGui::Width;
+            float cardHeight = CardGui::Height;
+
+            // Push rightmost card left by one card width
+            float xPos = SCREEN_WIDTH - 30.0f - cardWidth;
+
             float dist = 240.0f / cards.size();
             if (dist > 30)
                 dist = 30;
             else
-                y = SCREEN_WIDTH - 15;
+                xPos = SCREEN_WIDTH - 15.0f - cardWidth;
+
+            // Push hand up by HALF card height
+            float yPos = SCREEN_HEIGHT - 30.0f - (cardHeight * 0.5f);
+
             for (vector<CardView*>::reverse_iterator it = cards.rbegin(); it != cards.rend(); ++it)
             {
-                (*it)->x = y;
-                (*it)->y = SCREEN_HEIGHT - 30;
-                y -= dist;
-                (*it)->alpha = static_cast<float> (q ? 0 : 255);
+                (*it)->x = xPos;
+                (*it)->y = yPos;
+                xPos -= dist;
+                (*it)->alpha = static_cast<float>(q ? 0 : 255);
             }
-            backpos.x = y + SCREEN_HEIGHT - 14;
+
+            backpos.x = xPos + SCREEN_HEIGHT - 14.0f - cardWidth;
         }
         else
         {
             float dist = 224.0f / ((cards.size() + 1) / 2);
             if (dist > 65)
                 dist = 65;
+
             bool flip = false;
             for (vector<CardView*>::iterator it = cards.begin(); it != cards.end(); ++it)
             {
@@ -168,7 +203,7 @@ void GuiHandSelf::Repos()
                 if (flip)
                     y += dist;
                 flip = !flip;
-                (*it)->alpha = static_cast<float> (q ? 0 : 255);
+                (*it)->alpha = static_cast<float>(q ? 0 : 255);
             }
         }
     }

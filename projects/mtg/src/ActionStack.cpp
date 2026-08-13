@@ -23,9 +23,9 @@ namespace
     float kGamepadIconSize = 0.5f;
 
     std::string kInterruptMessageString("Interrupt?");
-    std::string kInterruptString(": Interrupt");
-    std::string kNoString(": No");
-    std::string kNoToAllString(": No To All");
+    std::string kInterruptString("Interrupt");
+    std::string kNoString("No");
+    std::string kNoToAllString("No To All");
     static const float kIconVerticalOffset = 24;
 
 }
@@ -1219,7 +1219,7 @@ void ActionStack::endOfInterruption(bool log)
 
 JButton ActionStack::handleInterruptRequest( JButton inputKey, int& x, int& y )
 {
-    if ( gModRules.game.canInterrupt() && y >= 10 && y < (kIconVerticalOffset + 16))
+    if ( gModRules.game.canInterrupt() && y >= 3 && y < 34)
     {
         if (x >= interruptBtnXOffset && x < noBtnXOffset )
             return JGE_BTN_SEC;
@@ -1268,7 +1268,11 @@ bool ActionStack::CheckUserInput(JButton inputKey)
         }
         else if (observer->isInterrupting)
         {
-            if (JGE_BTN_SEC == key)
+            // JGE_BTN_SEC ends the interruption on the old PSP controls, but on touch there
+            // is no button bound to it, which left the player stuck once they chose to
+            // interrupt. The on-screen phase button dispatches `trigger` here, so accept it
+            // (and JGE_BTN_SEC) as "I'm done interrupting / pass".
+            if (JGE_BTN_SEC == key || trigger == key)
             {
                 if(observer->mExtraPayment)
                 {
@@ -1440,9 +1444,9 @@ void ActionStack::Render()
         return;
 
     static const float kSpacer = 8;
-    static const float x0 = 250;
-    static const float y0 = 0;
-    float width = 200;
+    const float x0 = SCREEN_WIDTH * 0.50f;
+    float y0 = 0; // interrupt dialog top; positioned just above the hand once its height is known
+    float width = SCREEN_WIDTH * 0.33f;
     float height = 25;
     float currenty = y0 + 5;
 
@@ -1463,11 +1467,39 @@ void ActionStack::Render()
                 height += current->mHeight;
         }
 
+        // Drop the dialog from the top of the screen to just above the hand (it was a little
+        // high for normal play). The hand opens at SCREEN_HEIGHT-50, so keep the dialog's
+        // bottom a little above that; tall stacks clamp to stay on-screen.
+        y0 = (SCREEN_HEIGHT - 78.0f) - (height + 16.0f);
+        if (y0 < 4.0f) y0 = 4.0f;
+        currenty = y0 + 5;
+
         WFont * mFont = observer->getResourceManager()->GetWFont(Fonts::MAIN_FONT);
         mFont->SetBase(0);
         mFont->SetScale(DEFAULT_MAIN_FONT_SCALE);
         mFont->SetColor(ARGB(255,255,255,255));
         JRenderer * renderer = JRenderer::GetInstance();
+
+        // Measure the interrupt buttons (padded + spaced) so the dialog is wide enough and
+        // the whole button group can be centered in the grey title bar.
+        const float kBtnPad = 8.0f;
+        const float kBtnGap = 12.0f;
+        const float kBtnBoxH = 22.0f;
+        const bool  hasInterruptBtn = gModRules.game.canInterrupt();
+        const bool  hasNoToAllBtn   = (mObjects.size() > 1);
+        float contentWidth = mFont->GetStringWidth(_(kNoString).c_str()) + 2 * kBtnPad;
+        int   nBtns = 1;
+        if (hasInterruptBtn) { contentWidth += mFont->GetStringWidth(_(kInterruptString).c_str()) + 2 * kBtnPad; nBtns++; }
+        if (hasNoToAllBtn)   { contentWidth += mFont->GetStringWidth(_(kNoToAllString).c_str())   + 2 * kBtnPad; nBtns++; }
+        contentWidth += (nBtns - 1) * kBtnGap;
+        if (contentWidth + 20 > width)
+            width = contentWidth + 20;
+        // Grey title bar spans [x0-6, x0-6+width+15] x [y0+3, y0+34] (height 31). Center the
+        // button group in it, both horizontally and vertically.
+        const float kBarLeft = x0 - 6;
+        const float kBarWidth = width + 15;
+        const float kBtnBoxY = y0 + 3 + (31.0f - kBtnBoxH) / 2.0f;
+        const float kBtnStartX = kBarLeft + (kBarWidth - contentWidth) / 2.0f;
 
         //stack shadow
         //renderer->FillRoundRect(x0 - 7, y0+2, width + 17, height + 2, 9.0f, ARGB(128,0,0,0));
@@ -1482,19 +1514,8 @@ void ActionStack::Render()
         //stack border
         renderer->DrawRect(x0 - 7, y0+2, width + 17, height + 14, ARGB(255,240,240,240));
         
-        std::ostringstream stream;
-        // WALDORF - changed "interrupt ?" to "Interrupt?". Don't display count down
-        // seconds if the user disables auto progressing interrupts by setting the seconds
-        // value to zero in Options.
-
-        // Mootpoint 01/12/2011: draw the interrupt text first, at the top.  Offset the rest of the 
-        // unresolved stack effects down so that they don't collide with the interrupt text.
-        if (options[Options::INTERRUPT_SECONDS].number == 0)
-            stream << _(kInterruptMessageString);
-        else
-            stream << _(kInterruptMessageString) << " " << static_cast<int>(timer);
-
-        mFont->DrawString(stream.str(), x0 + 5, currenty - 2);
+        // The "Interrupt?" title text was removed per user request — the bordered buttons
+        // (Interrupt / No / No To All) are self-explanatory and now occupy the grey bar.
 
 //        static const float kIconVerticalOffset = 24;
         static const float kIconHorizontalOffset = 10;
@@ -1502,33 +1523,35 @@ void ActionStack::Render()
   
         //Render "interrupt?" text + possible actions
         {
-            float currentx = x0 + 10;
+            // Legacy PlayStation button glyphs removed; each choice is now drawn as a
+            // spaced, bordered button and the button box itself is the tap target
+            // (handleInterruptRequest maps taps to these x-offsets).
+            (void) kIconHorizontalOffset;
+            (void) kBeforeIconSpace;
+            const float labelY = kBtnBoxY + (kBtnBoxH - mFont->GetHeight()) / 2.0f;
+            float currentx = kBtnStartX;
+
+            // Draws a bordered button at currentx; returns the width consumed.
+            #define DRAW_INTERRUPT_BTN(str) do { \
+                float _w = mFont->GetStringWidth(_(str).c_str()); \
+                renderer->FillRect(currentx, kBtnBoxY, _w + 2 * kBtnPad, kBtnBoxH, ARGB(255, 70, 70, 78)); \
+                renderer->DrawRect(currentx, kBtnBoxY, _w + 2 * kBtnPad, kBtnBoxH, ARGB(255, 210, 210, 210)); \
+                mFont->DrawString(_(str), currentx + kBtnPad, labelY); \
+                currentx += _w + 2 * kBtnPad + kBtnGap; \
+            } while (0)
+
             interruptBtnXOffset = static_cast<int>(currentx);
-            
             if (gModRules.game.canInterrupt())
-            {
-                renderer->RenderQuad(pspIcons[7].get(), currentx, kIconVerticalOffset - 2, 0, kGamepadIconSize, kGamepadIconSize);
-                currentx+= kIconHorizontalOffset;
-                mFont->DrawString(_(kInterruptString), currentx, kIconVerticalOffset - 8);
-                currentx+= mFont->GetStringWidth(_(kInterruptString).c_str()) + kBeforeIconSpace;
-            }
+                DRAW_INTERRUPT_BTN(kInterruptString);
 
             noBtnXOffset = static_cast<int>(currentx);
-            
-            renderer->RenderQuad(pspIcons[4].get(), currentx, kIconVerticalOffset - 2, 0, kGamepadIconSize, kGamepadIconSize);
-            currentx+= kIconHorizontalOffset;
-            mFont->DrawString(_(kNoString), currentx, kIconVerticalOffset - 8);
-            currentx+= mFont->GetStringWidth(_(kNoString).c_str()) + kBeforeIconSpace;
+            DRAW_INTERRUPT_BTN(kNoString);
 
             noToAllBtnXOffset = static_cast<int>(currentx);
             if (mObjects.size() > 1)
-            {
-                renderer->RenderQuad(pspIcons[6].get(), currentx, kIconVerticalOffset - 2, 0, kGamepadIconSize, kGamepadIconSize);
-                currentx+= kIconHorizontalOffset;
-                mFont->DrawString(_(kNoToAllString), currentx, kIconVerticalOffset - 8);
-                currentx+= mFont->GetStringWidth(_(kNoToAllString).c_str()) + kBeforeIconSpace;
-            }
-            
+                DRAW_INTERRUPT_BTN(kNoToAllString);
+
+            #undef DRAW_INTERRUPT_BTN
             interruptDialogWidth = static_cast<int>(currentx);
         }
 
@@ -1556,7 +1579,7 @@ void ActionStack::Render()
                 sC+=1;
                 float cH = current->mHeight*sC;
                 current->x = x0;
-                current->y = (5+kIconVerticalOffset + kSpacer) + (totalmHeight - cH);
+                current->y = y0 + (5+kIconVerticalOffset + kSpacer) + (totalmHeight - cH);
                 //render the stack object
                 current->Render();
 

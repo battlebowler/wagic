@@ -241,3 +241,15 @@ build/
 
 # Backup files
 *~.nib
+
+#############
+## Android Studio / Gradle
+#############
+.gradle/
+*.iml
+.idea/
+captures/
+
+# NDK build outputs (ndk-build generated, not source)
+projects/mtg/Android/libs/
+projects/mtg/Android/obj/

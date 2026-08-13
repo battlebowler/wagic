@@ -48,6 +48,11 @@ public:
     int maxInventory();
     void addToDeck(MTGDeck * d, WSrcCards * srcCards);
     string getSort();
+    // Set code of this booster slot (e.g. "XLN"), or "" for a custom named pack. Used to
+    // look up a per-set booster pack image in the shop.
+    string getSetId() const;
+    // Release year of this booster's set (0 if unknown). Used to gate foils to the foil era.
+    int getSetYear() const;
 #ifdef TESTSUITE
     bool unitTest();
 #endif
@@ -72,7 +77,7 @@ private:
     vector<MTGCardInstance*> subBooster;
     MTGDeck * booster;
     bool bListCards;
-    InteractiveButton *cycleCardsButton, *showCardListButton, *shopMenuButton;
+    InteractiveButton *cycleCardsButton, *showCardListButton, *shopMenuButton, *taskBackButton;
     bool disablePurchase, clearInput;
 
     void beginFilters();
@@ -90,9 +95,14 @@ private:
     int mPrices[SHOP_ITEMS];
     int mCounts[SHOP_ITEMS];
     int mInventory[SHOP_ITEMS];
+    bool mFoilSingle[SHOP_ITEMS]; // per single-card slot: is this copy offered as a foil?
     int lightAlpha;
     int alphaChange;
     int mBuying;
+    int mRefreshCount; // how many times "New Cards" was used (escalates cost); persists across visits
+    int mLastRefreshDay; // TaskList::sDaysElapsed when the cost was last decayed/charged
+    bool mStockLoaded; // shop stock (singles/boosters) is rolled once, then kept across visits
+                       // so leaving and returning doesn't hand out a free refresh
 
     DeckDataWrapper * myCollection;
 
@@ -100,6 +110,8 @@ private:
     ShopBooster mBooster[BOOSTER_SLOTS];
 
     void load();
+    // Current "New Cards" cost, after cooling down mRefreshCount by any in-game days passed.
+    int computeRefreshCost();
     void save(bool force = false);
     void updateCounts();
     void beginPurchase(int controlId);

@@ -3,6 +3,8 @@
 #include "SDL_main.h"
 #include "JGE.h"
 
+#include "../../video/android/SDL_androidvideo.h"
+
 /*******************************************************************************
                  Functions called by JNI
 *******************************************************************************/
@@ -24,6 +26,10 @@ extern "C" void Java_org_libsdl_app_SDLActivity_nativeInit(JNIEnv* env, jclass c
 {
     /* This interface could expand with ABI negotiation, calbacks, etc. */
     SDL_Android_Init(env, cls);
+
+    // Feed real device dimensions into JGE before the game starts
+    JGE::SetScreenWidth(Android_ScreenWidth);
+    JGE::SetScreenHeight(Android_ScreenHeight);
 
     /* Run the application code! */
     int status;

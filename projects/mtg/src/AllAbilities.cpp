@@ -10728,10 +10728,10 @@ ATutorialMessage::ATutorialMessage(GameObserver* observer, MTGCardInstance * sou
         mX = 0;
         mY = -SCREEN_HEIGHT_F - 0.1f; //Offscreen
     }
-    mDontShow = mUserCloseRequest = (mLimit > 0) && (alreadyShown() >= mLimit);
-
-    if(mDontShow)
-        forceDestroy = 1;
+    // Tutorial messages are disabled: never show them (the start-of-game help prompt was
+    // unwanted). Left the class intact so existing triggers simply no-op.
+    mDontShow = mUserCloseRequest = true;
+    forceDestroy = 1;
 }
 
 
@@ -10870,7 +10870,7 @@ void ATutorialMessage::Render()
             //Continue Button
             JQuadPtr quad =  game->getResourceManager()->RetrieveQuad("iconspsp.png", 4 * 32, 0, 32, 32, "iconpsp4", RETRIEVE_MANAGE);
             quad->SetHotSpot(16, 16);
-            IconButton * iconButton = NEW IconButton(1, this, quad.get(), SCREEN_WIDTH_F / 2,  SCREEN_HEIGHT_F - 60, 0.7f, Fonts::MAGIC_FONT, _("continue"), 0, 16, true);
+            IconButton * iconButton = NEW IconButton(1, this, quad.get(), SCREEN_WIDTH_F / 2, SCREEN_HEIGHT_F - SCREEN_HEIGHT_F * 0.08f, 0.7f, Fonts::MAGIC_FONT, _("continue"), 0, 16, true);
             Add(iconButton);
 
             mSH = 64 / unitH;
@@ -10905,23 +10905,18 @@ void ATutorialMessage::Render()
             WFont * f2 = game->getResourceManager()->GetWFont(Fonts::MAGIC_FONT);
             f2->SetColor(ARGB(255, 205, 237, 240));
 
+            // Render the parchment as a single stretched tile. The previous 9-slice
+            // layout positioned its edges/corners using a "corner" size that scaled with
+            // SCREEN_WIDTH, while the corner/edge quads rendered at a fixed size — so on
+            // wide screens the slices no longer met and the panel looked torn into tiles.
             r->FillRect(0, mY, SCREEN_WIDTH, SCREEN_HEIGHT, ARGB(128,0,0,0));
-            r->RenderQuad(mBg[0], 0, mY, 0, mSW, mSH); //TL
-            r->RenderQuad(mBg[2], SCREEN_WIDTH - 64, mY, 0, mSW, mSH); //TR
-            r->RenderQuad(mBg[6], 0, mY + SCREEN_HEIGHT - 64, 0, mSW, mSH); //BL
-            r->RenderQuad(mBg[8], SCREEN_WIDTH - 64, mY + SCREEN_HEIGHT - 64, 0, mSW, mSH); //BR
-
-            //Stretch the sides
-            float stretchV = (144.0f / 128.0f) * mSH;
-            float stretchH = (176.0f / 128.0f) * mSW;
-            r->RenderQuad(mBg[3], 0, mY + 64, 0, mSW, stretchV); //L
-            r->RenderQuad(mBg[5], SCREEN_WIDTH - 64, mY + 64, 0, mSW, stretchV); //R
-            r->RenderQuad(mBg[1], 64, mY, 0, stretchH, mSH); //T1
-            r->RenderQuad(mBg[1], 240, mY, 0, stretchH, mSH); //T1
-            r->RenderQuad(mBg[7], 64, mY + 208, 0, stretchH, mSH); //B1
-            r->RenderQuad(mBg[7], 240, mY + 208, 0, stretchH, mSH); //B1
-            r->RenderQuad(mBg[4], 64, mY + 64, 0, stretchH, stretchV); //Center1
-            r->RenderQuad(mBg[4], 240, mY + 64, 0, stretchH, stretchV); //Center2
+            if (mBg[4] && mBg[4]->mWidth > 0 && mBg[4]->mHeight > 0)
+            {
+                float panelH = SCREEN_HEIGHT_F - (float) mY;
+                r->RenderQuad(mBg[4], 0, (float) mY, 0,
+                              SCREEN_WIDTH_F / mBg[4]->mWidth,
+                              panelH / mBg[4]->mHeight);
+            }
         }
     }
     else
@@ -10932,7 +10927,7 @@ void ATutorialMessage::Render()
 
     if (!mBgTex || !mIsImage)
     {
-        float posX = 40, posY = mY + 20;
+        float posX = SCREEN_WIDTH * 0.083f, posY = mY + SCREEN_HEIGHT * 0.074f;
         string title = _("Help");
 
         WFont * f = game->getResourceManager()->GetWFont(Fonts::MAGIC_FONT);

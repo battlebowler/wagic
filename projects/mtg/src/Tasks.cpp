@@ -419,8 +419,11 @@ void TaskList::End()
     vPosOutEasing.start(float(-SCREEN_HEIGHT), 0.9f);
 }
 
+int TaskList::sDaysElapsed = 0;
+
 void TaskList::passOneDay()
 {
+    ++sDaysElapsed; // one in-game day passed (drives the shop refresh-cost cooldown)
     // TODO: "You have failed the task" message to the user when accepted task expires
     for (vector<Task*>::iterator it = tasks.begin(); it != tasks.end();)
     {

@@ -69,10 +69,21 @@ enum {
 #define SAFE_DELETE_ARRAY(x)	if (x) { delete [] x; x = NULL; }
 
 
-#define SCREEN_WIDTH 			480
-#define SCREEN_HEIGHT 			272
-#define SCREEN_WIDTH_F 			480.0f
-#define SCREEN_HEIGHT_F			272.0f
+// Virtual coordinate space — fixed height (PSP native), width adapts to device aspect ratio.
+// All game code works in this coordinate space. The GPU viewport scales to real pixels.
+#define SCREEN_HEIGHT           272
+#define SCREEN_HEIGHT_F         272.0f
+#define SCREEN_WIDTH            ((int)(272.0f * JGE::GetScreenWidth() / JGE::GetScreenHeight()))
+#define SCREEN_WIDTH_F          (272.0f * (float)JGE::GetScreenWidth() / (float)JGE::GetScreenHeight())
+
+// Actual device resolution — only used for GL viewport and input mapping
+#define DEVICE_WIDTH            (JGE::GetScreenWidth())
+#define DEVICE_HEIGHT           (JGE::GetScreenHeight())
+
+// Scale factors are now 1.0 — existing SCALE/SCALE_X/SCALE_Y references become harmless no-ops
+#define SCALE_X                 1.0f
+#define SCALE_Y                 1.0f
+#define SCALE                   1.0f
 
 
 #ifdef CONSOLE_CONFIG

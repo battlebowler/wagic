@@ -358,8 +358,10 @@ public:
     WGuiCardImage(WDataSource * wds, bool _thumb = false);
     virtual void Render();
     WSyncable mOffset;
+    void setFoil(bool f) { mFoil = f; } // draw a foil sheen over the previewed card
 protected:
     bool bThumb;
+    bool mFoil = false;
 };
 
 /**

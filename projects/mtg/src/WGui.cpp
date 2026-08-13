@@ -129,7 +129,7 @@ WGuiItem::WGuiItem(string _display, u8 _mF)
     displayValue = _display;
     mFocus = false;
     width = SCREEN_WIDTH;
-    height = 20;
+    height = 20 * SCALE_Y;
     x = 0;
     y = 0;
 }
@@ -454,7 +454,10 @@ bool WGuiList::CheckUserInput(JButton key)
         for(int k = begin; k < end; k++)
         {
           WGuiBase* pItem = (items[k]);
-          distance2 = static_cast<unsigned int>((pItem->getY() - j) * (pItem->getY() - j) + (pItem->getX() - i) * (pItem->getX() - i));
+          // Row-based: match on the vertical distance only, so a tap anywhere along a
+          // row's width selects it (previously the horizontal distance to the item's
+          // left anchor made off-to-the-side taps miss, needing several tries).
+          distance2 = static_cast<unsigned int>((pItem->getY() - j) * (pItem->getY() - j));
           if (distance2 < minDistance2 && pItem->Selectable())
           {
               minDistance2 = distance2;
@@ -467,7 +470,8 @@ bool WGuiList::CheckUserInput(JButton key)
             setSelected(n);
             mEngine->LeftClickedProcessed();
             if (sync) syncMove();
-            return true;
+            // Fall through to WGuiMenu so the newly-selected item is also activated by
+            // the OK that accompanies the tap: one-tap select+activate.
         }
     }
 
@@ -503,6 +507,7 @@ string WDecoEnum::lookupVal(int value)
 void WDecoEnum::Render()
 {
     WFont * mFont = WResourceManager::Instance()->GetWFont(Fonts::OPTION_FONT);
+    mFont->SetScale(SCALE);
     mFont->SetColor(getColor(WGuiColor::TEXT));
     mFont->DrawString(_(getDisplay()).c_str(), getX() + 2, getY() + 3);
 
@@ -780,8 +785,9 @@ bool WGuiSplit::CheckUserInput(JButton key)
     {
         int i,j;
 
-        if (key == JGE_BTN_NONE && JGE::GetInstance()->GetLeftClickCoordinates(i, j))
-        {   // a dude clicked somwhere, we're gonna select the closest object from where he clicked
+        if (JGE::GetInstance()->GetLeftClickCoordinates(i, j))
+        {   // a tap: pick whichever side (left/right) it landed nearest to, so the
+            // side can be chosen by touch rather than only by the D-pad.
             unsigned int distanceLeft, distanceRight;
 
             distanceLeft = static_cast<unsigned int>((left->getY() - j) * (left->getY() - j) + (left->getX() - i) * (left->getX() - i));
@@ -995,7 +1001,8 @@ bool WGuiMenu::CheckUserInput(JButton key)
         for(size_t k = 0; k < items.size(); k++)
         {
           WGuiBase* pItem = items[k];
-          distance2 = static_cast<unsigned int>((pItem->getY() - j) * (pItem->getY() - j) + (pItem->getX() - i) * (pItem->getX() - i));
+          // Row-based (vertical distance only) so a tap anywhere on a row selects it.
+          distance2 = static_cast<unsigned int>((pItem->getY() - j) * (pItem->getY() - j));
           if (distance2 < minDistance2 && pItem->Selectable())
           {
               minDistance2 = distance2;
@@ -1008,7 +1015,8 @@ bool WGuiMenu::CheckUserInput(JButton key)
             setSelected(n);
             mEngine->LeftClickedProcessed();
             if (sync) syncMove();
-            return true;
+            // Fall through so the newly-selected item is activated by the OK that
+            // accompanies the tap: one-tap select+activate.
         }
     }
 
@@ -1117,7 +1125,7 @@ bool WGuiMenu::nextItem()
     if (potential < nbitems - 1)
         potential++;
     else
-        potential = 0;
+        return false; // clamp: already at the last item, do not wrap to the top
 
     while (potential < nbitems - 1 && items[potential]->Selectable() == false)
         potential++;
@@ -1146,7 +1154,7 @@ bool WGuiMenu::prevItem()
     if (potential > 0)
         potential--;
     else
-        potential = nbitems - 1;
+        return false; // clamp: already at the first item, do not wrap to the bottom
 
     while (potential > 0 && items[potential]->Selectable() == false)
         potential--;
@@ -1180,8 +1188,9 @@ void WGuiTabMenu::Add(WGuiBase * it)
 {
     if (it)
     {
-        it->setY(it->getY() + 35);
-        it->setHeight(it->getHeight() - 35);
+        float tabBarH = 35 * SCALE_Y;
+        it->setY(it->getY() + tabBarH);
+        it->setHeight(it->getHeight() - tabBarH);
         WGuiMenu::Add(it);
     }
 }
@@ -1194,20 +1203,18 @@ void WGuiTabMenu::Render()
     if (!items.size()) return;
 
     float offset = x;
-    mFont->SetScale(0.8f);
+    mFont->SetScale(0.8f * SCALE);
     for (vector<WGuiBase*>::iterator it = items.begin(); it != items.end(); it++)
     {
         float w = mFont->GetStringWidth(_((*it)->getDisplay()).c_str());
         mFont->SetColor((*it)->getColor(WGuiColor::TEXT_TAB));
-        renderer->FillRoundRect(offset + 6.5f, 5, w + 6.5f, 25, 0, (*it)->getColor(WGuiColor::BACK_TAB));
+        renderer->FillRoundRect(offset + 6.5f * SCALE_X, 5 * SCALE_Y, w + 6.5f * SCALE_X, 25 * SCALE_Y, 0, (*it)->getColor(WGuiColor::BACK_TAB));
         //inside border
-        renderer->DrawRoundRect(offset + 6.5f, 5, w + 6.5f, 25, 0, ARGB(180,89,89,89));
-        //outside border
-        //renderer->DrawRoundRect(offset + 5.5f, 4, w + 8.5f, 27, 0, ARGB(180,240,240,240));
-        mFont->DrawString(_((*it)->getDisplay()).c_str(), offset + 10, 10);
-        offset += w + 10 + 2;
+        renderer->DrawRoundRect(offset + 6.5f * SCALE_X, 5 * SCALE_Y, w + 6.5f * SCALE_X, 25 * SCALE_Y, 0, ARGB(180,89,89,89));
+        mFont->DrawString(_((*it)->getDisplay()).c_str(), offset + 10 * SCALE_X, 10 * SCALE_Y);
+        offset += w + 10 * SCALE_X + 2;
     }
-    mFont->SetScale(1);
+    mFont->SetScale(SCALE);
 
     WGuiBase * c = Current();
     if (c) c->Render();
@@ -1226,24 +1233,23 @@ bool WGuiTabMenu::CheckUserInput(JButton key)
 
     if (mEngine->GetLeftClickCoordinates(i, j))
     {
-        if(j <= 25)
-        { // a dude clicked in the tab title bar, let's compute which tab from i
+        if(j <= 35 * SCALE_Y)
+        {
             float offset = x;
             WFont * mFont = WResourceManager::Instance()->GetWFont(Fonts::OPTION_FONT);
-            mFont->SetScale(0.8f);
+            mFont->SetScale(0.8f * SCALE);
             for (vector<WGuiBase*>::iterator it = items.begin(); it != items.end(); it++)
             {
                 float w = mFont->GetStringWidth(_((*it)->getDisplay()).c_str());
-
-                if(i >= offset+5 && i <= offset+w+10+2)
+                if(i >= offset + 5 * SCALE_X && i <= offset + w + (10 + 2) * SCALE_X)
                 {
                     setSelected(it);
                     mEngine->LeftClickedProcessed();
                     return true;
                 }
-                offset += w + 10 + 2;
+                offset += w + 10 * SCALE_X + 2;
             }
-            mFont->SetScale(1);
+            mFont->SetScale(SCALE);
         }
     }
 
@@ -1292,7 +1298,7 @@ void WGuiAward::Overlay()
 {
     JRenderer * r = JRenderer::GetInstance();
     WFont * mFont = WResourceManager::Instance()->GetWFont(Fonts::OPTION_FONT);
-    mFont->SetScale(0.8f);
+    mFont->SetScale(0.8f * SCALE);
     mFont->SetColor(getColor(WGuiColor::TEXT));
 
     string s = details;
@@ -1309,7 +1315,7 @@ void WGuiAward::Overlay()
         mFont->DrawString(::_(s), 30, 16);
     }
 
-    mFont->SetScale(1);
+    mFont->SetScale(SCALE);
 }
 void WGuiAward::Underlay()
 {
@@ -1320,50 +1326,41 @@ void WGuiAward::Underlay()
     string n = id ? Options::getName(id) : textId;
     if (n.size())
     {
-        sprintf(buf, "psptrophy_%s.png", n.c_str()); //Trophy specific to the award
-        trophy = WResourceManager::Instance()->RetrieveTempQuad(buf); //Themed version...
+        sprintf(buf, "psptrophy_%s.png", n.c_str());
+        trophy = WResourceManager::Instance()->RetrieveTempQuad(buf);
     }
-
     if (!trophy && id >= Options::SET_UNLOCKS)
-    {
-        trophy = WResourceManager::Instance()->RetrieveTempQuad("psptrophy_set.png"); //TODO FIXME: Should look in set dir too.
-    }
-
-    if (!trophy.get()) //Fallback to basic trophy image.
+        trophy = WResourceManager::Instance()->RetrieveTempQuad("psptrophy_set.png");
+    if (!trophy.get())
         trophy = WResourceManager::Instance()->RetrieveTempQuad("psptrophy.png");
 #else
     string n = id ? Options::getName(id) : textId;
     if (n.size())
     {
-        sprintf(buf, "trophy_%s.png", n.c_str()); //Trophy specific to the award
-        trophy = WResourceManager::Instance()->RetrieveTempQuad(buf); //Themed version...
+        sprintf(buf, "trophy_%s.png", n.c_str());
+        trophy = WResourceManager::Instance()->RetrieveTempQuad(buf);
     }
-
     if (!trophy && id >= Options::SET_UNLOCKS)
-    {
-        trophy = WResourceManager::Instance()->RetrieveTempQuad("trophy_set.png"); //TODO FIXME: Should look in set dir too.
-    }
-
-    if (!trophy.get()) //Fallback to basic trophy image.
+        trophy = WResourceManager::Instance()->RetrieveTempQuad("trophy_set.png");
+    if (!trophy.get())
         trophy = WResourceManager::Instance()->RetrieveTempQuad("trophy.png");
 #endif
 
     if (trophy.get())
     {
-        trophy->SetHotSpot(0,trophy->mHeight);
-        if(trophy->mHeight == 268.f && trophy->mWidth == 203.f)
-        {
-            trophy->SetHotSpot(0,0);
-            JRenderer::GetInstance()->RenderQuad(trophy.get(), 0, SCREEN_HEIGHT-trophy->mHeight);
-        }
-        else if(trophy->mHeight == 1268.f && trophy->mWidth == 1203.f)
-        {
-            JRenderer::GetInstance()->RenderQuad(trophy.get(), -17, SCREEN_HEIGHT-35, 0, 240.f / trophy->mWidth, 210.f / trophy->mHeight);
-        }
-        else
-            JRenderer::GetInstance()->RenderQuad(trophy.get(), 0, SCREEN_HEIGHT, 0, 171.f / trophy->mWidth, 192.f / trophy->mHeight);
-    }
+        // Scale the trophy to occupy ~40% of the screen height, preserving aspect ratio,
+        // and anchor it to the bottom-left corner of the screen.
+        float targetH = SCREEN_HEIGHT * 0.40f;
+        float scaleX = targetH / trophy->mWidth;
+        float scaleY = targetH / trophy->mHeight;
+        float scale = (scaleX < scaleY) ? scaleX : scaleY;
 
+        float renderW = trophy->mWidth * scale;
+        float renderH = trophy->mHeight * scale;
+
+        trophy->SetHotSpot(0, 0);
+        JRenderer::GetInstance()->RenderQuad(trophy.get(), 0, SCREEN_HEIGHT - renderH, 0, scale, scale);
+    }
 }
 void WGuiAward::Render()
 {
@@ -1372,7 +1369,7 @@ void WGuiAward::Render()
     if (!goa) return;
 
     WFont * mFont = WResourceManager::Instance()->GetWFont(Fonts::OPTION_FONT);
-    mFont->SetScale(1);
+    mFont->SetScale(SCALE);
     mFont->SetColor(getColor(WGuiColor::TEXT));
 
     float myX = x;
@@ -1385,7 +1382,7 @@ void WGuiAward::Render()
     mFont->DrawString(::_(displayValue).c_str(), myX, myY, JGETEXT_LEFT);
 
     myY += fH + 3 * fM;
-    mFont->SetScale(.75);
+    mFont->SetScale(0.75f * SCALE);
     fH = mFont->GetHeight();
     if (text.size())
     {
@@ -1399,7 +1396,7 @@ void WGuiAward::Render()
         myY += fH + fM;
     }
     setHeight(myY - y);
-    mFont->SetScale(1);
+    mFont->SetScale(SCALE);
 }
 
 WGuiAward::WGuiAward(int _id, string name, string _text, string _details) :
@@ -1534,7 +1531,7 @@ void WGuiCardImage::Render()
             JQuadPtr q = source->getImage(mOffset.getPos());
 
             int mode = (!q.get() || options[Options::DISABLECARDS].number) ? DrawMode::kText : DrawMode::kNormal;
-            CardGui::DrawCard(c, p, mode);
+            CardGui::DrawCard(c, p, mode, false, false, false, mFoil);
         }
     }
 }

@@ -244,14 +244,15 @@ void SimpleMenu::Render()
 
 bool SimpleMenu::CheckUserInput(JButton key)
 {
-    // a dude may have clicked somewhere, we're gonna select the closest object from where he clicked
-    // since we know we are in a menu, we just need to check one cardinality
+    // Touch-first one-tap: resolve which menu row the tap landed on and activate it
+    // immediately. Taps outside the list (above/below) still scroll the menu by one.
+    // This handles the tap regardless of the OK that accompanies it, so a single tap
+    // both selects and confirms.
     int x = -1, y = -1;
     int n = mCurr;
-    
-    if ((key == JGE_BTN_NONE) && mEngine->GetLeftClickCoordinates(x, y))
-    {
 
+    if (mEngine->GetLeftClickCoordinates(x, y))
+    {
         // first scan the buttons on the screen and then process the other gui elements
         for (size_t i = 0; i < mButtons.size(); i++)
         {
@@ -261,13 +262,14 @@ bool SimpleMenu::CheckUserInput(JButton key)
                 return true;
             }
         }
-        
+
         if (mObjects.size())
         {
             float top, left;
             float menuTopEdge =  mY + SimpleMenuConst::kLineHeight;
             float menuBottomEdge = mY + mHeight - (SimpleMenuConst::kLineHeight/2);
-            
+            bool tappedItem = false;
+
             if (y < menuTopEdge)
                 n = (mCurr - 1) > 0 ? mCurr -1 : 0;
             else if (y >= menuBottomEdge)
@@ -279,18 +281,21 @@ bool SimpleMenu::CheckUserInput(JButton key)
                     if (mObjects[i]->getTopLeft(top, left))
                     {
                         if ( (y > top) && (y <= (top + SimpleMenuConst::kLineHeight)) )
+                        {
                             n = i;
-                    }   
+                            tappedItem = true;
+                        }
+                    }
                 }
             }
-            
-            // check bounds of n. 
-            if ( n < 0 ) 
+
+            // check bounds of n.
+            if ( n < 0 )
                 n = 0;
-            if ( n >= mCount ) 
+            if ( n >= mCount )
                 n = mCount - 1;
-            
-            // check to see if the user clicked 
+
+            // check to see if the user clicked
             if( n-mCurr > this->maxItems+1 )
                 n = mCurr+1;//we don't want to increment pages at a time.
             if (n != mCurr && mObjects[mCurr] != NULL && mObjects[mCurr]->Leaving(JGE_BTN_DOWN))
@@ -298,10 +303,13 @@ bool SimpleMenu::CheckUserInput(JButton key)
                 mCurr = n;
                 mObjects[mCurr]->Entering();
             }
-            // if the same object was selected process click
-            else if (n == mCurr && mObjects[mCurr] != NULL && mObjects[mCurr]->Leaving(JGE_BTN_OK))
+
+            // One-tap: if the tap landed on an actual item (not the scroll edges),
+            // activate it right away instead of waiting for a second confirming tap.
+            if (tappedItem && mObjects[mCurr] != NULL && mObjects[mCurr]->ButtonPressed())
             {
-                mObjects[mCurr]->Entering();
+                if (mListener != NULL)
+                    mListener->ButtonPressed(mId, mObjects[mCurr]->GetId());
             }
 
             mEngine->LeftClickedProcessed();
@@ -309,11 +317,10 @@ bool SimpleMenu::CheckUserInput(JButton key)
             return true;
         }
         mEngine->LeftClickedProcessed();
+        return false;
     }
-    else
-        return JGuiController::CheckUserInput(key);
-    
-    return false;
+
+    return JGuiController::CheckUserInput(key);
 }
 
 

@@ -2,8 +2,8 @@
 #include "CarouselDeckView.h"
 
 const float CarouselDeckView::max_scale = 0.82f;
-const float CarouselDeckView::x_center = 180;
-const float CarouselDeckView::right_border = SCREEN_WIDTH + 180;
+const float CarouselDeckView::x_center = SCREEN_WIDTH_F * (180.0f / 480.0f);
+const float CarouselDeckView::right_border = SCREEN_WIDTH_F + SCREEN_WIDTH_F * (180.0f / 480.0f);
 const float CarouselDeckView::slide_animation_duration = 0.5f;
 const float CarouselDeckView::scroll_animation_duration = 0.2f;
 

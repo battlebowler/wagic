@@ -8,36 +8,44 @@
 #define LIB_GRAVE_OFFSET 230
 
 GuiAvatars::GuiAvatars(DuelLayers* duelLayers) :
-    GuiLayer(duelLayers), active(NULL)
+        GuiLayer(duelLayers), active(NULL)
 {
-    Add(self = NEW GuiAvatar(SCREEN_WIDTH, SCREEN_HEIGHT, false, mpDuelLayers->getRenderedPlayer(), GuiAvatar::BOTTOM_RIGHT, this));
-    self->zoom = 0.9f;
-    Add(selfGraveyard = NEW GuiGraveyard(SCREEN_WIDTH - GuiAvatar::Width - GuiGameZone::Width / 2 - 11, SCREEN_HEIGHT - GuiAvatar::Height - 1, false, mpDuelLayers->getRenderedPlayer(), this));
-    Add(selfLibrary = NEW GuiLibrary(SCREEN_WIDTH - GuiAvatar::Width - GuiGameZone::Width / 2 - 11, SCREEN_HEIGHT - GuiAvatar::Height - 5 + GuiGameZone::Height + 5, false, mpDuelLayers->getRenderedPlayer(), this));
-    //myexile
-    Add(selfExile = NEW GuiExile(SCREEN_WIDTH - GuiAvatar::Width - GuiGameZone::Width / 2 - 11, SCREEN_HEIGHT - GuiAvatar::Height - 30, false, mpDuelLayers->getRenderedPlayer(), this));
-    //mycommandZone
-    Add(selfCommandZone = NEW GuiCommandZone(SCREEN_WIDTH - GuiAvatar::Width - GuiGameZone::Width / 2 + 9, SCREEN_HEIGHT - GuiAvatar::Height - 30, false, mpDuelLayers->getRenderedPlayer(), this));
-    //mySideboard
-    Add(selfSideboard = NEW GuiSideboard(SCREEN_WIDTH - GuiAvatar::Width - GuiGameZone::Width / 2 + 29, SCREEN_HEIGHT - GuiAvatar::Height - 30, false, mpDuelLayers->getRenderedPlayer(), this));
+    const float inset = 18.0f;
 
-    Add(opponent = NEW GuiAvatar(0, 0, false, mpDuelLayers->getRenderedPlayerOpponent(), GuiAvatar::TOP_LEFT, this));
+    const float ZW = (float) GuiGameZone::Width;   // zone button size
+    const float ZH = (float) GuiGameZone::Height;
+    const float ZG = 2.0f;                          // gap between zone buttons
+
+    // Zones are hidden until you tap your avatar (see Activate/Deactivate); when revealed
+    // they appear as a vertical column on the RIGHT edge (yours) / LEFT edge (opponent's),
+    // clear of the center card preview and the bottom hand.
+    const float railGap = ZH + ZG;
+
+    // ---- You (bottom-right avatar) ----
+    Add(self = NEW GuiAvatar(SCREEN_WIDTH - inset, SCREEN_HEIGHT - inset, false, mpDuelLayers->getRenderedPlayer(), GuiAvatar::BOTTOM_RIGHT, this));
+    self->zoom = 0.9f;
+    {
+        float sX  = SCREEN_WIDTH - ZW - 4.0f;   // far right edge
+        float sY0 = 30.0f;                       // below the top-right phase-tap zone
+        Add(selfLibrary     = NEW GuiLibrary    (sX, sY0 + 0 * railGap, false, mpDuelLayers->getRenderedPlayer(), this));
+        Add(selfGraveyard   = NEW GuiGraveyard  (sX, sY0 + 1 * railGap, false, mpDuelLayers->getRenderedPlayer(), this));
+        Add(selfExile       = NEW GuiExile      (sX, sY0 + 2 * railGap, false, mpDuelLayers->getRenderedPlayer(), this));
+        Add(selfCommandZone = NEW GuiCommandZone(sX, sY0 + 3 * railGap, false, mpDuelLayers->getRenderedPlayer(), this));
+        Add(selfSideboard   = NEW GuiSideboard  (sX, sY0 + 4 * railGap, false, mpDuelLayers->getRenderedPlayer(), this));
+    }
+
+    // ---- Opponent (top-left avatar) ----
+    Add(opponent = NEW GuiAvatar(inset, inset, false, mpDuelLayers->getRenderedPlayerOpponent(), GuiAvatar::TOP_LEFT, this));
     opponent->zoom = 0.9f;
-    //opponentExile
-    Add(opponentExile = NEW GuiExile(5 + GuiAvatar::Width * 1.4 - GuiGameZone::Width / 2, 5 + GuiGameZone::Height + 5, false,
-                    mpDuelLayers->getRenderedPlayerOpponent(), this));
-    //opponentGraveyard
-    Add(opponentGraveyard = NEW GuiGraveyard(5 + GuiAvatar::Width * 1.4 - GuiGameZone::Width / 2, 5, false,
-                    mpDuelLayers->getRenderedPlayerOpponent(), this));
-    //opponentHand
-    Add(opponentHand = NEW GuiOpponentHand(-15 + GuiAvatar::Width * 1.4 - GuiGameZone::Width / 2, 43 + GuiGameZone::Height - 10, false,
-                    mpDuelLayers->getRenderedPlayerOpponent(), this));
-    //opponentLibrary
-    Add(opponentLibrary = NEW GuiLibrary(-30 + GuiAvatar::Width * 1.2 - GuiGameZone::Width / 2, 43 + GuiGameZone::Height - 10, false, 
-                    mpDuelLayers->getRenderedPlayerOpponent(), this));
-    //opponentCommandZone
-    Add(opponentCommandZone = NEW GuiCommandZone(5 + GuiAvatar::Width * 1.4 - GuiGameZone::Width / 2, 43 + GuiGameZone::Height -10, false,
-                    mpDuelLayers->getRenderedPlayerOpponent(), this));
+    {
+        float oX  = 2.0f;                                       // far left edge
+        float oY0 = inset + GuiAvatar::Height + 12.0f;          // below the (enlarged) opponent avatar
+        Add(opponentLibrary     = NEW GuiLibrary    (oX, oY0 + 0 * railGap, false, mpDuelLayers->getRenderedPlayerOpponent(), this));
+        Add(opponentGraveyard   = NEW GuiGraveyard  (oX, oY0 + 1 * railGap, false, mpDuelLayers->getRenderedPlayerOpponent(), this));
+        Add(opponentExile       = NEW GuiExile      (oX, oY0 + 2 * railGap, false, mpDuelLayers->getRenderedPlayerOpponent(), this));
+        Add(opponentCommandZone = NEW GuiCommandZone(oX, oY0 + 3 * railGap, false, mpDuelLayers->getRenderedPlayerOpponent(), this));
+        Add(opponentHand        = NEW GuiOpponentHand(oX, oY0 + 4 * railGap, false, mpDuelLayers->getRenderedPlayerOpponent(), this));
+    }
 
     observer->getCardSelector()->Add(self);
     observer->getCardSelector()->Add(selfGraveyard);
@@ -51,7 +59,11 @@ GuiAvatars::GuiAvatars(DuelLayers* duelLayers) :
     observer->getCardSelector()->Add(opponentCommandZone);
     observer->getCardSelector()->Add(opponentLibrary);
     observer->getCardSelector()->Add(opponentHand);
-    selfGraveyard->alpha = selfExile->alpha = selfCommandZone->alpha = selfSideboard->alpha = opponentCommandZone->alpha = opponentExile->alpha = selfLibrary->alpha = opponentGraveyard->alpha = opponentLibrary->alpha = opponentHand->alpha = 0;
+    // Hidden until the owning avatar is tapped (Activate reveals the whole column at 230,
+    // Deactivate hides it again). alpha 0 also makes them un-tappable (Closest.cpp skips
+    // actA<32), so they don't intercept taps while hidden.
+    selfLibrary->alpha = selfGraveyard->alpha = selfExile->alpha = selfCommandZone->alpha = selfSideboard->alpha = 0.0f;
+    opponentLibrary->alpha = opponentGraveyard->alpha = opponentExile->alpha = opponentCommandZone->alpha = opponentHand->alpha = 0.0f;
 }
 
 float GuiAvatars::LeftBoundarySelf()
@@ -68,34 +80,45 @@ void GuiAvatars::Activate(PlayGuiObject* c)
     c->zoom = 1.2f;
     c->mHasFocus = true;
 
+    // Tapping an avatar (or one of its zones) reveals that player's whole zone column.
     if ((opponentGraveyard == c) || (opponentExile == c) || (opponentCommandZone == c) || (opponentLibrary == c) || (opponent == c) || (opponentHand == c))
     {
-        opponentGraveyard->alpha = opponentExile->alpha = opponentCommandZone->alpha = opponentLibrary->alpha = opponentHand->alpha = 128.0f;
+        opponentLibrary->alpha = opponentGraveyard->alpha = opponentExile->alpha = opponentCommandZone->alpha = opponentHand->alpha = 230.0f;
         active = opponent;
         opponent->zoom = 1.2f;
     }
     else if ((selfGraveyard == c) || (selfExile == c) || (selfCommandZone == c) || (selfSideboard == c) || (selfLibrary == c) || (self == c))
     {
-        selfGraveyard->alpha = selfExile->alpha = selfSideboard->alpha = selfCommandZone->alpha = selfLibrary->alpha = 128.0f;
+        selfLibrary->alpha = selfGraveyard->alpha = selfExile->alpha = selfCommandZone->alpha = selfSideboard->alpha = 230.0f;
         self->zoom = 1.0f;
         active = self;
     }
     if (opponent != c && self != c)
-        c->alpha = 255.0f;
+        c->alpha = 255.0f; // highlight the focused zone button
 }
 void GuiAvatars::Deactivate(PlayGuiObject* c)
 {
     c->zoom = 1.0;
     c->mHasFocus = false;
+    // Tapping away from the rail also closes any open zone card-list and clears the big
+    // card preview, so it doesn't linger after the zone view is dismissed.
+    if (observer)
+    {
+        if (observer->getCardSelector())
+            observer->getCardSelector()->ClearPreview();
+        if (observer->guiOpenDisplay && c == observer->guiOpenDisplay)
+            observer->guiOpenDisplay->toggleDisplay();
+    }
+    // Leaving the avatar/its zones hides that player's whole column again.
     if ((opponentGraveyard == c) || (opponentExile == c) || (opponentCommandZone == c) || (opponentLibrary == c) || (opponentHand == c) || (opponent == c))
     {
-        opponentGraveyard->alpha = opponentExile->alpha = opponentCommandZone->alpha = opponentLibrary->alpha = opponentHand->alpha = 0;
+        opponentLibrary->alpha = opponentGraveyard->alpha = opponentExile->alpha = opponentCommandZone->alpha = opponentHand->alpha = 0.0f;
         opponent->zoom = 0.9f;
         active = NULL;
     }
     else if ((selfGraveyard == c) || (selfExile == c) || (selfCommandZone == c) || (selfSideboard == c) || (selfLibrary == c) || (self == c))
     {
-        selfGraveyard->alpha = selfExile->alpha = selfSideboard->alpha = selfCommandZone->alpha = selfLibrary->alpha = 0;
+        selfLibrary->alpha = selfGraveyard->alpha = selfExile->alpha = selfCommandZone->alpha = selfSideboard->alpha = 0.0f;
         self->zoom = 0.5f;
         active = NULL;
     }
@@ -150,6 +173,8 @@ bool GuiAvatars::CheckUserInput(JButton key)
 
 void GuiAvatars::Update(float dt)
 {
+    // All zone buttons stay visible at all times (empty ones included) — their fixed
+    // positions come from the constructor and their alpha stays at 230.
     self->Update(dt);
     opponent->Update(dt);
     selfGraveyard->Update(dt);

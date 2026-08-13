@@ -11,6 +11,43 @@
 #include "OptionItem.h"
 #include "DeckDataWrapper.h"
 #include "Credits.h"
+#include "WResourceManager.h"
+#include "WFont.h"
+
+// A "Back to Main Menu" list entry styled like the game's standard buttons: a filled red
+// box with white centred text (the default WGuiItem renders plain text only).
+class WGuiBackButton : public WGuiItem
+{
+public:
+    WGuiBackButton(string s) : WGuiItem(s) {}
+    virtual void Render()
+    {
+        JRenderer * r = JRenderer::GetInstance();
+        WFont * mFont = WResourceManager::Instance()->GetWFont(Fonts::OPTION_FONT);
+        float bw = getWidth();
+        float bh = getHeight();
+        r->FillRect(x + 3, y + 3, bw - 6, bh - 5, ARGB(220, 5, 5, 5));
+        r->FillRect(x + 2, y + 2, bw - 6, bh - 5, ARGB(255, 140, 23, 23));
+        r->DrawRect(x + 2, y + 2, bw - 6, bh - 5, ARGB(255, 20, 20, 20));
+        DWORD old = mFont->GetColor();
+        mFont->SetColor(ARGB(255, 255, 255, 255));
+        float fH = (bh - mFont->GetHeight()) / 2;
+        mFont->DrawString(_(displayValue), x + bw / 2, y + fH, JGETEXT_CENTER);
+        mFont->SetColor(old);
+    }
+};
+
+namespace
+{
+    // On-screen back/exit button for touch (the trophy room otherwise only exits via
+    // hardware MENU/PREV/SEC). Emits JGE_BTN_SEC, which steps back: details -> list,
+    // list -> main menu. X is computed at runtime because SCREEN_WIDTH_F is only correct
+    // once the real screen size is known (a static initializer would use a default).
+    const float kAwardsExitW = 48.0f;
+    const float kAwardsExitH = 18.0f;
+    inline float awardsExitX() { return SCREEN_WIDTH_F - kAwardsExitW - 4.0f; }
+    inline float awardsExitY() { return SCREEN_HEIGHT_F - kAwardsExitH - 4.0f; }
+}
 
 enum ENUM_AWARDS_STATE
 {
@@ -97,12 +134,6 @@ void GameStateAwards::Start()
 
     wgh = NEW WGuiHeader("");
     listview->Add(wgh);
- 
-    #if !defined(PSP)
-	   WGuiItem* backLabel = NEW WGuiItem("Back to Main Menu");
-	   WGuiButton* backBtn = NEW WGuiButton(backLabel, EXIT_AWARDS_MENU, GameStateAwardsConst::kBackToMainMenuID, this);
-	   listview->Add(backBtn);
-	   #endif
 
     int locked = 0;
 
@@ -152,6 +183,14 @@ void GameStateAwards::Start()
 
     wgh->setDisplay(buf);
     wgh->mFlags = WGuiItem::NO_TRANSLATE;
+
+    // "Back to Main Menu" belongs at the very end of the list, after all the sets
+    // (previously it was inserted between the achievements and the set list).
+    #if !defined(PSP)
+        WGuiItem* backLabel = NEW WGuiBackButton("Back to Main Menu");
+        WGuiButton* backBtn = NEW WGuiButton(backLabel, EXIT_AWARDS_MENU, GameStateAwardsConst::kBackToMainMenuID, this);
+        listview->Add(backBtn);
+    #endif
 
     listview->Entering(JGE_BTN_NONE);
     detailview = NULL;
@@ -208,6 +247,21 @@ void GameStateAwards::Render()
 
     if (showMenu && menu)
         menu->Render();
+    else
+    {
+        // On-screen back/exit button (touch).
+        float ex = awardsExitX(), ey = awardsExitY();
+        // Styled like the game's standard buttons: red fill, white outline + text.
+        r->FillRoundRect(ex, ey, kAwardsExitW, kAwardsExitH, 3.0f, ARGB(255, 140, 23, 23));
+        r->DrawRoundRect(ex, ey, kAwardsExitW, kAwardsExitH, 3.0f, ARGB(255, 255, 255, 255));
+        WFont* f = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+        if (f)
+        {
+            f->SetScale(1.0f);
+            f->SetColor(ARGB(255, 255, 255, 255));
+            f->DrawString(_("Back"), ex + kAwardsExitW * 0.5f, ey + 4.0f, JGETEXT_CENTER);
+        }
+    }
 }
 
 void GameStateAwards::Update(float dt)
@@ -221,6 +275,17 @@ void GameStateAwards::Update(float dt)
     }
     else
     {
+        // Touch back/exit button: a tap inside its bounds steps back (JGE_BTN_SEC).
+        int cx = -1, cy = -1;
+        float ex = awardsExitX(), ey = awardsExitY();
+        if (mEngine->GetLeftClickCoordinates(cx, cy) &&
+            cx >= ex && cx <= ex + kAwardsExitW &&
+            cy >= ey && cy <= ey + kAwardsExitH)
+        {
+            mEngine->ResetInput();
+            mEngine->HoldKey_NoRepeat(JGE_BTN_SEC);
+        }
+
         JButton key = JGE_BTN_NONE;
 
         while ((key = JGE::GetInstance()->ReadButton()))
@@ -249,17 +314,24 @@ void GameStateAwards::Update(float dt)
                 }
                 break;
             default:
+            {
+                // Reverse the vertical scroll in the trophy room (per user request): a swipe
+                // up should start the list moving. Swap UP<->DOWN before dispatching.
+                JButton navKey = key;
+                if (key == JGE_BTN_UP) navKey = JGE_BTN_DOWN;
+                else if (key == JGE_BTN_DOWN) navKey = JGE_BTN_UP;
                 if (mState == STATE_LISTVIEW && listview)
                 {
-                    listview->CheckUserInput(key);
+                    listview->CheckUserInput(navKey);
                     listview->Update(dt);
                 }
                 else if (mState == STATE_DETAILS && detailview)
                 {
-                    detailview->CheckUserInput(key);
+                    detailview->CheckUserInput(navKey);
                     detailview->Update(dt);
                 }
                 break;
+            }
             }
         }
     }
@@ -298,8 +370,8 @@ bool GameStateAwards::enterSet(int setid)
     setSrc->setOffset(0);
     spoiler->Entering(JGE_BTN_NONE);
     WGuiCardImage * wi = NEW WGuiCardImage(setSrc);
-    wi->setX(105);
-    wi->setY(137);
+    wi->setX(SCREEN_WIDTH * 0.164f);   // was hardcoded 105 (105/640 ≈ 0.164)
+    wi->setY(SCREEN_HEIGHT * 0.504f);  // was hardcoded 137 (137/272 ≈ 0.504)
     detailview->Add(wi);
     detailview->Add(spoiler);
     detailview->Entering(JGE_BTN_NONE);

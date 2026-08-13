@@ -92,6 +92,7 @@ public:
     int CDdamaged;
     bool blinked;
     bool isExtraCostTarget;
+    bool foil; //Premium/foil copy — cosmetic shine overlay; ownership tracked in the collection.
     bool morphed;
     bool exerted;
     bool turningOver;

@@ -19615,7 +19615,7 @@ toughness=2
 [/card]
 [card]
 name=Clandestine Meddler
-auto=may target(other creature|myBattlefield) _SUSPECT_IT_
+auto=may target(creature|myBattlefield) _SUSPECT_IT_
 auto=@combat(attacking) source(creature[suspect]|myBattlefield) turnlimited:_SURVEIL1_
 text=When Clandestine Meddler enters, suspect up to one other target creature you control. (A suspected creature has menace and can't block.) -- Whenever one or more suspected creatures you control attack, surveil 1. (Look at the top card of your library. You may put it into your graveyard.)
 mana={2}{B}
@@ -34339,7 +34339,7 @@ toughness=3
 [card]
 name=Endurance
 abilities=flash,reach
-other={E(other *[green]|myhand)} name(Evoke)
+other={E(*[green]|myhand)} name(Evoke)
 auto=alternative sacrifice
 auto=choice name(Target opponent) all(*|opponentgraveyard) transforms((,newability[bottomoflibrary])) oneshot
 auto=choice name(Target yourself) all(*|myGraveyard) transforms((,newability[bottomoflibrary])) oneshot
@@ -41480,7 +41480,7 @@ toughness=3
 [/card]
 [card]
 name=Force of Despair
-other={E(other *[black]|myhand)}
+other={E(*[black]|myhand)}
 otherrestriction=opponentturnonly
 auto=destroy all(creature[fresh])
 text=If it's not your turn, you may exile a black card from your hand rather than pay this spell's mana cost. -- Destroy all creatures that entered the battlefield this turn.
@@ -41509,7 +41509,7 @@ type=Instant
 [card]
 name=Force of Vigor
 target=<upto:2>*[artifact;enchantment]
-other={E(other *[green]|myhand)} name(Exile a Green Card from Hand)
+other={E(*[green]|myhand)} name(Exile a Green Card from Hand)
 otherrestriction=opponentturnonly
 auto=destroy
 text=If it's not your turn, you may exile a green card from your hand rather than pay this spell's mana cost. -- Destroy up to two target artifacts and/or enchantments.
@@ -41519,7 +41519,7 @@ type=Instant
 [card]
 name=Force of Virtue
 abilities=flash
-other={E(other *[white]|myhand)} name(Exile a White Card from Hand)
+other={E(*[white]|myhand)} name(Exile a White Card from Hand)
 otherrestriction=opponentturnonly
 auto=lord(creature|myBattlefield) 1/1
 text=If it's not your turn, you may exile a white card from your hand rather than pay this spell's mana cost. -- Flash -- Creatures you control get +1/+1.
@@ -43062,7 +43062,7 @@ toughness=2
 [/card]
 [card]
 name=Fury
-other={E(other *[red]|myhand)} name(Evoke)
+other={E(*[red]|myhand)} name(Evoke)
 auto=alternative sacrifice
 abilities=double strike
 auto=thisforeach(variable{4}) ability$!name(Deal 1 damage) name(Deal 1 damage) target(*[creature;planeswalker]|battlefield) damage:1!$ controller
@@ -45711,8 +45711,8 @@ type=Enchantment
 [/card]
 [card]
 name=Glademuse
-auto=@movedTo(*|opponentStack) restriction{myturnonly}:draw:1 opponent
-auto=@movedTo(*|myStack) restriction{opponentturnonly}:draw:1 controller
+auto=@movedTo(*|opponentStack): restriction{myturnonly} then draw:1 opponent
+auto=@movedTo(*|myStack): restriction{opponentturnonly} then draw:1 controller
 text=Whenever a player casts a spell, if it's not their turn, that player draws a card.
 mana={2}{G}
 type=Creature
@@ -49006,7 +49006,7 @@ toughness=1
 [card]
 name=Grief
 abilities=menace
-other={E(other *[black]|myhand)} name(Evoke)
+other={E(*[black]|myhand)} name(Evoke)
 auto=alternative sacrifice
 auto=if type(*[-land]|opponenthand)~morethan~0 then name(Discard non-land card) name(Discard a non-land card) reject notaTarget(*[-land]|opponenthand)
 auto=if type(*[-land]|opponenthand)~equalto~0 then name(Reveal hand) name(Reveal hand) target(*|opponenthand) moveto(opponentreveal) and!( moveto(opponenthand) )!
@@ -87451,7 +87451,7 @@ toughness=1+*
 [/card]
 [card]
 name=Pyrokinesis
-other={E(other *[red]|myhand)} name(Exile red card)
+other={E(*[red]|myhand)} name(Exile red card)
 auto=thisforeach(variable{4}) ability$!name(Deal 1 damage) name(Deal 1 damage) target(creature) damage:1!$ controller
 text=You may exile a red card from your hand rather than pay Pyrokinesis's mana cost. -- Pyrokinesis deals 4 damage divided as you choose among any number of target creatures.
 mana={4}{R}{R}
@@ -105822,7 +105822,7 @@ toughness=2
 [card]
 name=Solitude
 abilities=flash,lifelink
-other={E(other *[white]|myhand)} name(Evoke)
+other={E(*[white]|myhand)} name(Evoke)
 auto=alternative sacrifice
 auto=may name(Exile a creature) target(other creature|battlefield) moveto(exile) and!( transforms((,newability[life:power controller])) oneshot )!
 text=Flash -- Lifelink -- When Solitude enters, exile up to one other target creature. That creature's controller gains life equal to its power. -- Evoke-Exile a white card from your hand.
@@ -107772,7 +107772,7 @@ toughness=3
 [/card]
 [card]
 name=Spinning Darkness
-other={E(other *[black]|mygraveyard)}{E(*[black]|mygraveyard)}{E(*[black]|mygraveyard)} name(Exile 3 black creatures)
+other={E(*[black]|mygraveyard)}{E(*[black]|mygraveyard)}{E(*[black]|mygraveyard)} name(Exile 3 black creatures)
 auto=damage:3 target(creature[-black])
 auto=life:3 controller
 text=You may exile the top three black cards of your graveyard rather than pay Spinning Darkness's mana cost. -- Spinning Darkness deals 3 damage to target nonblack creature. You gain 3 life.
@@ -111048,7 +111048,7 @@ type=Instant
 [card]
 name=Subtlety
 abilities=flash,flying
-other={E(other *[blue]|myhand)} name(Evoke)
+other={E(*[blue]|myhand)} name(Evoke)
 auto=alternative sacrifice
 auto=may name(Choose creature or planeswalker) target(creature,planeswalker|stack) transforms((,newability[choice name(Put on top) moveto(myLibrary)],newability[choice name(Put on bottom) bottomoflibrary])) oneshot
 text=Flash -- Flying -- When Subtlety enters, choose up to one target creature spell or planeswalker spell. Its owner puts it on the top or bottom of their library. -- Evoke-Exile a blue card from your hand.

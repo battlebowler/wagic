@@ -34,6 +34,41 @@ namespace
 #endif // TOUCH_ENABLED
     std::string kOtherCardsString(": Other cards");
     std::string kCreditsString("Credits: ");
+
+    // Layout for the flat vertical shop list (booster packs on top, cards below), which
+    // replaced the old "tabletop" perspective layout. Heights are fixed (SCREEN_HEIGHT is
+    // constant); the list width is derived from SCREEN_WIDTH_F at runtime.
+    const float kShopListX    = 8.0f;
+    const float kShopListTop  = 20.0f;
+    const float kShopHeaderH  = 14.0f;
+    const float kShopRowH     = 17.0f;
+
+    // Width of the list column (left side); the card preview sits to the right of it.
+    inline float shopListW() { return SCREEN_WIDTH_F * 0.42f; }
+
+    // Top-left y of the row for a given shop slot, accounting for the two section headers
+    // ("Booster Packs" then "Cards").
+    inline float shopRowY(int slot)
+    {
+        float y = kShopListTop + kShopHeaderH; // below the "Booster Packs" header
+        if (slot < BOOSTER_SLOTS)
+            return y + kShopRowH * slot;
+        return y + kShopRowH * BOOSTER_SLOTS + kShopHeaderH + kShopRowH * (slot - BOOSTER_SLOTS);
+    }
+
+    // Which shop slot (if any) a point falls on. Returns -1 if the point is off the list.
+    inline int shopSlotAtPoint(float x, float y, float listW)
+    {
+        if (x < kShopListX || x > kShopListX + listW)
+            return -1;
+        for (int i = 0; i < SHOP_SLOTS; i++)
+        {
+            float ry = shopRowY(i);
+            if (y >= ry && y < ry + kShopRowH)
+                return i;
+        }
+        return -1;
+    }
 }
 
 
@@ -69,10 +104,14 @@ GameStateShop::GameStateShop(GameApp* parent) :
     lightAlpha = 0;
     filterMenu = NULL;
     alphaChange = 0;
+    mRefreshCount = 0;
+    mLastRefreshDay = 0;
+    mStockLoaded = false;
     for (int i = 0; i < SHOP_ITEMS; i++)
     {
         mPrices[i] = 0;
         mCounts[i] = 0;
+        mFoilSingle[i] = false;
     }
     mTouched = false;
 
@@ -81,8 +120,11 @@ GameStateShop::GameStateShop(GameApp* parent) :
     
     cycleCardsButton = NEW InteractiveButton(NULL, kCycleCardsButtonId, Fonts::MAIN_FONT, "New Cards", SCREEN_WIDTH_F - 110, SCREEN_HEIGHT_F - 20, JGE_BTN_PRI);
     
-    showCardListButton = NEW InteractiveButton(NULL, kShowCardListButtonId, Fonts::MAIN_FONT, "Show List", SCREEN_WIDTH_F - 170, SCREEN_HEIGHT_F - 20, JGE_BTN_SEC);
+    // "Show List" button removed: the flat item list is always visible now.
+    showCardListButton = NULL;
     shopMenuButton = NEW InteractiveButton(NULL, kMenuButtonId, Fonts::MAIN_FONT, "Menu", SCREEN_WIDTH_F - 45, SCREEN_HEIGHT_F - 20, JGE_BTN_MENU);
+    // Task-board Back button, styled identically to New Cards/Menu, placed to their left.
+    taskBackButton = NEW InteractiveButton(NULL, kMenuButtonId, Fonts::MAIN_FONT, "Back", SCREEN_WIDTH_F - 150, SCREEN_HEIGHT_F - 20, JGE_BTN_SEC);
     disablePurchase = false;
     clearInput = false;
 }
@@ -92,7 +134,11 @@ GameStateShop::~GameStateShop()
     SAFE_DELETE( cycleCardsButton );
     SAFE_DELETE( showCardListButton );
     SAFE_DELETE( shopMenuButton );
+    SAFE_DELETE( taskBackButton );
     End();
+    // The persistent shop stock kept across visits (see Start/End) is freed on shutdown.
+    SAFE_DELETE( srcCards );
+    SAFE_DELETE( packlist );
 }
 
 void GameStateShop::Create()
@@ -107,10 +153,15 @@ void GameStateShop::Start()
     mStage = STAGE_FADE_IN;
     needLoad = true;
     booster = NULL;
-    srcCards = NEW WSrcUnlockedCards(0);
-    srcCards->setElapsed(15);
-    srcCards->addFilter(NEW WCFilterNOT(NEW WCFilterRarity("T")));
-    srcCards->addFilter(NEW WCFilterNOT(NEW WCFilterSet(MTGSets::INTERNAL_SET)));
+    // Keep the same shop stock across visits: only build (and shuffle) srcCards the first
+    // time. Recreating it every visit reshuffled the singles = a free refresh on re-entry.
+    if (!srcCards)
+    {
+        srcCards = NEW WSrcUnlockedCards(0);
+        srcCards->setElapsed(15);
+        srcCards->addFilter(NEW WCFilterNOT(NEW WCFilterRarity("T")));
+        srcCards->addFilter(NEW WCFilterNOT(NEW WCFilterSet(MTGSets::INTERNAL_SET)));
+    }
 
     shopMenu = NEW WGuiMenu(JGE_BTN_DOWN, JGE_BTN_UP, true, &bigSync);
     MTGAllCards * ac = MTGCollection();
@@ -137,7 +188,9 @@ void GameStateShop::Start()
         bigDisplay = NEW WGuiCardImage(srcCards);
         bigDisplay->mOffset.Hook(&bigSync);
         bigDisplay->mOffset.setOffset(-BOOSTER_SLOTS);
-        bigDisplay->setX(385);
+        // Preview sits to the right of the list (~72% across) so it no longer overlaps
+        // the item list on the left.
+        bigDisplay->setX(SCREEN_WIDTH_F * 0.72f);
         bigDisplay->setY(135);
     }
 
@@ -156,9 +209,22 @@ void GameStateShop::Start()
     JRenderer::GetInstance()->EnableVSync(true);
 
     taskList = NULL;
-    packlist = NEW MTGPacks();
-    packlist->loadAll();
-    load();
+    // packlist is kept across visits too: booster slots (mBooster) hold pointers into it, so
+    // it must outlive the stock we're now persisting.
+    if (!packlist)
+    {
+        packlist = NEW MTGPacks();
+        packlist->loadAll();
+    }
+    // Roll the shop stock (singles + boosters) once, then keep it; on re-entry just refresh
+    // the owned-copy counts. This is what stops leaving/returning from being a free refresh.
+    if (!mStockLoaded)
+    {
+        load();
+        mStockLoaded = true;
+    }
+    else
+        updateCounts();
 }
 
 string GameStateShop::descPurchase(int controlId, bool tiny)
@@ -175,6 +241,7 @@ string GameStateShop::descPurchase(int controlId, bool tiny)
         if (!c)
             return "";
         name = _(c->data->getName());
+        if (mFoilSingle[controlId]) name = "[Foil] " + name;
     }
     if (mInventory[controlId] <= 0)
     {
@@ -280,6 +347,12 @@ void GameStateShop::purchaseCard(int controlId)
     if (!c || !c->data || playerdata->credits - mPrices[controlId] < 0 || (c && c->getRarity() == Constants::RARITY_T))//cant buy tokens....
         return;
     myCollection->Add(c);
+    if (mFoilSingle[controlId] && playerdata && playerdata->collection)
+    {
+        // Record the foil copy in the collection; save()'s Rebuild keeps foilCount.
+        playerdata->collection->addFoil(c->getId(), 1);
+        mFoilSingle[controlId] = false; // the foil copy has been sold
+    }
     int price = mPrices[controlId];
     pricelist->setPrice(c->getMTGId(), price); // In case they changed their minds after cancelling.
     playerdata->credits -= price;
@@ -328,6 +401,7 @@ void GameStateShop::purchaseBooster(int controlId)
     else
         ddw->Sort(WSrcCards::SORT_RARITY);
 
+    vector<MTGCardInstance*> thisPack; // instances opened in THIS pack (for the foil roll)
     for (int x = 0; x < ddw->Size(); x++)
     {
         MTGCard * c = ddw->getCard(x);
@@ -336,11 +410,39 @@ void GameStateShop::purchaseBooster(int controlId)
             MTGCardInstance * ci = NEW MTGCardInstance(c, NULL);
             boosterDisplay->AddCard(ci);
             subBooster.push_back(ci);
+            thisPack.push_back(ci);
         }
     }
     SAFE_DELETE(ddw);
 
     myCollection->loadMatches(booster);
+
+    // Foil pull: only sets from the foil era can yield a foil, and older foil-era sets are
+    // rarer (matching e.g. 7ED's notoriously tough foils). Pre-foil sets never yield foils.
+    // When pulled, one random card in the pack becomes foil (shown shiny) and is recorded
+    // in the collection.
+    {
+        const int kFoilFromYear = 1999;      // foils debuted ~Urza's Legacy / early 7ED era
+        int yr = mBooster[controlId].getSetYear();
+        // Foil-era packs yield a foil ~15% of the time; older foil-era sets (pre-2004) are
+        // rarer at ~7%, matching e.g. 7ED's notoriously tough foils.
+        int foilChance = 15;
+        if (yr && yr < 2004) foilChance = 7;
+        if (!thisPack.empty() && yr >= kFoilFromYear && (rand() % 100) < foilChance)
+        {
+            int idx = rand() % (int) thisPack.size();
+            MTGCardInstance * fc = thisPack[idx];
+            if (fc && fc->getId())
+            {
+                fc->foil = true;
+                if (playerdata && playerdata->collection)
+                    playerdata->collection->addFoil(fc->getId(), 1);
+                if (boosterDisplay)
+                    boosterDisplay->setCurrentCard(idx); // open the reveal on the foil card
+            }
+        }
+    }
+
     mTouched = true;
     save(true);
     menu->Close();
@@ -379,6 +481,20 @@ void GameStateShop::updateCounts()
             mCounts[i] = myCollection->countByName(c);
     }
 }
+int GameStateShop::computeRefreshCost()
+{
+    // Cool-down: the escalation drops by 1 for each in-game day (duel) elapsed since the
+    // last refresh/charge, so the cost recovers over time instead of climbing forever.
+    int passed = TaskList::sDaysElapsed - mLastRefreshDay;
+    if (passed > 0)
+    {
+        mRefreshCount -= passed;
+        if (mRefreshCount < 0) mRefreshCount = 0;
+        mLastRefreshDay = TaskList::sDaysElapsed;
+    }
+    // Grows with each refresh AND with current wealth, so it can't be power-spammed.
+    return 250 * (mRefreshCount + 1) + (playerdata ? playerdata->credits / 8 : 0);
+}
 void GameStateShop::load()
 {
     for (int i = 0; i < BOOSTER_SLOTS; i++)
@@ -395,9 +511,19 @@ void GameStateShop::load()
             mPrices[i] = 0;
             mCounts[i] = 0;
             mInventory[i] = 0;
+            mFoilSingle[i] = false;
             continue;
         }
+        // Foils in singles: rarer than in packs. Only foil-era sets, ~4% per restock.
+        mFoilSingle[i] = false;
+        {
+            MTGSetInfo * si = setlist.getInfo(c->setId);
+            int yr = si ? si->year : 0;
+            if (yr >= 1999 && (rand() % 100) < 4)
+                mFoilSingle[i] = true;
+        }
         mPrices[i] = purchasePrice(i - BOOSTER_SLOTS);
+        if (mFoilSingle[i]) mPrices[i] *= 3; // foils command a premium
         mCounts[i] = myCollection->countByName(c);
         switch (c->getRarity())
         {
@@ -438,13 +564,13 @@ void GameStateShop::End()
 
     SAFE_DELETE(shopMenu);
     SAFE_DELETE(bigDisplay);
-    SAFE_DELETE(srcCards);
+    // srcCards and packlist are intentionally NOT freed here — they hold the persistent shop
+    // stock (see Start()). They're released in the destructor instead.
     SAFE_DELETE(playerdata);
     SAFE_DELETE(pricelist);
     SAFE_DELETE(myCollection);
     SAFE_DELETE(booster);
     SAFE_DELETE(filterMenu);
-    SAFE_DELETE(packlist);
     deleteDisplay();
 
     SAFE_DELETE(menu);
@@ -508,6 +634,12 @@ void GameStateShop::Update(float dt)
         }
         if (taskList)
         {
+            // On-screen Back button (same widget style as New Cards/Menu): tap it to leave.
+            if (taskBackButton && taskBackButton->ButtonPressed())
+            {
+                taskList->End();
+                return;
+            }
             btn = mEngine->ReadButton();
             taskList->Update(dt);
             if (taskList->getState() != TaskList::TASKS_INACTIVE)
@@ -618,19 +750,45 @@ void GameStateShop::Update(float dt)
                 deleteDisplay();
             else
             {
+                // Finger-anchored browsing: while dragging across the reveal, inspect the
+                // thumbnail directly under the finger instead of stepping like a slider.
+                // Drains the swipe's directional keys so they don't also step the selection.
+                int dx = -1, dy = -1;
+                if (mEngine->GetDragCoordinates(dx, dy))
+                {
+                    int idx = boosterDisplay->thumbAtPoint((float)dx, (float)dy);
+                    if (idx >= 0) boosterDisplay->setCurrentCard(idx);
+                    mEngine->DragProcessed();
+                    while (mEngine->ReadButton()) {} // drop the swipe's directional keys
+                    boosterDisplay->Update(dt);
+                    return;
+                }
                 boosterDisplay->CheckUserInput(btn);
                 boosterDisplay->Update(dt);
             }
             return;
         }
-        else if (btn == JGE_BTN_PRI) // so we don't shuffle while we view our newly purchased booster display.
+        else if (btn == JGE_BTN_PRI) // "New Cards": confirm, then reshuffle for an escalating fee.
         {
-            srcCards->Shuffle();
-            load();
-            disablePurchase = false;
+            int refreshCost = computeRefreshCost();
+            SAFE_DELETE(menu);
+            if (!playerdata || playerdata->credits < refreshCost)
+            {
+                menu = NEW SimpleMenu(JGE::GetInstance(), WResourceManager::Instance(), -145, this, Fonts::MENU_FONT,
+                                      SCREEN_WIDTH - 300, SCREEN_HEIGHT / 2, _("Not enough credits to refresh").c_str());
+                menu->Add(-1, "Ok");
+                clearInput = true;
+                return;
+            }
+            // Confirm the paid refresh with the standard floating menu (like buy/save prompts).
+            char buf[128];
+            sprintf(buf, _("Refresh cards for %i credits?").c_str(), refreshCost);
+            menu = NEW SimpleMenu(JGE::GetInstance(), WResourceManager::Instance(), -146, this, Fonts::MENU_FONT,
+                                  SCREEN_WIDTH - 300, SCREEN_HEIGHT / 2, buf);
+            menu->Add(1, "Yes");
+            menu->Add(-1, "No");
             clearInput = true;
             return;
-
         }
         else if (btn == JGE_BTN_CANCEL)
             options[Options::DISABLECARDS].number = !options[Options::DISABLECARDS].number;
@@ -643,27 +801,78 @@ void GameStateShop::Update(float dt)
         }
         else if (shopMenu)
         {
+            // Finger-anchored browsing: while dragging, select the row under the finger and
+            // preview it (no purchase), like the open hand — instead of the swipe stepping
+            // the selection like a slider. Drains the swipe's nav keys so it doesn't also
+            // step. A drag never commits a tap (LeftClicked only fires on a no-move up).
+            {
+                int dx = -1, dy = -1;
+                if (mEngine->GetDragCoordinates(dx, dy))
+                {
+                    int slot = shopSlotAtPoint((float)dx, (float)dy, shopListW());
+                    if (slot >= 0 && shopMenu->getSelected() != slot)
+                    {
+                        shopMenu->setSelected(slot);
+                        bigSync.setOffset(slot);
+                        srcCards->Touch();
+                    }
+                    mEngine->DragProcessed();
+                    while (mEngine->ReadButton()) {} // drop the swipe's directional keys
+                    if (shopMenu) shopMenu->Update(dt);
+                    return;
+                }
+            }
+
+            // Bottom toolbar buttons (New Cards / Show List / Menu) get first crack at a tap.
 #if defined (IOS) || defined (ANDROID)
-            if ((cycleCardsButton->ButtonPressed() || showCardListButton->ButtonPressed() || shopMenuButton->ButtonPressed()))
-#else 
-            if ( (btn == JGE_BTN_OK) && (cycleCardsButton->ButtonPressed() || showCardListButton->ButtonPressed() || shopMenuButton->ButtonPressed()))
+            if ((cycleCardsButton->ButtonPressed() || shopMenuButton->ButtonPressed()))
+#else
+            if ( (btn == JGE_BTN_OK) && (cycleCardsButton->ButtonPressed() || shopMenuButton->ButtonPressed()))
 #endif
             {
                 disablePurchase = true;
                 return;
             }
-            else 
-#if defined (IOS) || defined (ANDROID)
-                if (clearInput && (btn == JGE_BTN_OK))
+
+            // Touch: any tap that reaches here is on the play area. If it lands on a shop
+            // list row, select that item and begin its purchase; otherwise swallow it so
+            // it can't reach the (hidden) card widgets underneath.
+            {
+                int cx = -1, cy = -1;
+                if (mEngine->GetLeftClickCoordinates(cx, cy))
                 {
-                    clearInput = false;
-                    disablePurchase = false;
+                    int slot = shopSlotAtPoint((float)cx, (float)cy, shopListW());
+                    mEngine->LeftClickedProcessed();
+                    if (slot >= 0)
+                    {
+                        shopMenu->setSelected(slot);
+                        // Sync the preview + purchase target to the tapped slot. bigSync
+                        // isn't hooked upstream, so setting its offset is equivalent to
+                        // the menu's (protected) syncMove().
+                        bigSync.setOffset(slot);
+                        ButtonPressed(-102, slot);
+                    }
                     return;
                 }
+            }
+
+#if defined (IOS) || defined (ANDROID)
+            if (clearInput && (btn == JGE_BTN_OK))
+            {
+                clearInput = false;
+                disablePurchase = false;
+                return;
+            }
             else
 #endif
+            // Swipe up/down (directional keys) moves the selection to browse the list and
+            // updates the preview, without buying. Lists no longer wrap, so a swipe stops
+            // at the ends instead of scrolling forever. Tapping a row still buys it.
+            if (btn == JGE_BTN_UP || btn == JGE_BTN_DOWN || btn == JGE_BTN_LEFT || btn == JGE_BTN_RIGHT)
+            {
                 if (shopMenu->CheckUserInput(btn))
                     srcCards->Touch();
+            }
         }
         if (shopMenu)
             shopMenu->Update(dt);
@@ -692,14 +901,12 @@ void GameStateShop::deleteDisplay()
 void GameStateShop::enableButtons()
 {
     cycleCardsButton->setIsSelectionValid(true);
-    showCardListButton->setIsSelectionValid(true);
     shopMenuButton->setIsSelectionValid(true);
 }
 
 void GameStateShop::renderButtons()
 {
     cycleCardsButton->Render();
-    showCardListButton->Render();
     shopMenuButton->Render();
 }
 
@@ -737,50 +944,93 @@ void GameStateShop::Render()
         r->EnableTextureFilter(true);
     }
 
-    if (shopMenu)
-        shopMenu->Render();
-    
+    // Flat vertical shop: a clean list of everything for sale (booster packs, then
+    // cards), with the selected item previewed on the right. Replaces the old tabletop
+    // (perspective-distorted) card layout.
     if (filterMenu && !filterMenu->isFinished())
+    {
         filterMenu->Render();
+    }
+    else if (boosterDisplay)
+    {
+        boosterDisplay->Render(true); // viewing a just-opened booster pack
+    }
     else
     {
-        if (boosterDisplay)
-            boosterDisplay->Render(true);
-        else if (bigDisplay)
+        int sel = shopMenu ? shopMenu->getSelected() : 0;
+
+        bool isBoosterSlot = (shopMenu && sel >= 0 && sel < BOOSTER_SLOTS);
+
+        // Preview of the selected item on the right. Skipped for booster slots — those get
+        // the dedicated booster image below, so bigDisplay must not also draw a card back
+        // (that produced the "card back inside a card back" double image).
+        if (bigDisplay && !isBoosterSlot)
         {
             if (bigDisplay->mOffset.getPos() >= 0)
                 bigDisplay->setSource(srcCards);
             else
                 bigDisplay->setSource(NULL);
+            bigDisplay->setFoil(sel >= 0 && sel < SHOP_ITEMS ? mFoilSingle[sel] : false);
             bigDisplay->Render();
-            float elp = srcCards->getElapsed();
-            //Render the card list overlay.
-            if (bListCards || elp > LIST_FADEIN)
+        }
+
+        // Booster slots: show a unique, per-set booster pack image in the preview area.
+        // Drop art named "booster_<SETID>.png" (or .jpg) into the theme (e.g.
+        // booster_XLN.png). PNG is tried first so transparent pack art works. If the
+        // set-specific image is missing it falls back to a generic "booster.png/.jpg", and
+        // if that's absent too, to the generic card back ("back.png/.jpg"). The active
+        // custom theme folder is searched before the base graphics/sets folders.
+        if (isBoosterSlot)
+        {
+            string setId = mBooster[sel].getSetId();
+            JQuadPtr bq;
+            const char * candidates[6];
+            int n = 0;
+            char c0[256], c1[256];
+            if (setId.size())
             {
-                int alpha = 200;
-                if (!bListCards && elp < LIST_FADEIN + .25)
-                {
-                    alpha = static_cast<int> (800 * (elp - LIST_FADEIN));
-                }
-                //r->FillRoundRect(300, 10, 160, SHOP_SLOTS * 20 + 15, 5, ARGB(alpha,0,0,0));
-                r->FillRect(297, 9.5f, 175, SHOP_SLOTS * 20 + 31, ARGB(alpha,0,0,0));
-                r->DrawRect(297, 9.5f, 175, SHOP_SLOTS * 20 + 31, ARGB(alpha,20,20,20));
-                alpha += 55;
-                for (int i = 0; i < SHOP_SLOTS; i++)
-                {
-                    if (i == shopMenu->getSelected())
-                        mFont->SetColor(ARGB(alpha,255,255,0));
-                    else
-                        mFont->SetColor(ARGB(alpha,255,255,255));
-                    char buffer[512];
-                    string s = descPurchase(i, true);
-                    sprintf(buffer, "%s", s.c_str());
-                    float x = 310;
-                    float y = static_cast<float> (25 + 20 * i);
-                    mFont->DrawString(buffer, x, y);
-                }
+                sprintf(c0, "booster_%s.png", setId.c_str()); candidates[n++] = c0;
+                sprintf(c1, "booster_%s.jpg", setId.c_str()); candidates[n++] = c1;
+            }
+            candidates[n++] = "booster.png";
+            candidates[n++] = "booster.jpg";
+            candidates[n++] = "back.png";
+            candidates[n++] = "back.jpg"; // generic card back default
+            // Keep trying until we get a VALID (non-empty) quad, so a missing or broken
+            // candidate doesn't stop the chain before the card-back fallback.
+            for (int ci = 0; ci < n && !(bq.get() && bq->mHeight > 0); ++ci)
+                bq = WResourceManager::Instance()->RetrieveTempQuad(candidates[ci]);
+            if (bq.get() && bq->mHeight > 0)
+            {
+                float targetH = SCREEN_HEIGHT_F * 0.6f;
+                float scale = targetH / bq->mHeight;
+                bq->SetHotSpot(bq->mWidth / 2.0f, bq->mHeight / 2.0f);
+                r->RenderQuad(bq.get(), SCREEN_WIDTH_F * 0.72f, SCREEN_HEIGHT_F * 0.42f, 0, scale, scale);
             }
         }
+
+        float listW = shopListW();
+
+        // Section headers.
+        mFont->SetScale(0.9f);
+        mFont->SetColor(ARGB(255, 235, 205, 120));
+        mFont->DrawString(_("Booster Packs").c_str(), kShopListX + 4.0f, kShopListTop + 1.0f);
+        mFont->DrawString(_("Cards").c_str(), kShopListX + 4.0f,
+                          kShopListTop + kShopHeaderH + kShopRowH * BOOSTER_SLOTS + 1.0f);
+
+        // Rows (booster packs + cards).
+        for (int i = 0; i < SHOP_SLOTS; i++)
+        {
+            float y = shopRowY(i);
+            bool seld = (i == sel);
+            r->FillRect(kShopListX, y, listW, kShopRowH - 2.0f,
+                        seld ? ARGB(215, 70, 55, 25) : ARGB(150, 18, 18, 18));
+            if (seld)
+                r->DrawRect(kShopListX, y, listW, kShopRowH - 2.0f, ARGB(230, 225, 190, 90));
+            mFont->SetColor(seld ? ARGB(255, 255, 240, 150) : ARGB(255, 225, 225, 225));
+            mFont->DrawString(descPurchase(i, false).c_str(), kShopListX + 6.0f, y + 3.0f);
+        }
+        mFont->SetScale(1.0f);
     }
 
     //Render the info bar
@@ -805,6 +1055,9 @@ void GameStateShop::Render()
     if (mStage == STAGE_SHOP_TASKS && taskList)
     {
         taskList->Render();
+        // On-screen Back button (same style as New Cards/Menu, to their left).
+        if (taskBackButton)
+            taskBackButton->Render();
     }
     if (menu)
         menu->Render();
@@ -855,6 +1108,26 @@ void GameStateShop::ButtonPressed(int controllerId, int controlId)
             }
         }
         mStage = STAGE_SHOP_SHOP;
+        return;
+    case -146: // "New Cards" refresh confirmation
+        if (menu)
+            menu->Close();
+        if (controlId == 1 && playerdata)
+        {
+            int refreshCost = computeRefreshCost();
+            if (playerdata->credits >= refreshCost)
+            {
+                playerdata->credits -= refreshCost;
+                GameApp::mycredits = playerdata->credits;
+                mRefreshCount++;
+                mLastRefreshDay = TaskList::sDaysElapsed; // start this refresh's cooldown today
+                srcCards->Shuffle();
+                load();
+                disablePurchase = false;
+                mTouched = true;
+                save(true);
+            }
+        }
         return;
     }
     //Basic Menu.
@@ -917,6 +1190,18 @@ string ShopBooster::getSort()
     return "";
 }
 ;
+string ShopBooster::getSetId() const
+{
+    if (mainSet)
+        return mainSet->id;
+    return "";
+}
+
+int ShopBooster::getSetYear() const
+{
+    return mainSet ? mainSet->year : 0;
+}
+
 string ShopBooster::getName()
 {
     char buffer[512];
@@ -967,37 +1252,12 @@ void ShopBooster::randomCustom(MTGPacks * packlist)
 }
 void ShopBooster::randomStandard()
 {
-
-    MTGSetInfo * si = setlist.randomSet(-1);
-    mainSet = si;
+    // A shop booster slot always offers a SINGLE set (per user request) — never a mixed
+    // "X & Y" booster. Pick one random set and use its pack (or the default pack scoped to
+    // that set if it has none).
+    mainSet = setlist.randomSet(-1);
     altSet = NULL;
-
-    int mSetCount = si->counts[MTGSetInfo::TOTAL_CARDS];
-    if (mSetCount < 80)
-    {
-        if (rand() % 100 < Constants::CHANCE_PURE_OVERRIDE)
-        { //Chance of picking a pure pack instead.
-            si = setlist.randomSet(-1, 80);
-            mSetCount = si->counts[MTGSetInfo::TOTAL_CARDS];
-            mainSet = si;
-        }
-        else
-            altSet = setlist.randomSet(si->block, 80 - mSetCount);
-    }
-    else if (rand() % 100 < Constants::CHANCE_MIXED_OVERRIDE) //Chance of having a mixed booster anyways.
-        altSet = setlist.randomSet(si->block);
-
-    for (int attempts = 0; attempts < 10; attempts++)
-    { //Try to prevent altSet == mainSet.
-        if (altSet != mainSet)
-            break;
-        altSet = setlist.randomSet(-1, 80 - mSetCount);
-    }
-    if (altSet == mainSet)
-        altSet = NULL; //Prevent "10E & 10E Booster"
-    if (!altSet)
-        pack = mainSet->mPack;
-
+    pack = mainSet ? mainSet->mPack : NULL;
 }
 int ShopBooster::maxInventory()
 {

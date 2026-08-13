@@ -79,6 +79,10 @@ public:
 
     virtual void Render();
     virtual void Update(float dt);
+    // Advance only the visuals (particles/selection animation) without processing input.
+    // Used when a modal popup is displayed on top of the menu so the background keeps
+    // animating instead of freezing.
+    void UpdateVisuals(float dt);
     using JGuiController::Add;
     virtual void Add(int id, const string& Text, const string& desc = "", bool forceFocus = false, DeckMetaData *deckMetaData = NULL);
     virtual void Close();

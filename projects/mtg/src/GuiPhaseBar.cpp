@@ -5,7 +5,6 @@
 #include "GameObserver.h"
 #include "Translate.h"
 #include "CardSelector.h"
-
 /*
  static int colors[] =
  {
@@ -103,23 +102,9 @@ void GuiPhaseBar::Render()
     //uncomment to draw a hideous line across hires screens.
     // JRenderer::GetInstance()->DrawLine(0, CENTER, SCREEN_WIDTH, CENTER, ARGB(255, 255, 255, 255));
 
-    const float radius  = 25 * zoomFactor;
-
-    for(int i = 0; i < 6; ++i)
-    {
-        //the position of the glyphe in the circle
-        const float circPos = (i - 2) * step + angle;
-        const float glyphY = this->y + this->mHeight / 2 + sin(circPos) * radius;
-
-        //the scale is computed so that the glyphes touch each other
-        //hint: sin(circPos + PI/2) = cos(circPos)
-        const float glyphScale = float(zoomFactor * cosf(circPos) * 0.5f);
-
-        if (observer->currentPlayer && observer->currentPlayer->isAI() && !observer->currentPlayer->opponent()->isAI())
-            DrawGlyph(quad.get(), (displayedPhaseId - 2 + i + kPhases) % kPhases, 0, glyphY, glyphScale, 29);
-        else
-            DrawGlyph(quad.get(), (displayedPhaseId - 2 + i + kPhases) % kPhases, 0, glyphY, glyphScale, 0);
-    }
+    // Phase "wheel" (the arc of phase glyphs on the left edge) is hidden — the phase
+    // name text below is enough, and tapping the top-right phase text advances the phase.
+    (void) quad;
 
     //print phase name
     WFont * font = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
@@ -156,13 +141,13 @@ void GuiPhaseBar::Render()
     sprintf(buf, _("(%s%s) %s").c_str(), currentP.c_str(), interrupt.c_str(),phaseNameToTranslate.c_str());
 #if !defined (PSP)
     if(phaseinfo.get())
-    {//fix phaseinfo graphics... should look nice now...
+    {
         float testW = ((font->GetStringWidth(buf))*2) - SCREEN_WIDTH_F;
-        phaseinfo->SetHotSpot(testW+40.f, 0);
+        phaseinfo->SetHotSpot(testW + 105.f, 0);
         JRenderer::GetInstance()->RenderQuad(phaseinfo.get(),0,0,0,SCREEN_WIDTH_F / phaseinfo->mWidth, SCREEN_HEIGHT_F / phaseinfo->mHeight);
     }
 #endif
-    font->DrawString(buf, SCREEN_WIDTH - 5, 2, JGETEXT_RIGHT);
+    font->DrawString(buf, SCREEN_WIDTH - 15, 2, JGETEXT_RIGHT);
 }
 
 int GuiPhaseBar::receiveEventMinus(WEvent *e)
