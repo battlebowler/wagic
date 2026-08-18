@@ -212,6 +212,7 @@ protected:
     int checked;
     ATutorialMessage* currentTutorial;
     int interruptBtnXOffset, noBtnXOffset, noToAllBtnXOffset, interruptDialogWidth;
+    int interruptBtnYTop, interruptBtnYBottom; // button row Y-range (set in Render; dialog moves)
 
     JButton handleInterruptRequest( JButton inputKey, int& x, int& y );
 

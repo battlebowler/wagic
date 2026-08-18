@@ -206,3 +206,15 @@ void OtherMenuItem::Update(float dt)
     MenuItem::Update(dt);
     mTimeIndex += 2*dt;
 }
+
+bool OtherMenuItem::HitTest(float px, float py)
+{
+    // The corner pills render across the bottom edge (Trophy Room bottom-right at
+    // SCREEN_WIDTH-64.., PREV bottom-left at 5..). Accept the whole corner band so both
+    // words are tappable, rather than MenuItem's narrow mX±22 zone (only the first word).
+    if (py < SCREEN_HEIGHT_F - 30.0f)
+        return false;
+    if (mKey == JGE_BTN_PREV)
+        return px <= 78.0f;               // bottom-left corner
+    return px >= SCREEN_WIDTH_F - 78.0f;  // bottom-right corner (e.g. Trophy Room)
+}

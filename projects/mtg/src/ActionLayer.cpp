@@ -234,6 +234,15 @@ TargetChooser * ActionLayer::getCurrentTargetChooser()
     return NULL;
 }
 
+bool ActionLayer::canCancel()
+{
+    ActionElement * ae = isWaitingForAnswer();
+    if (!ae)
+        return false;
+    if (cantCancel && ae->getActionTc() && ae->getActionTc()->validTargetsExist())
+        return false;
+    return true;
+}
 int ActionLayer::cancelCurrentAction()
 {
     ActionElement * ae = isWaitingForAnswer();

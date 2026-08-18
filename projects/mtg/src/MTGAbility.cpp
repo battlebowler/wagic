@@ -8361,11 +8361,13 @@ int AManaProducer::resolve()
 
     if(source->name.empty() && source->storedSourceCard){ // Fix for mana produced inside ability$!!$ keyword.
         source->storedSourceCard->getProducedMana()->copy(output);
+        source->storedSourceCard->mTappedForMana = true; // enables tap-to-undo while floating
         WEventCardManaProduced * ev = NEW WEventCardManaProduced(source->storedSourceCard);
         if(ev)
             source->storedSourceCard->getObserver()->receiveEvent(ev);
     } else {
         source->getProducedMana()->copy(output);
+        source->mTappedForMana = true; // enables tap-to-undo while the mana is still floating
         WEventCardManaProduced * ev = NEW WEventCardManaProduced(source);
         if(ev)
             source->getObserver()->receiveEvent(ev);

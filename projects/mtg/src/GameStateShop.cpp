@@ -107,6 +107,7 @@ GameStateShop::GameStateShop(GameApp* parent) :
     mRefreshCount = 0;
     mLastRefreshDay = 0;
     mStockLoaded = false;
+    for (int i = 0; i < BOOSTER_SLOTS; i++) mBoosterArt[i] = 0;
     for (int i = 0; i < SHOP_ITEMS; i++)
     {
         mPrices[i] = 0;
@@ -495,6 +496,32 @@ int GameStateShop::computeRefreshCost()
     // Grows with each refresh AND with current wealth, so it can't be power-spammed.
     return 250 * (mRefreshCount + 1) + (playerdata ? playerdata->credits / 8 : 0);
 }
+// Booster art can now ship as numbered variants: booster_<SET>_1, booster_<SET>_2, ...
+// Count how many exist (stopping at the first gap) and pick one at random, so each shop
+// slot shows a stable, randomly-chosen pack art. Returns the chosen variant number, or 0 if
+// the set has no numbered variants (caller then falls back to booster_<SET> / generic art).
+static int chooseBoosterArtVariant(const string& setId)
+{
+    if (setId.empty()) return 0;
+    const int kMaxVariants = 16;
+    int count = 0;
+    char buf[256];
+    for (int k = 1; k <= kMaxVariants; ++k)
+    {
+        sprintf(buf, "booster_%s_%d.png", setId.c_str(), k);
+        JQuadPtr q = WResourceManager::Instance()->RetrieveTempQuad(buf);
+        bool exists = (q.get() && q->mHeight > 0);
+        if (!exists)
+        {
+            sprintf(buf, "booster_%s_%d.jpg", setId.c_str(), k);
+            q = WResourceManager::Instance()->RetrieveTempQuad(buf);
+            exists = (q.get() && q->mHeight > 0);
+        }
+        if (!exists) break; // variants are numbered contiguously from 1; stop at the first gap
+        count = k;
+    }
+    return (count <= 0) ? 0 : (1 + rand() % count);
+}
 void GameStateShop::load()
 {
     for (int i = 0; i < BOOSTER_SLOTS; i++)
@@ -502,6 +529,7 @@ void GameStateShop::load()
         mBooster[i].randomize(packlist);
         mInventory[i] = 1 + rand() % mBooster[i].maxInventory();
         mPrices[i] = pricelist->getOtherPrice(mBooster[i].basePrice());
+        mBoosterArt[i] = chooseBoosterArtVariant(mBooster[i].getSetId());
     }
     for (int i = BOOSTER_SLOTS; i < SHOP_ITEMS; i++)
     {
@@ -984,9 +1012,16 @@ void GameStateShop::Render()
         {
             string setId = mBooster[sel].getSetId();
             JQuadPtr bq;
-            const char * candidates[6];
+            const char * candidates[8];
             int n = 0;
-            char c0[256], c1[256];
+            char cv0[256], cv1[256], c0[256], c1[256];
+            // Prefer the randomly-chosen numbered art variant (booster_<SET>_<N>) for this
+            // slot; fall back to the old un-numbered booster_<SET>, then generic art.
+            if (setId.size() && sel >= 0 && sel < BOOSTER_SLOTS && mBoosterArt[sel] >= 1)
+            {
+                sprintf(cv0, "booster_%s_%d.png", setId.c_str(), mBoosterArt[sel]); candidates[n++] = cv0;
+                sprintf(cv1, "booster_%s_%d.jpg", setId.c_str(), mBoosterArt[sel]); candidates[n++] = cv1;
+            }
             if (setId.size())
             {
                 sprintf(c0, "booster_%s.png", setId.c_str()); candidates[n++] = c0;

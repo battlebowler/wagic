@@ -499,8 +499,54 @@ void GameStateDuel::ThreadProc(void* inParam)
 }
 #endif //AI_CHANGE_TESTING
 
+// On-screen Back button rect for the deck/opponent chooser screens. Per user preference
+// (back-button-uniformity) Back now lives on the RIGHT, just left of the "info" button and on
+// the same bottom row, instead of the old bottom-left corner. Sized to match the standard red
+// InteractiveButton (the "info" button): text-fitted, with FillRoundRect/DrawRoundRect adding
+// 2*radius per axis, so the VISIBLE box (hit-test + render) = (sw-3+10) x (fh-4+10), radius 5.
+static void getDuelSetupBackRect(float& x, float& y, float& w, float& h)
+{
+    WFont * f = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+    float sw = 30.0f, swInfo = 24.0f, fh = 16.0f;
+    if (f)
+    {
+        f->SetScale(1.0f);
+        sw = f->GetStringWidth(_("Back").c_str());
+        swInfo = f->GetStringWidth(_("info").c_str());
+        fh = f->GetHeight();
+    }
+    w = (sw - 3.0f) + 10.0f;   // visible width  = stringWidth + 7
+    h = (fh - 4.0f) + 10.0f;   // visible height = fontHeight  + 6
+    // Sit immediately left of the "info" button and aligned to the same pill-top, so Back and
+    // info read as a matched pair. Info geometry replicated from DeckMenu (InteractiveButton):
+    // getX = SCREEN_WIDTH_F*(450/480) - infoWidth/2, pill top = SCREEN_HEIGHT_F*(239.5/272).
+    float infoPillLeft = SCREEN_WIDTH_F * (450.0f / 480.0f) - swInfo * 0.5f - 4.0f;
+    x = infoPillLeft - 8.0f - w;
+    y = SCREEN_HEIGHT_F * (239.5f / 272.0f);
+}
+
 void GameStateDuel::Update(float dt)
 {
+    // On-screen Back button on the deck/opponent chooser (touch): step back one screen
+    // (Opponent -> Choose Deck, Choose Deck -> Main Menu) instead of hunting a list item.
+    if (((deckmenu && !deckmenu->isClosed()) || (opponentMenu && !opponentMenu->isClosed()))
+        && (!popupScreen || popupScreen->isClosed()) && (!menu || menu->isClosed()))
+    {
+        int cx = -1, cy = -1;
+        float bx, by, bw, bh;
+        getDuelSetupBackRect(bx, by, bw, bh);
+        if (mEngine->GetLeftClickCoordinates(cx, cy) &&
+            cx >= bx && cx <= bx + bw && cy >= by && cy <= by + bh)
+        {
+            mEngine->LeftClickedProcessed();
+            // Both chooser screens back out to the Main Menu. (Opponent -> Deck looped,
+            // because the player's deck is already loaded and the deck screen re-advances.)
+            if (opponentMenu) opponentMenu->Close();
+            if (deckmenu) deckmenu->Close();
+            setGamePhase(DUEL_STATE_BACK_TO_MAIN_MENU);
+            return;
+        }
+    }
     switch (mGamePhase)
     {
     case DUEL_STATE_ERROR_NO_DECK:
@@ -1258,6 +1304,26 @@ void GameStateDuel::Render()
                 mFont->DrawString( selectedPlayerDeckName.c_str(),  (SCREEN_WIDTH / 4) - (mFont->GetStringWidth(selectedPlayerDeckName.c_str())/2)-3, 32);
             }
             else if (deckmenu && !deckmenu->isClosed()) deckmenu->Render();
+
+            // On-screen Back button (bottom-left) on the deck/opponent chooser screens.
+            if (((deckmenu && !deckmenu->isClosed()) || (opponentMenu && !opponentMenu->isClosed()))
+                && (!popupScreen || popupScreen->isClosed()) && (!menu || menu->isClosed()))
+            {
+                JRenderer * r = JRenderer::GetInstance();
+                float bx, by, bw, bh;
+                getDuelSetupBackRect(bx, by, bw, bh);
+                // Draw exactly like the standard red InteractiveButton ("info"): the visible
+                // box is inner+2*radius, so inner = bw-10 x bh-10 at radius 5. Drop shadow,
+                // red fill, black border, then a white left-anchored label with the same
+                // 4px/2px insets InteractiveButton uses.
+                float iw = bw - 10.0f, ih = bh - 10.0f;
+                r->FillRoundRect(bx + 1, by + 1, iw, ih, 5.0f, ARGB(220, 5, 5, 5));
+                r->FillRoundRect(bx, by, iw, ih, 5.0f, ARGB(255, 140, 23, 23));
+                r->DrawRoundRect(bx, by, iw, ih, 5.0f, ARGB(255, 5, 5, 5));
+                mFont->SetScale(1.0f);
+                mFont->SetColor(ARGB(255, 255, 255, 255));
+                mFont->DrawString(_("Back"), bx + 4.0f, by + 2.0f);
+            }
 
             if (menu) menu->Render();
 

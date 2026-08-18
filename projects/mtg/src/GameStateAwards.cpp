@@ -13,6 +13,8 @@
 #include "Credits.h"
 #include "WResourceManager.h"
 #include "WFont.h"
+#include "GridDeckView.h"
+#include "DeckDataWrapper.h"
 
 // A "Back to Main Menu" list entry styled like the game's standard buttons: a filled red
 // box with white centred text (the default WGuiItem renders plain text only).
@@ -37,26 +39,108 @@ public:
     }
 };
 
+// A set-spoiler row that colours the card name by ownership: bright white if the player owns
+// the card, dim grey if it's still missing from the collection. Mirrors WGuiItem::Render so it
+// lines up with any plain rows, only swapping the text colour.
+class WGuiCardEntry : public WGuiItem
+{
+public:
+    bool owned;
+    WGuiCardEntry(string s, bool _owned) : WGuiItem(s), owned(_owned) {}
+    virtual void Render()
+    {
+        WFont * mFont = WResourceManager::Instance()->GetWFont(Fonts::OPTION_FONT);
+        DWORD oldcolor = mFont->GetColor();
+        mFont->SetColor(owned ? ARGB(255, 240, 240, 240) : ARGB(255, 96, 96, 96));
+        float fH = (height - mFont->GetHeight()) / 2;
+        string trans = _(displayValue);
+        float fW = mFont->GetStringWidth(trans.c_str());
+        float boxW = getWidth();
+        float oldS = mFont->GetScale();
+        if (fW > boxW)
+            mFont->SetScale(boxW / fW);
+        mFont->DrawString(trans, x + (width / 2), y + fH, JGETEXT_CENTER);
+        mFont->SetScale(oldS);
+        mFont->SetColor(oldcolor);
+    }
+};
+
 namespace
 {
-    // On-screen back/exit button for touch (the trophy room otherwise only exits via
-    // hardware MENU/PREV/SEC). Emits JGE_BTN_SEC, which steps back: details -> list,
-    // list -> main menu. X is computed at runtime because SCREEN_WIDTH_F is only correct
-    // once the real screen size is known (a static initializer would use a default).
-    const float kAwardsExitW = 48.0f;
-    const float kAwardsExitH = 18.0f;
-    inline float awardsExitX() { return SCREEN_WIDTH_F - kAwardsExitW - 4.0f; }
-    inline float awardsExitY() { return SCREEN_HEIGHT_F - kAwardsExitH - 4.0f; }
+    // On-screen Back button for touch (the trophy room otherwise only exits via hardware
+    // MENU/PREV/SEC). Emits JGE_BTN_SEC: detail -> list, list -> main menu. Sized to the game's
+    // standard red pill so it matches every other Back button (see back-button-uniformity):
+    // text-fitted visible box = inner(sw-3 x fh-4) + 2*radius. Runtime-computed (SCREEN_*_F).
+    inline void getAwardsBackRect(float& x, float& y, float& w, float& h)
+    {
+        WFont * f = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+        float sw = 30.0f, fh = 16.0f;
+        if (f)
+        {
+            f->SetScale(1.0f);
+            sw = f->GetStringWidth(_("Back").c_str());
+            fh = f->GetHeight();
+        }
+        w = (sw - 3.0f) + 10.0f;
+        h = (fh - 4.0f) + 10.0f;
+        x = SCREEN_WIDTH_F - w - 4.0f;   // bottom-right
+        y = SCREEN_HEIGHT_F - h - 4.0f;
+    }
 }
 
 enum ENUM_AWARDS_STATE
 {
-    STATE_LISTVIEW, 
+    STATE_LISTVIEW,
     STATE_DETAILS,
     EXIT_AWARDS_MENU = -102,
     GUI_AWARD_BUTTON = -103,
-    
+    SET_MENU_ID = -104,   // set-selection popup for the Cards tab
+
 };
+
+// Top-of-screen tabs for the redesigned trophy room / collection browser.
+enum ENUM_AWARDS_TAB
+{
+    TAB_CARDS = 0,   // visual grid of the owned collection (default)
+    TAB_TROPHIES,    // achievements + set list (the original list view)
+    TAB_STATS        // collection statistics
+};
+
+namespace
+{
+    // Tab bar sits along the top-left; the set-filter button sits just right of the tabs
+    // (Cards tab only). All dimensions are VISIBLE pixels; FillRoundRect inflates a box by
+    // 2*radius per axis, so the draw helper subtracts that. Computed at runtime because
+    // SCREEN_WIDTH_F is only valid once the real screen size is known.
+    const float kTabY = 4.0f;
+    const float kTabVisH = 22.0f;
+    const float kTabVisW = 74.0f;
+    const float kTabGap = 4.0f;
+    inline float tabX(int i) { return 6.0f + i * (kTabVisW + kTabGap); }
+    const float kFilterVisW = 152.0f;
+    inline float filterX() { return tabX(3) + 6.0f; }
+
+    // Draw one of the game's standard red pill buttons covering the VISIBLE box
+    // (x, y, visW, visH). active=true keeps it bright; inactive dims it so the current tab
+    // stands out.
+    void drawTabButton(float x, float y, float visW, float visH, const string& label, bool active)
+    {
+        JRenderer * r = JRenderer::GetInstance();
+        const float rad = 5.0f;
+        float iw = visW - 2 * rad, ih = visH - 2 * rad;
+        int a = active ? 255 : 150;
+        r->FillRoundRect(x + 1, y + 1, iw, ih, rad, ARGB(active ? 220 : 150, 5, 5, 5));
+        r->FillRoundRect(x, y, iw, ih, rad, ARGB(a, 140, 23, 23));
+        r->DrawRoundRect(x, y, iw, ih, rad, ARGB(a, 5, 5, 5));
+        WFont * f = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+        if (f)
+        {
+            f->SetScale(1.0f);
+            f->SetColor(ARGB(active ? 255 : 210, 255, 255, 255));
+            f->DrawString(_(label), x + visW * 0.5f, y + (visH - f->GetHeight()) * 0.5f, JGETEXT_CENTER);
+        }
+    }
+}
 
 namespace GameStateAwardsConst
 {
@@ -67,7 +151,10 @@ namespace GameStateAwardsConst
 static std::string kAwardFile = "";
 
 GameStateAwards::GameStateAwards(GameApp* parent) :
-    GameState(parent, "trophies")
+    GameState(parent, "trophies"),
+    listview(NULL), detailview(NULL), setSrc(NULL), menu(NULL),
+    showMenu(false), saveMe(false), mState(STATE_LISTVIEW), mDetailItem(0),
+    mTab(TAB_CARDS), mDetailSel(0), mScrollPx(0.0f), mDragLastY(-9999.0f)
 {
 
 }
@@ -83,6 +170,13 @@ void GameStateAwards::End()
     SAFE_DELETE(detailview);
     SAFE_DELETE(listview);
     SAFE_DELETE(setSrc);
+    mUnlockedSets.clear();
+    mSetOwned.clear();
+    mSetTotal.clear();
+    mStats.clear();
+    mAchv.clear();
+    mDetailRows.clear();
+    mDetailCards.clear();
 
     if (saveMe)
         options.save();
@@ -99,43 +193,22 @@ void GameStateAwards::Start()
     menu = NULL;
     saveMe = options.newAward();
 
-    listview = NEW WGuiList("Listview");
-    listview->setX(210);
-    listview->setWidth(SCREEN_WIDTH - 220);
+    // Collection-completion state (rebuilt fresh each entry; End() frees the previous set).
+    mTab = TAB_CARDS;
+    mScrollPx = 0.0f;
+    mDragLastY = -9999.0f;
+    mUnlockedSets.clear();
+    mSetOwned.clear();
+    mSetTotal.clear();
+    mStats.clear();
+
+    // Trophies tab is custom-rendered now (renderAchievements) -- no WGui list, no highlight.
+    listview = NULL;
     detailview = NULL;
-    WGuiAward * aw;
-    WGuiButton * btn;
-
-    WGuiHeader * wgh = NEW WGuiHeader("Achievements");
-    listview->Add(wgh);
-
-    aw = NEW WGuiAward(Options::DIFFICULTY_MODE_UNLOCKED, "Difficulty Modes", "Achieved a 66% victory ratio.");
-    btn = NEW WGuiButton(aw, GUI_AWARD_BUTTON, Options::DIFFICULTY_MODE_UNLOCKED, this);
-    listview->Add(btn);
-
-    for (map<string, Unlockable *>::iterator it = Unlockable::unlockables.begin(); it !=  Unlockable::unlockables.end(); ++it) {
-        Unlockable * award = it->second;
-        aw = NEW WGuiAward(award->getValue("id"), award->getValue("name"), award->getValue("trophyroom_text"));
-        btn = NEW WGuiButton(aw, GUI_AWARD_BUTTON, 0, this);
-        listview->Add(btn);
-    }
-
-    aw = NEW WGuiAward(Options::EVILTWIN_MODE_UNLOCKED, "Evil Twin Mode", "Won with same army size.");
-    btn = NEW WGuiButton(aw, GUI_AWARD_BUTTON, Options::EVILTWIN_MODE_UNLOCKED, this);
-    listview->Add(btn);
-
-    aw = NEW WGuiAward(Options::RANDOMDECK_MODE_UNLOCKED, "Random Deck Mode", "Won against a higher difficulty.");
-    btn = NEW WGuiButton(aw, GUI_AWARD_BUTTON, Options::RANDOMDECK_MODE_UNLOCKED, this);
-    listview->Add(btn);
-
-    aw = NEW WGuiAward(Options::AWARD_COLLECTOR, "Valuable Collection", "Collection valued over 10,000c.", "Collection Info");
-    btn = NEW WGuiButton(aw, GUI_AWARD_BUTTON, Options::AWARD_COLLECTOR, this);
-    listview->Add(btn);
-
-    wgh = NEW WGuiHeader("");
-    listview->Add(wgh);
-
-    int locked = 0;
+    mAchv.clear();
+    mDetailRows.clear();
+    mDetailCards.clear();
+    buildAchievements();
 
     vector<pair<string, string> > orderedSet;
     for(int i = 0; i < setlist.size(); i++){
@@ -150,52 +223,18 @@ void GameStateAwards::Start()
     sort(orderedSet.begin(),orderedSet.end());
     for (unsigned int i = 0; i < orderedSet.size(); i++)
     {
-        MTGSetInfo * si = setlist.getInfo(setlist.findSet(orderedSet.at(i).second));
-        if (!si)
-            continue;
-        if (!options[Options::optionSet(setlist.findSet(orderedSet.at(i).second))].number){ 
-            locked++;
-            continue;
-        }
-
-        if (!si->author.size())
-            sprintf(buf, _("%i cards.").c_str(), si->totalCards());
-        else if (si->year > 0 && si->total > 0)
-        {
-            int pr = 0;
-            pr = (si->totalCards()*100)/si->total;
-            sprintf(buf, _("%s (%i): %i%s : %i/%i cards").c_str(), si->author.c_str(), si->year, pr,"%", si->totalCards(), si->total);
-        }
-        else if (si->year > 0)
-            sprintf(buf, _("%s (%i): %i cards").c_str(), si->author.c_str(), si->year, si->totalCards());
-        else
-            sprintf(buf, _("%s: %i cards.").c_str(), si->author.c_str(), si->totalCards());
-
-        aw = NEW WGuiAward(Options::optionSet(setlist.findSet(orderedSet.at(i).second)), si->getName(), buf, "Card Spoiler");
-        aw->mFlags = WGuiItem::NO_TRANSLATE;
-        btn = NEW WGuiButton(aw, GUI_AWARD_BUTTON, Options::optionSet(setlist.findSet(orderedSet.at(i).second)), this);
-        listview->Add(btn);
+        int sid = setlist.findSet(orderedSet.at(i).second);
+        MTGSetInfo * si = setlist.getInfo(sid);
+        if (!si) continue;
+        if (!options[Options::optionSet(sid)].number) continue; // locked set: not shown
+        mUnlockedSets.push_back(sid);   // Sets tab lists these
     }
-    if (locked)
-        sprintf(buf, _("%i locked sets remain.").c_str(), locked);
-    else
-        sprintf(buf, _("Unlocked all %i sets.").c_str(), setlist.size());
 
-    wgh->setDisplay(buf);
-    wgh->mFlags = WGuiItem::NO_TRANSLATE;
-
-    // "Back to Main Menu" belongs at the very end of the list, after all the sets
-    // (previously it was inserted between the achievements and the set list).
-    #if !defined(PSP)
-        WGuiItem* backLabel = NEW WGuiBackButton("Back to Main Menu");
-        WGuiButton* backBtn = NEW WGuiButton(backLabel, EXIT_AWARDS_MENU, GameStateAwardsConst::kBackToMainMenuID, this);
-        listview->Add(backBtn);
-    #endif
-
-    listview->Entering(JGE_BTN_NONE);
-    detailview = NULL;
     setSrc = NULL;
     showMenu = false;
+
+    // Tally the player's collection per set for the completion bars (default Sets tab).
+    buildSetCompletion();
 
 #if !defined (PSP)
     GameApp::playMusic("Track4.mp3"); // Added music for trophies.
@@ -207,6 +246,319 @@ void GameStateAwards::Create()
 }
 void GameStateAwards::Destroy()
 {
+}
+
+void GameStateAwards::renderTabBar()
+{
+    // Solid toolbar strip so the tabs read as chrome instead of floating over the card art
+    // (the grid draws its top row right up to the top edge).
+    JRenderer::GetInstance()->FillRect(0, 0, SCREEN_WIDTH_F, kTabY + kTabVisH + 4, ARGB(210, 8, 8, 12));
+
+    const char * labels[3] = { "Sets", "Trophies", "Stats" };
+    for (int i = 0; i < 3; i++)
+        drawTabButton(tabX(i), kTabY, kTabVisW, kTabVisH, labels[i], mTab == i);
+}
+
+// Returns true if a tap on the tab bar was consumed.
+bool GameStateAwards::handleTopBarTap(int cx, int cy)
+{
+    // Forgiving vertical band (covers the toolbar strip) so a slightly-low tap on a tab still
+    // registers instead of falling through to the content underneath.
+    if (cy < 0 || cy > kTabY + kTabVisH + 4)
+        return false;
+
+    for (int i = 0; i < 3; i++)
+    {
+        float x = tabX(i);
+        if (cx >= x && cx <= x + kTabVisW)
+        {
+            if (mTab != i)
+            {
+                mTab = i;
+                mScrollPx = 0.0f;        // reset scroll for the newly-shown list
+                mDragLastY = -9999.0f;
+                // Close any open set-detail spoiler so it doesn't leak into the new tab.
+                if (mState == STATE_DETAILS)
+                {
+                    mState = STATE_LISTVIEW;
+                    SAFE_DELETE(detailview);
+                    SAFE_DELETE(setSrc);
+                }
+                if (mTab == TAB_STATS && mStats.empty())
+                    buildStatsLines();   // computed once, lazily
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+namespace
+{
+    // Shared list geometry for the custom Sets / Stats tabs, so they look identical and scroll
+    // the same way. The toolbar strip (renderTabBar, drawn on top afterwards) hides the sliver
+    // of the first row that scrolls up under it.
+    const float kListX = 8.0f;
+    inline float kListW()   { return SCREEN_WIDTH_F - 16.0f; }
+    inline float kListTop() { return kTabY + kTabVisH + 8.0f; }
+    inline float kListBot() { return SCREEN_HEIGHT_F - 6.0f; }
+    const float kRowH = 24.0f;
+}
+
+// The Sets tab: a scrolling list of every unlocked set with a progress bar showing how much of
+// that set the player owns (owned / total) -- a collection-completion view. Smooth pixel scroll.
+void GameStateAwards::renderCollectionList()
+{
+    JRenderer * r = JRenderer::GetInstance();
+    WFont * f = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+    f->SetScale(1.0f);
+    float fh = f->GetHeight();
+    const float listW = kListW(), top = kListTop(), bottom = kListBot();
+
+    // Solid backdrop so the busy trophy-room art doesn't bleed through the gaps between rows.
+    r->FillRect(0, top - 2, SCREEN_WIDTH_F, bottom - top + 4, ARGB(238, 12, 14, 18));
+
+    int n = (int) mUnlockedSets.size();
+    float maxScrollPx = n * kRowH - (bottom - top);
+    if (maxScrollPx < 0.0f) maxScrollPx = 0.0f;
+    if (mScrollPx > maxScrollPx) mScrollPx = maxScrollPx;
+    if (mScrollPx < 0.0f) mScrollPx = 0.0f;
+
+    int firstRow = (int) (mScrollPx / kRowH);
+    float pixOff = mScrollPx - firstRow * kRowH;
+
+    for (int vis = 0; ; vis++)
+    {
+        int i = firstRow + vis;
+        if (i >= n) break;
+        float ry = top - pixOff + vis * kRowH;
+        if (ry >= bottom) break;
+
+        int owned = mSetOwned[i];
+        int total = mSetTotal[i];
+        float frac = (total > 0) ? (float) owned / (float) total : 0.0f;
+        if (frac > 1.0f) frac = 1.0f;
+
+        // Progress bar drawn as the row background: dark track + filled portion.
+        float barH = kRowH - 4.0f;
+        r->FillRect(kListX, ry, listW, barH, ARGB(205, 18, 22, 28));
+        r->FillRect(kListX, ry, listW * frac, barH, ARGB(230, 42, 110, 168));
+        r->DrawRect(kListX, ry, listW, barH, ARGB(120, 130, 130, 130));
+
+        // Set name on the left, owned/total on the right.
+        MTGSetInfo * si = setlist.getInfo(mUnlockedSets[i]);
+        string label = si ? si->getName() : setlist[mUnlockedSets[i]];
+        float ty = ry + (barH - fh) * 0.5f;
+        f->SetColor(ARGB(255, 255, 255, 255));
+        f->DrawString(label, kListX + 5, ty);
+        char buf[48];
+        sprintf(buf, "%d / %d", owned, total);
+        f->DrawString(buf, kListX + listW - 5, ty, JGETEXT_RIGHT);
+    }
+}
+
+// The Stats tab: same row look as Sets (same font, alignment, dark row background) so the two
+// tabs are visually uniform -- just label on the left, value on the right, no progress bar.
+void GameStateAwards::renderStats()
+{
+    JRenderer * r = JRenderer::GetInstance();
+    WFont * f = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+    f->SetScale(1.0f);
+    float fh = f->GetHeight();
+    const float listW = kListW(), top = kListTop(), bottom = kListBot();
+
+    // Solid backdrop so the busy trophy-room art doesn't bleed through the gaps between rows.
+    r->FillRect(0, top - 2, SCREEN_WIDTH_F, bottom - top + 4, ARGB(238, 12, 14, 18));
+
+    int n = (int) mStats.size();
+    float maxScrollPx = n * kRowH - (bottom - top);
+    if (maxScrollPx < 0.0f) maxScrollPx = 0.0f;
+    if (mScrollPx > maxScrollPx) mScrollPx = maxScrollPx;
+    if (mScrollPx < 0.0f) mScrollPx = 0.0f;
+
+    int firstRow = (int) (mScrollPx / kRowH);
+    float pixOff = mScrollPx - firstRow * kRowH;
+
+    for (int vis = 0; ; vis++)
+    {
+        int i = firstRow + vis;
+        if (i >= n) break;
+        float ry = top - pixOff + vis * kRowH;
+        if (ry >= bottom) break;
+
+        float barH = kRowH - 4.0f;
+        r->FillRect(kListX, ry, listW, barH, ARGB(205, 18, 22, 28));
+        r->DrawRect(kListX, ry, listW, barH, ARGB(120, 130, 130, 130));
+
+        float ty = ry + (barH - fh) * 0.5f;
+        f->SetColor(ARGB(255, 235, 235, 235));
+        f->DrawString(mStats[i].first, kListX + 5, ty);
+        f->SetColor(ARGB(255, 150, 210, 255));   // value tinted to echo the completion bar
+        f->DrawString(mStats[i].second, kListX + listW - 5, ty, JGETEXT_RIGHT);
+    }
+}
+
+// Maps a tap to a Sets-list row index (or -1). Layout MUST match renderCollectionList.
+int GameStateAwards::collectionRowAtPoint(int cx, int cy)
+{
+    (void) cx;
+    const float top = kListTop();
+    if (cy < top) return -1;
+    int firstRow = (int) (mScrollPx / kRowH);
+    float pixOff = mScrollPx - firstRow * kRowH;
+    int vis = (int) ((cy - (top - pixOff)) / kRowH);
+    float ry = top - pixOff + vis * kRowH;
+    if (cy > ry + (kRowH - 4.0f)) return -1; // tap landed in the gap between rows
+    int i = firstRow + vis;
+    if (i < 0 || i >= (int) mUnlockedSets.size()) return -1;
+    return i;
+}
+
+void GameStateAwards::buildAchievements()
+{
+    mAchv.clear();
+    mAchv.push_back(std::make_pair(std::string("Difficulty Modes"),
+        std::string(options[Options::DIFFICULTY_MODE_UNLOCKED].number ? "Unlocked" : "Reach a 66% victory ratio")));
+    for (std::map<std::string, Unlockable *>::iterator it = Unlockable::unlockables.begin();
+         it != Unlockable::unlockables.end(); ++it)
+    {
+        Unlockable * award = it->second;
+        if (award)
+            mAchv.push_back(std::make_pair(award->getValue("name"), award->getValue("trophyroom_text")));
+    }
+    mAchv.push_back(std::make_pair(std::string("Evil Twin Mode"),
+        std::string(options[Options::EVILTWIN_MODE_UNLOCKED].number ? "Unlocked" : "Win with the same army size")));
+    mAchv.push_back(std::make_pair(std::string("Random Deck Mode"),
+        std::string(options[Options::RANDOMDECK_MODE_UNLOCKED].number ? "Unlocked" : "Win against a higher difficulty")));
+    mAchv.push_back(std::make_pair(std::string("Valuable Collection"),
+        std::string(options[Options::AWARD_COLLECTOR].number ? "Achieved" : "Own a collection worth over 10,000c")));
+}
+
+// Trophies tab: achievement rows (name + status/goal), same look/scroll as Sets & Stats.
+void GameStateAwards::renderAchievements()
+{
+    JRenderer * r = JRenderer::GetInstance();
+    WFont * f = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+    f->SetScale(1.0f);
+    float fh = f->GetHeight();
+    const float listW = kListW(), top = kListTop(), bottom = kListBot();
+
+    r->FillRect(0, top - 2, SCREEN_WIDTH_F, bottom - top + 4, ARGB(238, 12, 14, 18));
+
+    int n = (int) mAchv.size();
+    float maxScrollPx = n * kRowH - (bottom - top);
+    if (maxScrollPx < 0.0f) maxScrollPx = 0.0f;
+    if (mScrollPx > maxScrollPx) mScrollPx = maxScrollPx;
+    if (mScrollPx < 0.0f) mScrollPx = 0.0f;
+
+    int firstRow = (int) (mScrollPx / kRowH);
+    float pixOff = mScrollPx - firstRow * kRowH;
+
+    for (int vis = 0; ; vis++)
+    {
+        int i = firstRow + vis;
+        if (i >= n) break;
+        float ry = top - pixOff + vis * kRowH;
+        if (ry >= bottom) break;
+
+        float barH = kRowH - 4.0f;
+        r->FillRect(kListX, ry, listW, barH, ARGB(205, 18, 22, 28));
+        r->DrawRect(kListX, ry, listW, barH, ARGB(120, 130, 130, 130));
+
+        float ty = ry + (barH - fh) * 0.5f;
+        f->SetColor(ARGB(255, 235, 235, 235));
+        f->DrawString(mAchv[i].first, kListX + 5, ty);
+        f->SetColor(ARGB(255, 150, 210, 255));
+        f->DrawString(mAchv[i].second, kListX + listW - 5, ty, JGETEXT_RIGHT);
+    }
+}
+
+namespace { const float kDetailListX = 0.40f; } // fraction of width where the detail list starts
+
+// A set's card list: owned (bright) vs missing (grey) card rows on the right, the selected
+// card's art previewed on the left. Smooth scroll + precise per-row taps like the other tabs.
+void GameStateAwards::renderSetDetail()
+{
+    JRenderer * r = JRenderer::GetInstance();
+    WFont * f = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+    f->SetScale(1.0f);
+    float fh = f->GetHeight();
+
+    const float top = kListTop(), bottom = kListBot();
+    const float listX = SCREEN_WIDTH_F * kDetailListX;
+    const float listW = SCREEN_WIDTH_F - listX - 8.0f;
+
+    r->FillRect(0, top - 2, SCREEN_WIDTH_F, bottom - top + 4, ARGB(238, 12, 14, 18));
+
+    int n = (int) mDetailRows.size();
+    float maxScrollPx = n * kRowH - (bottom - top);
+    if (maxScrollPx < 0.0f) maxScrollPx = 0.0f;
+    if (mScrollPx > maxScrollPx) mScrollPx = maxScrollPx;
+    if (mScrollPx < 0.0f) mScrollPx = 0.0f;
+
+    int firstRow = (int) (mScrollPx / kRowH);
+    float pixOff = mScrollPx - firstRow * kRowH;
+
+    for (int vis = 0; ; vis++)
+    {
+        int i = firstRow + vis;
+        if (i >= n) break;
+        float ry = top - pixOff + vis * kRowH;
+        if (ry >= bottom) break;
+
+        float barH = kRowH - 4.0f;
+        bool owned = mDetailRows[i].second;
+        bool sel = (i == mDetailSel);
+        r->FillRect(listX, ry, listW, barH, ARGB(205, sel ? 40 : 18, sel ? 52 : 22, sel ? 70 : 28));
+        r->DrawRect(listX, ry, listW, barH, ARGB(120, 130, 130, 130));
+        float ty = ry + (barH - fh) * 0.5f;
+        f->SetColor(owned ? ARGB(255, 240, 240, 240) : ARGB(255, 96, 96, 96));
+        f->DrawString(mDetailRows[i].first, listX + 5, ty);
+    }
+
+    // Preview of the selected card in the left column.
+    if (mDetailSel >= 0 && mDetailSel < (int) mDetailCards.size() && mDetailCards[mDetailSel])
+    {
+        MTGCard * c = mDetailCards[mDetailSel];
+        float pw = listX - 16.0f;
+        float pcx = 8.0f + pw * 0.5f;
+        float pcy = (top + bottom) * 0.5f;
+        // Prefer the cached image; if it isn't loaded yet, trigger a load (RETRIEVE_EXISTING
+        // alone never loads, which is why the preview was blank for uncached cards).
+        JQuadPtr q = WResourceManager::Instance()->RetrieveCard(c, RETRIEVE_EXISTING);
+        if (!q.get())
+            q = WResourceManager::Instance()->RetrieveCard(c);
+        if (q.get())
+        {
+            float sc = (bottom - top) * 0.80f / q->mHeight;
+            if (q->mWidth * sc > pw) sc = pw / q->mWidth;
+            q->SetColor(ARGB(255, 255, 255, 255));
+            // Card quads are centre-anchored, so render AT the column centre (the earlier
+            // top-left offset shoved the card up/off the top-left corner).
+            r->RenderQuad(q.get(), pcx, pcy, 0, sc, sc);
+        }
+        else
+        {
+            f->SetColor(ARGB(255, 220, 220, 220));
+            f->DrawString(c->data ? c->data->name : "", pcx, pcy, JGETEXT_CENTER);
+        }
+    }
+}
+
+// Maps a tap to a set-detail card row (right-hand list), or -1. Layout matches renderSetDetail.
+int GameStateAwards::detailRowAtPoint(int cx, int cy)
+{
+    const float top = kListTop();
+    const float listX = SCREEN_WIDTH_F * kDetailListX;
+    if (cx < listX || cy < top) return -1;
+    int firstRow = (int) (mScrollPx / kRowH);
+    float pixOff = mScrollPx - firstRow * kRowH;
+    int vis = (int) ((cy - (top - pixOff)) / kRowH);
+    float ry = top - pixOff + vis * kRowH;
+    if (cy > ry + (kRowH - 4.0f)) return -1;
+    int i = firstRow + vis;
+    if (i < 0 || i >= (int) mDetailRows.size()) return -1;
+    return i;
 }
 
 void GameStateAwards::Render()
@@ -233,34 +585,40 @@ void GameStateAwards::Render()
     if (background.get())
         r->RenderQuad(background.get(), 0, 0, 0, SCREEN_WIDTH_F / background->mWidth, SCREEN_HEIGHT_F / background->mHeight);
 
-    switch (mState)
+    switch (mTab)
     {
-    case STATE_LISTVIEW:
-        if (listview)
-            listview->Render();
+    case TAB_CARDS:
+        if (mState == STATE_DETAILS)
+            renderSetDetail();      // a set's owned/missing card list + preview
+        else
+            renderCollectionList();
         break;
-    case STATE_DETAILS:
-        if (detailview)
-            detailview->Render();
+    case TAB_TROPHIES:
+        renderAchievements();
+        break;
+    case TAB_STATS:
+        renderStats();
         break;
     }
 
+    // Tabs + set-filter across the top (hidden while the popup menu is up).
+    if (!(showMenu && menu))
+        renderTabBar();
+
     if (showMenu && menu)
+    {
+        // Dim the whole screen so the popup (set picker / exit menu) reads as a clear modal
+        // over the busy card grid.
+        r->FillRect(0, 0, SCREEN_WIDTH_F, SCREEN_HEIGHT_F, ARGB(170, 0, 0, 0));
         menu->Render();
+    }
     else
     {
-        // On-screen back/exit button (touch).
-        float ex = awardsExitX(), ey = awardsExitY();
-        // Styled like the game's standard buttons: red fill, white outline + text.
-        r->FillRoundRect(ex, ey, kAwardsExitW, kAwardsExitH, 3.0f, ARGB(255, 140, 23, 23));
-        r->DrawRoundRect(ex, ey, kAwardsExitW, kAwardsExitH, 3.0f, ARGB(255, 255, 255, 255));
-        WFont* f = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
-        if (f)
-        {
-            f->SetScale(1.0f);
-            f->SetColor(ARGB(255, 255, 255, 255));
-            f->DrawString(_("Back"), ex + kAwardsExitW * 0.5f, ey + 4.0f, JGETEXT_CENTER);
-        }
+        // On-screen Back button — the standard red pill (drawTabButton), so it's the same
+        // size/style as every other Back button in the game.
+        float ex, ey, ew, eh;
+        getAwardsBackRect(ex, ey, ew, eh);
+        drawTabButton(ex, ey, ew, eh, "Back", true);
     }
 }
 
@@ -275,15 +633,65 @@ void GameStateAwards::Update(float dt)
     }
     else
     {
-        // Touch back/exit button: a tap inside its bounds steps back (JGE_BTN_SEC).
         int cx = -1, cy = -1;
-        float ex = awardsExitX(), ey = awardsExitY();
-        if (mEngine->GetLeftClickCoordinates(cx, cy) &&
-            cx >= ex && cx <= ex + kAwardsExitW &&
-            cy >= ey && cy <= ey + kAwardsExitH)
+
+        // Taps: tab bar first, then the back button. The Sets list is scroll-only (swipes
+        // arrive below as directional keys); it has no per-row tap action.
+        if (mEngine->GetLeftClickCoordinates(cx, cy))
         {
-            mEngine->ResetInput();
-            mEngine->HoldKey_NoRepeat(JGE_BTN_SEC);
+            if (handleTopBarTap(cx, cy))
+            {
+                mEngine->ResetInput();
+            }
+            else
+            {
+                float ex, ey, ew, eh;
+                getAwardsBackRect(ex, ey, ew, eh);
+                if (cx >= ex && cx <= ex + ew && cy >= ey && cy <= ey + eh)
+                {
+                    mEngine->ResetInput();
+                    mEngine->HoldKey_NoRepeat(JGE_BTN_SEC);
+                }
+                else if (mTab == TAB_CARDS && mState != STATE_DETAILS)
+                {
+                    // Tap a set row -> open its owned/missing card list.
+                    int row = collectionRowAtPoint(cx, cy);
+                    if (row >= 0)
+                    {
+                        mEngine->ResetInput();
+                        if (enterSet(mUnlockedSets[row]))
+                            mState = STATE_DETAILS;
+                    }
+                }
+                else if (mTab == TAB_CARDS && mState == STATE_DETAILS)
+                {
+                    // Tap a card row -> select it so its art shows in the preview.
+                    int row = detailRowAtPoint(cx, cy);
+                    if (row >= 0)
+                    {
+                        mEngine->ResetInput();
+                        mDetailSel = row;
+                    }
+                }
+            }
+        }
+
+        // Smooth touch scrolling for ALL the custom lists (Sets, Stats, Trophies, and the set
+        // detail): the list follows the finger 1:1 like a normal touch surface.
+        bool customList = true;
+        bool draggedThisFrame = false;
+        if (customList)
+        {
+            int dgx = 0, dgy = 0;
+            if (mEngine->GetDragCoordinates(dgx, dgy))
+            {
+                if (mDragLastY > -9000.0f)
+                    mScrollPx -= (float) (dgy - mDragLastY);   // content follows the finger
+                mDragLastY = (float) dgy;
+                draggedThisFrame = true;
+            }
+            else
+                mDragLastY = -9999.0f; // finger up / idle: next drag starts fresh (no jump)
         }
 
         JButton key = JGE_BTN_NONE;
@@ -296,7 +704,7 @@ void GameStateAwards::Update(float dt)
                 showMenu = true;
                 SAFE_DELETE(menu);
                 menu = NEW SimpleMenu(JGE::GetInstance(), WResourceManager::Instance(), EXIT_AWARDS_MENU, this, Fonts::MENU_FONT, 50, 170);
-                if (mState == STATE_DETAILS)
+                if (mTab == TAB_TROPHIES && mState == STATE_DETAILS)
                     menu->Add(GameStateAwardsConst::kBackToTrophiesID, "Back to Trophies");
                 menu->Add(GameStateAwardsConst::kBackToMainMenuID, "Back to Main Menu");
                 menu->Add(kCancelMenuID, "Cancel");
@@ -305,93 +713,109 @@ void GameStateAwards::Update(float dt)
                 mParent->DoTransition(TRANSITION_FADE, GAME_STATE_MENU);
                 break;
             case JGE_BTN_SEC:
-                if (mState == STATE_LISTVIEW)
-                    mParent->DoTransition(TRANSITION_FADE, GAME_STATE_MENU);
-                else
+                if (mState == STATE_DETAILS)
                 {
-                    mState = STATE_LISTVIEW;
-                    SAFE_DELETE(detailview);
+                    mState = STATE_LISTVIEW; // card list -> back to the Sets list
+                    mDetailRows.clear();
+                    mDetailCards.clear();
+                    mScrollPx = 0.0f;
+                    mDragLastY = -9999.0f;
                 }
+                else
+                    mParent->DoTransition(TRANSITION_FADE, GAME_STATE_MENU);
                 break;
             default:
             {
-                // Reverse the vertical scroll in the trophy room (per user request): a swipe
-                // up should start the list moving. Swap UP<->DOWN before dispatching.
-                JButton navKey = key;
-                if (key == JGE_BTN_UP) navKey = JGE_BTN_DOWN;
-                else if (key == JGE_BTN_DOWN) navKey = JGE_BTN_UP;
-                if (mState == STATE_LISTVIEW && listview)
+                // All views scroll smoothly. A live drag already scrolled this frame; a flick
+                // (no drag) steps one row (reversed: swipe up -> further down the list).
+                (void) dt;
+                if (!draggedThisFrame)
                 {
-                    listview->CheckUserInput(navKey);
-                    listview->Update(dt);
-                }
-                else if (mState == STATE_DETAILS && detailview)
-                {
-                    detailview->CheckUserInput(navKey);
-                    detailview->Update(dt);
+                    if (key == JGE_BTN_UP) mScrollPx += kRowH;
+                    else if (key == JGE_BTN_DOWN) mScrollPx -= kRowH;
                 }
                 break;
             }
             }
         }
+
     }
     if (setSrc)
         setSrc->Update(dt);
 }
 
+void GameStateAwards::buildSetCompletion()
+{
+    mSetOwned.assign(mUnlockedSets.size(), 0);
+    mSetTotal.assign(mUnlockedSets.size(), 0);
+
+    // Denominator: distinct cards in each set (as present in the game data). setId -> row.
+    std::map<int, int> setIndex;
+    for (size_t i = 0; i < mUnlockedSets.size(); i++)
+    {
+        MTGSetInfo * si = setlist.getInfo(mUnlockedSets[i]);
+        mSetTotal[i] = si ? si->totalCards() : 0;
+        setIndex[mUnlockedSets[i]] = (int) i;
+    }
+
+    // Numerator: distinct cards the player actually owns, tallied per set from the collection
+    // (each getCard() is one distinct owned card; its setId says which set it belongs to).
+    MTGDeck * coll = NEW MTGDeck(options.profileFile(PLAYER_COLLECTION).c_str(), MTGCollection());
+    DeckDataWrapper * view = NEW DeckDataWrapper(coll);
+    for (int t = 0; t < view->Size(); t++)
+    {
+        MTGCard * c = view->getCard(t);
+        if (!c) continue;
+        std::map<int, int>::iterator it = setIndex.find(c->setId);
+        if (it != setIndex.end())
+            mSetOwned[it->second]++;
+    }
+    SAFE_DELETE(view);
+    SAFE_DELETE(coll);
+}
+
+// Build the custom owned/missing card list for one set (rows + parallel card pointers for the
+// preview), replacing the old WGui spoiler so the detail scrolls/taps like the rest of the room.
 bool GameStateAwards::enterSet(int setid)
 {
     MTGSetInfo * si = setlist.getInfo(setid);
-    map<int, MTGCard *>::iterator it;
-
     if (!si)
         return false;
 
-    SAFE_DELETE(detailview);
-    SAFE_DELETE(setSrc);
+    // Every card in the set (from the game database), in collector order.
+    WSrcCards * src = NEW WSrcCards();
+    src->addFilter(NEW WCFilterSet(setid));
+    src->loadMatches(MTGCollection());
+    src->bakeFilters();
+    src->Sort(WSrcCards::SORT_COLLECTOR);
 
-    setSrc = NEW WSrcCards();
-    setSrc->addFilter(NEW WCFilterSet(setid));
-    setSrc->loadMatches(MTGCollection());
-    setSrc->bakeFilters();
-    setSrc->Sort(WSrcCards::SORT_COLLECTOR);
+    // The player's collection (cardId -> owned count) to mark each card owned vs missing.
+    MTGDeck * coll = NEW MTGDeck(options.profileFile(PLAYER_COLLECTION).c_str(), MTGCollection());
 
-    detailview = NEW WGuiMenu(JGE_BTN_DOWN, JGE_BTN_UP);
-
-    WGuiList * spoiler = NEW WGuiList("Spoiler", setSrc);
-    spoiler->setX(210);
-    spoiler->setWidth(SCREEN_WIDTH - 220);
-    for (int t = 0; t < setSrc->Size(); t++)
+    mDetailRows.clear();
+    mDetailCards.clear();
+    for (int t = 0; t < src->Size(); t++)
     {
-        MTGCard * c = setSrc->getCard(t);
-        if (c)
-            spoiler->Add(NEW WGuiItem(c->data->name));
+        MTGCard * c = src->getCard(t);
+        if (!c || !c->data) continue;
+        bool have = coll->cards.find(c->getId()) != coll->cards.end() && coll->cards[c->getId()] > 0;
+        mDetailRows.push_back(std::make_pair(c->data->name, have));
+        mDetailCards.push_back(c);   // database pointer (persists this session) -> preview art
     }
-    setSrc->setOffset(0);
-    spoiler->Entering(JGE_BTN_NONE);
-    WGuiCardImage * wi = NEW WGuiCardImage(setSrc);
-    wi->setX(SCREEN_WIDTH * 0.164f);   // was hardcoded 105 (105/640 ≈ 0.164)
-    wi->setY(SCREEN_HEIGHT * 0.504f);  // was hardcoded 137 (137/272 ≈ 0.504)
-    detailview->Add(wi);
-    detailview->Add(spoiler);
-    detailview->Entering(JGE_BTN_NONE);
-    return true;
+    SAFE_DELETE(coll);
+    SAFE_DELETE(src);               // frees the source list; the card pointers stay valid
+
+    mDetailSel = 0;
+    mScrollPx = 0.0f;
+    mDragLastY = -9999.0f;
+    return !mDetailRows.empty();
 }
-bool GameStateAwards::enterStats(int option)
+// Compute the collection-statistics rows (label, value) into mStats, for the Stats tab.
+void GameStateAwards::buildStatsLines()
 {
-    if (option != Options::AWARD_COLLECTOR)
-        return false;
+    mStats.clear();
     DeckDataWrapper* ddw = NEW DeckDataWrapper(NEW MTGDeck(options.profileFile(PLAYER_COLLECTION).c_str(), MTGCollection()));
-    if (!ddw)
-        return false;
 
-    SAFE_DELETE(detailview);
-    detailview = NEW WGuiList("Details");
-
-    detailview->Add(NEW WGuiHeader("Collection Stats"));
-    detailview->Entering(JGE_BTN_NONE);
-
-    //Discover favorite set
     if (setlist.size() > 0)
     {
         int * counts = (int*) calloc(setlist.size(), sizeof(int));
@@ -416,62 +840,74 @@ bool GameStateAwards::enterStats(int option)
             counts[c->setId] += count;
             if (costly == NULL || c->data->getManaCost()->getConvertedCost() > costly->data->getManaCost()->getConvertedCost())
                 costly = c;
-
             if (c->data->isCreature() && (strong == NULL || c->data->getPower() > strong->data->getPower()))
                 strong = c;
-
             if (c->data->isCreature() && (tough == NULL || c->data->getToughness() > tough->data->getToughness()))
                 tough = c;
         }
         for (int i = 0; i < setlist.size(); i++)
-        {
             if (setid < 0 || counts[i] > counts[setid])
                 setid = i;
-        }
         free(counts);
 
-        char buf[1024];
-        sprintf(buf, _("Total Value: %ic").c_str(), ddw->totalPrice());
-        detailview->Add(NEW WGuiItem(buf, WGuiItem::NO_TRANSLATE));//ddw->colors
-
-        sprintf(buf, _("Total Cards (including duplicates): %i").c_str(), ddw->getCount(WSrcDeck::UNFILTERED_COPIES));
-        detailview->Add(NEW WGuiItem(buf, WGuiItem::NO_TRANSLATE));//ddw->colors
-
-        sprintf(buf, _("Unique Cards: %i").c_str(), ddw->getCount(WSrcDeck::UNFILTERED_UNIQUE));
-        detailview->Add(NEW WGuiItem(buf, WGuiItem::NO_TRANSLATE));
-
+        char buf[512];
+        sprintf(buf, "%ic", ddw->totalPrice());
+        mStats.push_back(std::make_pair(std::string("Total Value"), std::string(buf)));
+        sprintf(buf, "%i", ddw->getCount(WSrcDeck::UNFILTERED_COPIES));
+        mStats.push_back(std::make_pair(std::string("Total Cards"), std::string(buf)));
+        sprintf(buf, "%i", ddw->getCount(WSrcDeck::UNFILTERED_UNIQUE));
+        mStats.push_back(std::make_pair(std::string("Unique Cards"), std::string(buf)));
         if (many)
         {
-            sprintf(buf, _("Most Duplicates: %i (%s)").c_str(), dupes, many->data->getName().c_str());
-            detailview->Add(NEW WGuiItem(buf, WGuiItem::NO_TRANSLATE));
+            sprintf(buf, "%i (%s)", dupes, many->data->getName().c_str());
+            mStats.push_back(std::make_pair(std::string("Most Duplicates"), std::string(buf)));
         }
         if (setid >= 0)
-        {
-            sprintf(buf, _("Favorite Set: %s").c_str(), setlist[setid].c_str());
-            detailview->Add(NEW WGuiItem(buf, WGuiItem::NO_TRANSLATE));
-        }
+            mStats.push_back(std::make_pair(std::string("Favorite Set"), std::string(setlist[setid].c_str())));
         if (costly)
         {
-            sprintf(buf, _("Highest Mana Cost: %i (%s)").c_str(), costly->data->getManaCost()->getConvertedCost(),
-                            costly->data->getName().c_str());
-            detailview->Add(NEW WGuiItem(buf, WGuiItem::NO_TRANSLATE));
+            sprintf(buf, "%i (%s)", costly->data->getManaCost()->getConvertedCost(), costly->data->getName().c_str());
+            mStats.push_back(std::make_pair(std::string("Highest Mana Cost"), std::string(buf)));
         }
         if (strong)
         {
-            sprintf(buf, _("Most Powerful: %i (%s)").c_str(), strong->data->getPower(), strong->data->getName().c_str());
-            detailview->Add(NEW WGuiItem(buf, WGuiItem::NO_TRANSLATE));
+            sprintf(buf, "%i (%s)", strong->data->getPower(), strong->data->getName().c_str());
+            mStats.push_back(std::make_pair(std::string("Most Powerful"), std::string(buf)));
         }
         if (tough)
         {
-            sprintf(buf, _("Toughest: %i (%s)").c_str(), tough->data->getToughness(), strong->data->getName().c_str());
-            detailview->Add(NEW WGuiItem(buf, WGuiItem::NO_TRANSLATE));
+            sprintf(buf, "%i (%s)", tough->data->getToughness(), tough->data->getName().c_str());
+            mStats.push_back(std::make_pair(std::string("Toughest"), std::string(buf)));
         }
     }
 
     SAFE_DELETE(ddw->parent);
     SAFE_DELETE(ddw);
+}
+
+// (Trophies "Valuable Collection" award path) render the same stats as a plain WGui list.
+void GameStateAwards::buildStatsInto(WGuiMenu * detailview)
+{
+    buildStatsLines();
+    detailview->Add(NEW WGuiHeader("Collection Stats"));
+    for (size_t i = 0; i < mStats.size(); i++)
+    {
+        string line = mStats[i].first + ": " + mStats[i].second;
+        detailview->Add(NEW WGuiItem(line.c_str(), WGuiItem::NO_TRANSLATE));
+    }
+    detailview->Entering(JGE_BTN_NONE);
+}
+
+bool GameStateAwards::enterStats(int option)
+{
+    if (option != Options::AWARD_COLLECTOR)
+        return false;
+    SAFE_DELETE(detailview);
+    detailview = NEW WGuiList("Details");
+    buildStatsInto(detailview);
     return true;
 }
+
 void GameStateAwards::ButtonPressed(int controllerId, int controlId)
 {
     if (controllerId == EXIT_AWARDS_MENU)

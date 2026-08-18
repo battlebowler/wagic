@@ -95,6 +95,13 @@ bool JGuiController::CheckUserInput(JButton key)
 {
     if (!mCount) return false;
 
+    // Reverse the vertical scroll direction on all menu lists (per user preference): a
+    // swipe/drag up moves DOWN the list and vice versa. Applied centrally so every
+    // JGuiController-based menu (SimpleMenu, DeckMenu, options, in-game menu, ...) is
+    // consistent. Horizontal menus navigate with LEFT/RIGHT and are unaffected.
+    if (key == JGE_BTN_UP) key = JGE_BTN_DOWN;
+    else if (key == JGE_BTN_DOWN) key = JGE_BTN_UP;
+
     // Touch-first one-tap: if a tap coordinate is pending, act on the object the tap
     // actually lands on and consume it (along with the OK that accompanies the tap),
     // so selecting and activating happen together in a single tap instead of the old

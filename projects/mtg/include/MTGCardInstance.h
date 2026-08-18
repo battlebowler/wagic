@@ -154,6 +154,10 @@ public:
     ManaCost reducedCost;
     ManaCost increasedCost;
     ManaCost producedMana;
+    // True while this permanent is tapped specifically to produce mana (set when the mana
+    // ability resolves, cleared on untap). Lets a tap on the land undo the mana tap while
+    // the mana is still floating; distinguishes a mana tap from any other reason it's tapped.
+    bool mTappedForMana;
     ManaCost * getReducedManaCost();
     ManaCost * getIncreasedManaCost();
     ManaCost * getProducedMana();

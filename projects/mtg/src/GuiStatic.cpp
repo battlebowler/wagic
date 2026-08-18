@@ -229,6 +229,15 @@ void GuiGameZone::toggleDisplay()
 
 void GuiGameZone::Render()
 {
+    // Skip hidden zones entirely: the rail is collapsed (alpha ~0) most of the time, and
+    // drawing 10 invisible zone buttons every frame was a large slice of the duel render
+    // cost. Zero the tap footprint so a hidden zone also can't be tapped.
+    if (actA <= 2.0f)
+    {
+        width = 0.0f;
+        height = 0.0f;
+        return;
+    }
     //Texture
     JQuadPtr quad = WResourceManager::Instance()->GetQuad(kGenericCardThumbnailID);
     JQuadPtr overlay;
@@ -247,13 +256,18 @@ void GuiGameZone::Render()
         quad->SetColor(ARGB((int)(actA),255,240,255));
     }
     
-    //overlay
-    JQuadPtr iconcard = WResourceManager::Instance()->RetrieveTempQuad("iconcard.png");
-    JQuadPtr iconhand = WResourceManager::Instance()->RetrieveTempQuad("iconhand.png");
-    JQuadPtr iconlibrary = WResourceManager::Instance()->RetrieveTempQuad("iconlibrary.png");
-    JQuadPtr iconexile = WResourceManager::Instance()->RetrieveTempQuad("iconexile.png");
-    JQuadPtr iconcommandzone = WResourceManager::Instance()->RetrieveTempQuad("iconcommandzone.png");
-    JQuadPtr iconsideboard = WResourceManager::Instance()->RetrieveTempQuad("iconsideboard.png");
+    //overlay — the zone icons never change, so retrieve each ONCE and cache it. Previously
+    // every zone re-fetched all six icons EVERY frame (60 lookups/frame across the rail),
+    // which was a big chunk of the duel render cost (GuiAvatars ~30ms/frame).
+    static JQuadPtr s_iconcard, s_iconhand, s_iconlibrary, s_iconexile, s_iconcommandzone, s_iconsideboard;
+    if (!s_iconcard)        s_iconcard        = WResourceManager::Instance()->RetrieveTempQuad("iconcard.png");
+    if (!s_iconhand)        s_iconhand        = WResourceManager::Instance()->RetrieveTempQuad("iconhand.png");
+    if (!s_iconlibrary)     s_iconlibrary     = WResourceManager::Instance()->RetrieveTempQuad("iconlibrary.png");
+    if (!s_iconexile)       s_iconexile       = WResourceManager::Instance()->RetrieveTempQuad("iconexile.png");
+    if (!s_iconcommandzone) s_iconcommandzone = WResourceManager::Instance()->RetrieveTempQuad("iconcommandzone.png");
+    if (!s_iconsideboard)   s_iconsideboard   = WResourceManager::Instance()->RetrieveTempQuad("iconsideboard.png");
+    JQuadPtr iconcard = s_iconcard, iconhand = s_iconhand, iconlibrary = s_iconlibrary;
+    JQuadPtr iconexile = s_iconexile, iconcommandzone = s_iconcommandzone, iconsideboard = s_iconsideboard;
 
     if(iconlibrary && type == GUI_LIBRARY)
     {
@@ -434,7 +448,22 @@ bool GuiGameZone::Contains(float px, float py) const
 bool GuiGameZone::CheckUserInput(JButton key)
 {
     if (showCards)
+    {
+        // Touch-first: a tap back on this zone's own icon closes the open card list
+        // ("toggle the stack the avatar revealed"), mirroring the avatar-rail toggle.
+        // CardDisplay otherwise swallows every tap (it snaps selection to the nearest
+        // card) and never closes, so intercept an icon tap here before handing off.
+        GameObserver * g = zone ? zone->owner->getObserver() : NULL;
+        int cx, cy;
+        if (g && g->getInput() && g->getInput()->GetLeftClickCoordinates(cx, cy)
+            && Contains(static_cast<float>(cx), static_cast<float>(cy)))
+        {
+            g->getInput()->LeftClickedProcessed();
+            toggleDisplay();
+            return true;
+        }
         return cd->CheckUserInput(key);
+    }
     else if(type == GUI_LIBRARY && zone->nb_cards && !showCards && key == JGE_BTN_OK)
     {
         int top = zone->nb_cards - 1;

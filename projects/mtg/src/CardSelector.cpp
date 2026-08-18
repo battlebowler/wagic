@@ -323,6 +323,20 @@ bool CardSelector::CheckUserInput(JButton key)
     }
     else
     {
+        // Re-tapping the already-focused avatar toggles its zone rail: hide it if it's shown
+        // (a second tap "backs out"), reveal it again on the next tap. mHasFocus tracks the
+        // revealed state (GuiAvatars::Activate/Deactivate set it). Non-avatars just preview.
+        // Not while targeting: there a tap on an avatar targets that player, so don't steal it.
+        if (GuiAvatar * av = dynamic_cast<GuiAvatar*> (active))
+        {
+            if (!observer || !observer->getCurrentTargetChooser())
+            {
+                if (av->mHasFocus)
+                    av->Leaving(JGE_BTN_NONE); // -> GuiAvatars::Deactivate (hide the rail)
+                else
+                    av->Entering();            // -> GuiAvatars::Activate (reveal the rail)
+            }
+        }
         timer = kPreviewFrames;
     }
     return true;

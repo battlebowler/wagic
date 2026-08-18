@@ -108,6 +108,7 @@ private:
 
     int mStage;
     ShopBooster mBooster[BOOSTER_SLOTS];
+    int mBoosterArt[BOOSTER_SLOTS]; // chosen booster_<set>_<N> art variant per slot (0 = none)
 
     void load();
     // Current "New Cards" cost, after cooling down mRefreshCount by any in-game days passed.

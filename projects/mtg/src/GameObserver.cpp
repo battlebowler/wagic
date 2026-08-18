@@ -12,6 +12,9 @@
 #include "GuiPhaseBar.h"
 #include "AIPlayerBaka.h"
 #include "MTGRules.h"
+#ifdef ANDROID
+#include <android/log.h>  // TEMP perf instrumentation for the duel lag investigation
+#endif
 #include "Trash.h"
 #include "DeckManager.h"
 #include "GuiCombat.h"
@@ -603,12 +606,27 @@ void GameObserver::Update(float dt)
         player = isInterrupting;
     if(mLayers)
     {
+        // TEMP perf instrumentation (duel lag): time the AI/ability update, the
+        // stuffHappened re-eval loop (with an anti-hang cap), and gameStateBasedEffects.
+        int _t0 = JGEGetTime();
         mLayers->Update(dt, player);
+        int _t1 = JGEGetTime();
+        int _loopN = 0;
         while (mLayers->actionLayer()->stuffHappened)
         {
             mLayers->actionLayer()->Update(0);
+            if (++_loopN > 2000) break; // safety cap: a runaway continuous effect can't hang the frame
         }
+        int _t2 = JGEGetTime();
         gameStateBasedEffects();
+        int _t3 = JGEGetTime();
+#ifdef ANDROID
+        int _total = _t3 - _t0;
+        if (_total > 10 || _loopN > 5)
+            __android_log_print(ANDROID_LOG_INFO, "WagicPerf",
+                "total=%dms layer/AI=%dms stuffLoop=%dx(%dms) gsbe=%dms phase=%d",
+                _total, _t1 - _t0, _loopN, _t2 - _t1, _t3 - _t2, (int) mCurrentGamePhase);
+#endif
     }
     oldGamePhase = mCurrentGamePhase;
 }
@@ -844,7 +862,7 @@ void GameObserver::gameStateBasedEffects()
             }
 
             //704.5n If an Aura is attached to an illegal object or player,
-            //or is not attached to an object or player, that Aura is put into its owner’s graveyard.
+            //or is not attached to an object or player, that Aura is put into its ownerï¿½s graveyard.
             if (card->target && isInPlay(card->target) && !card->hasType(Subtypes::TYPE_EQUIPMENT) && card->hasSubtype(Subtypes::TYPE_AURA))
             {
                 bool unattachB = (!card->target->isCreature() && card->isBestowed)?true:false;
@@ -1370,17 +1388,25 @@ void GameObserver::Affinity()
 
 void GameObserver::Render()
 {
+    int _r0 = JGEGetTime();
     if(mLayers)
         mLayers->Render();
+    int _r1 = JGEGetTime();
     if (targetChooser || (mLayers && mLayers->actionLayer()->isWaitingForAnswer()))
         JRenderer::GetInstance()->DrawRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, ARGB(255,255,0,0));
-    if (mExtraPayment) 
+    if (mExtraPayment)
         mExtraPayment->Render();
-    
+
     for (size_t i = 0; i < players.size(); ++i)
     {
         players[i]->Render();
     }
+#ifdef ANDROID
+    int _r2 = JGEGetTime();
+    if (_r2 - _r0 > 12) // TEMP perf instrumentation: total duel render time
+        __android_log_print(ANDROID_LOG_INFO, "WagicPerf", "RENDER total=%dms layers=%dms players=%dms",
+            _r2 - _r0, _r1 - _r0, _r2 - _r1);
+#endif
 }
 
 void GameObserver::ButtonPressed(PlayGuiObject * target)
@@ -1623,6 +1649,22 @@ int GameObserver::cardClick(MTGCardInstance * card, Targetable * object, bool lo
 
         if (card)
         {
+            // Touch-first undo: tapping a land you tapped for mana untaps it and pulls that
+            // mana back out of the pool -- the same "tap it again to take it back" gesture as
+            // undeclaring an attacker. Only while the mana is still floating: mTappedForMana
+            // rules out lands tapped for any other reason, and canAfford() rules out mana that
+            // has already been spent (including partial spends across several lands). Skipped
+            // while targeting or paying so it can't steal a click meant for those.
+            if (!targetChooser && !mExtraPayment && card->mTappedForMana && card->isTapped()
+                && card->controller() == currentlyActing()
+                && card->controller()->getManaPool()->canAfford(card->getProducedMana(), 0))
+            {
+                card->controller()->getManaPool()->pay(card->getProducedMana());
+                card->untap(); // clears mTappedForMana, so a second tap can't double-refund
+                toReturn = 1;
+                return cardClickLog(log, clickedPlayer, zone, backup, index, toReturn);
+            }
+
             //card played as normal, alternative cost, buyback, flashback, retrace.
 
             //the variable "paymenttype = int" only serves one purpose, to tell this bug fix what menu item you clicked on...

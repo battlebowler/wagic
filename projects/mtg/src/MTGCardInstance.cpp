@@ -222,6 +222,7 @@ void MTGCardInstance::initMTGCI()
     skipDamageTestOnce = false;
     belongs_to = NULL;
     tapped = 0;
+    mTappedForMana = false;
     untapping = 0;
     frozen = 0;
     fresh = 0;
@@ -687,6 +688,7 @@ void MTGCardInstance::untap()
     if (!tapped)
         return;
     tapped = 0;
+    mTappedForMana = false;
     WEvent * e = NEW WEventCardTap(this, 1, 0);
     observer->receiveEvent(e);
 }

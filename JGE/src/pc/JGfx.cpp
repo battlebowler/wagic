@@ -250,7 +250,12 @@ static glslFunctions g_glslfuncts;
 #define glUniform4fv              g_glslfuncts.aglUniform4fv
 #define glActiveTexture           g_glslfuncts.aglActiveTexture
 #define glUniform1i               g_glslfuncts.aglUniform1i
-#define glUseProgram              g_glslfuncts.aglUseProgram
+// glUseProgram is called on EVERY draw (prog1 for rects/lines, prog2 for textured quads).
+// A busy duel issues hundreds of draws/frame; switching the shader program each time is a
+// costly redundant state change. Guard it so it only fires when the program actually
+// changes. s_activeProgram is reset to 0 whenever the shaders are (re)loaded (context loss).
+static unsigned int s_activeProgram = 0;
+#define glUseProgram(p)           do { if (s_activeProgram != (unsigned int)(p)) { g_glslfuncts.aglUseProgram(p); s_activeProgram = (unsigned int)(p); } } while (0)
 #define glUniformMatrix4fv        g_glslfuncts.aglUniformMatrix4fv
 
 #define GL_FRAGMENT_SHADER 0x8B30
@@ -800,6 +805,7 @@ void JRenderer::InitRenderer()
     prog2_mvpLoc = glGetUniformLocation( prog2, "u_mvp_matrix" );
     // Get the sampler location
     prog2_samplerLoc = glGetUniformLocation ( prog2, "s_texture" );
+    s_activeProgram = 0; // shaders (re)loaded: force the next glUseProgram to actually bind
 #endif //(defined GL_ES_VERSION_2_0) || (defined GL_VERSION_2_0)
     checkGlError();
 }

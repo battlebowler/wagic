@@ -17,6 +17,10 @@
 #include "WFont.h"
 #include "Translate.h"
 #include "JRenderer.h"
+#ifdef ANDROID
+#include <android/log.h>   // TEMP perf instrumentation (render lag)
+#include <typeinfo>
+#endif
 
 namespace
 {
@@ -30,6 +34,16 @@ namespace
         h = 26.0f;                    // top strip where the phase text sits
         x = SCREEN_WIDTH_F - w;
         y = 0.0f;
+    }
+
+    // On-screen "Cancel" button, shown only while choosing a target (so an accidental cast
+    // can be backed out of). Sits in the right-hand margin, clear of the board and hand.
+    inline void getCancelRect(float& x, float& y, float& w, float& h)
+    {
+        w = 62.0f;
+        h = 20.0f;
+        x = SCREEN_WIDTH_F - w - 4.0f;
+        y = SCREEN_HEIGHT_F * 0.44f;
     }
 
 }
@@ -68,6 +82,24 @@ void DuelLayers::CheckUserInput(int isAI)
             // space) leaves it cleared.
             if (mCardSelector && jge->GetLeftClickCoordinates(x, y))
                 mCardSelector->ClearPreview();
+            // On-screen Cancel button: while choosing a target, a tap here aborts the action
+            // (so an accidental cast can be backed out of). Takes priority over other taps.
+            // Show it for a spell cast from hand too: that targeting is driven by the game's
+            // targetChooser with no ActionElement waiting, so action->canCancel() is false
+            // there even though cancelCurrentAction() (which deletes the targetChooser) works.
+            if (observer->getCurrentTargetChooser() && action &&
+                (action->canCancel() || !action->isWaitingForAnswer()) &&
+                jge->GetLeftClickCoordinates(x, y))
+            {
+                float ccx, ccy, ccw, cch;
+                getCancelRect(ccx, ccy, ccw, cch);
+                if (x >= ccx && x <= ccx + ccw && y >= ccy && y <= ccy + cch)
+                {
+                    jge->LeftClickedProcessed();
+                    observer->cancelCurrentAction();
+                    break;
+                }
+            }
             // (Game menu / return to main menu is opened by the system Back gesture —
             // an edge swipe — which maps to JGE_BTN_MENU; no on-screen button needed.)
             // On-screen Next Phase button: a tap inside its bounds advances the phase.
@@ -218,10 +250,43 @@ void DuelLayers::Render()
             focusMakesItThrough = false;
     }
     for (int i = nbitems - 1; i >= 0; --i)
+    {
+#ifdef ANDROID
+        int _o0 = JGEGetTime();
         objects[i]->Render();
+        int _od = JGEGetTime() - _o0;
+        if (_od > 6)
+            __android_log_print(ANDROID_LOG_INFO, "WagicPerf", "RENDER layer[%d] %s = %dms",
+                i, objects[i] ? typeid(*objects[i]).name() : "null", _od);
+#else
+        objects[i]->Render();
+#endif
+    }
     // (No on-screen Next Phase button: tapping the top-right phase text advances the
     // phase. No on-screen menu button: the system Back gesture / edge swipe opens the
     // game menu. See CheckUserInput.)
+
+    // Cancel button: shown while choosing a target so an accidental cast/ability can be
+    // backed out of. A spell cast from hand targets via the game's targetChooser with no
+    // ActionElement waiting (canCancel() is false there), so also show it whenever a
+    // targetChooser is active and nothing is forcing the target (isWaitingForAnswer NULL).
+    if (observer && observer->getCurrentTargetChooser() && action &&
+        (action->canCancel() || !action->isWaitingForAnswer()))
+    {
+        JRenderer * r = JRenderer::GetInstance();
+        WFont * f = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+        float cx, cy, cw, ch;
+        getCancelRect(cx, cy, cw, ch);
+        r->FillRoundRect(cx, cy, cw, ch, 3.0f, ARGB(255, 140, 23, 23));
+        r->DrawRoundRect(cx, cy, cw, ch, 3.0f, ARGB(255, 255, 255, 255));
+        if (f)
+        {
+            f->SetScale(1.0f);
+            f->SetColor(ARGB(255, 255, 255, 255));
+            float ty = cy + (ch - f->GetHeight()) * 0.5f; // vertically centered in the button
+            f->DrawString(_("Cancel"), cx + cw * 0.5f, ty, JGETEXT_CENTER);
+        }
+    }
 }
 
 int DuelLayers::receiveEvent(WEvent * e)

@@ -67,6 +67,9 @@ public:
   ~OtherMenuItem();
   virtual void Render();
   virtual void Update(float dt);
+  // The corner pill (e.g. "Trophy Room") renders far wider than MenuItem's mX±22 hit zone
+  // (so only the first word was tappable). Cover the whole rendered corner instead.
+  virtual bool HitTest(float px, float py);
 };
 
 #endif

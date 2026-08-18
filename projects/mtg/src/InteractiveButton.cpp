@@ -68,6 +68,11 @@ void InteractiveButton::Render()
     bool pressed = isSelectionValid();
     JRenderer *renderer = JRenderer::GetInstance();
     WFont *mainFont = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+    // Pin the shared font to scale 1.0 while measuring/drawing so every standard button is the
+    // SAME size regardless of whatever scale the surrounding screen left the font at. Restored
+    // at the end so we don't disturb later text.
+    float _btnOldScale = mainFont->GetScale();
+    mainFont->SetScale(1.0f);
     const string detailedInfoString = _(getText());
     float stringWidth = mainFont->GetStringWidth(detailedInfoString.c_str());
     float pspIconsSize = 0.5;
@@ -94,6 +99,7 @@ void InteractiveButton::Render()
     mainFont->SetColor(ARGB(255, 255, 255, 255));
     (void)pressed;
     mainFont->DrawString(detailedInfoString, buttonXOffset, buttonYOffset);
+    mainFont->SetScale(_btnOldScale);
 }
 
 void InteractiveButton::setImage( const JQuadPtr imagePtr )

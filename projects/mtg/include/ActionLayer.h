@@ -33,6 +33,7 @@ public:
     ActionLayer(GameObserver *observer);
     ~ActionLayer();
     int cancelCurrentAction();
+    bool canCancel(); // true if cancelCurrentAction() would currently succeed (for a Cancel button)
     ActionElement * isWaitingForAnswer();
     int isReactingToTargetClick(Targetable * card);
     int receiveEventPlus(WEvent * event);

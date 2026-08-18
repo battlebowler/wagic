@@ -411,6 +411,7 @@ void DeckMenu::Update(float dt)
     UpdateVisuals(dt);
 }
 
+
 void DeckMenu::UpdateVisuals(float dt)
 {
     if (mCurr > startId + maxItems - 1)

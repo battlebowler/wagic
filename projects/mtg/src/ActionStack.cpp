@@ -874,6 +874,9 @@ ActionStack::ActionStack(GameObserver* game)
     mode = ACTIONSTACK_STANDARD;
     checked = 0;
     lastActionController = NULL;
+    interruptBtnXOffset = noBtnXOffset = noToAllBtnXOffset = interruptDialogWidth = 0;
+    interruptBtnYTop = 0;
+    interruptBtnYBottom = 0;
 
     if(!observer->getResourceManager()) return;
     for (int i = 0; i < 8; ++i)
@@ -1219,7 +1222,7 @@ void ActionStack::endOfInterruption(bool log)
 
 JButton ActionStack::handleInterruptRequest( JButton inputKey, int& x, int& y )
 {
-    if ( gModRules.game.canInterrupt() && y >= 3 && y < 34)
+    if ( gModRules.game.canInterrupt() && y >= interruptBtnYTop && y < interruptBtnYBottom)
     {
         if (x >= interruptBtnXOffset && x < noBtnXOffset )
             return JGE_BTN_SEC;
@@ -1500,6 +1503,10 @@ void ActionStack::Render()
         const float kBarWidth = width + 15;
         const float kBtnBoxY = y0 + 3 + (31.0f - kBtnBoxH) / 2.0f;
         const float kBtnStartX = kBarLeft + (kBarWidth - contentWidth) / 2.0f;
+        // Record the button row's actual Y-range so tap hit-testing follows the dialog when
+        // it's positioned above the hand (was hard-coded to the old top-of-screen position).
+        interruptBtnYTop = (int) kBtnBoxY;
+        interruptBtnYBottom = (int) (kBtnBoxY + kBtnBoxH);
 
         //stack shadow
         //renderer->FillRoundRect(x0 - 7, y0+2, width + 17, height + 2, 9.0f, ARGB(128,0,0,0));

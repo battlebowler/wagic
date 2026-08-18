@@ -31,6 +31,49 @@ static float kPSPScale  = 16.0f / (SCREEN_HEIGHT / 272.0f);
 
 const float kWidthScaleFactor = 0.8f * (SCREEN_HEIGHT / 272.0f);
 
+// Collectible-foil sheen (MTG "star-burst" style). Drawn additively over the card rect
+// centered at (cx,cy) with half-extents halfW/halfH: a subtle diagonal rainbow wash, plus
+// two crossing sets of fine diagonal streaks whose brightness is modulated by a "light"
+// band that travels across the card (the tilt-and-it-shimmers effect). alpha01 is the
+// card's overall opacity (0..1) so the effect fades with the card. Shared by all three card
+// render paths (RenderBig / TinyCropRender / instance Render).
+static void renderFoilSheen(JRenderer * r, float cx, float cy, float halfW, float halfH, float alpha01)
+{
+    if (!r || alpha01 <= 0.01f || halfW <= 1.0f || halfH <= 1.0f) return;
+
+    const float left = cx - halfW, top = cy - halfH;
+    const float w = halfW * 2.0f, h = halfH * 2.0f;
+
+    const float tt = (float) JGEGetTime() * 0.001f; // seconds
+    const float baseHue = tt * 0.12f;               // slow rainbow drift
+
+    r->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE); // additive
+
+    // 1) diagonal rainbow wash
+    {
+        int a = (int) (alpha01 * 0.32f * 255.0f);
+        if (a > 255) a = 255;
+        if (a > 0)
+        {
+            PIXEL_TYPE cols[4];
+            for (int i = 0; i < 4; i++)
+            {
+                float d = baseHue + i * 1.5708f;
+                int rr = (int) (90 + 90 * sin(d));
+                int gg = (int) (90 + 90 * sin(d + 2.0944f));
+                int bb = (int) (90 + 90 * sin(d + 4.1888f));
+                cols[i] = ARGB(a, rr, gg, bb);
+            }
+            r->FillRect(left, top, w, h, cols);
+        }
+    }
+
+    // (Diagonal foil streaks were removed per user preference — the animated rainbow wash
+    // alone reads best. The wash + additive blend above is the whole effect now.)
+
+    r->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA); // restore
+}
+
 // Touch hit-testing. Cards are drawn centered on (actX, actY): CardGui::Render scales
 // the card art so its on-screen height is (actZ * 38 * kCardScale) game units (the
 // texture dimensions cancel out), and the width follows the standard card aspect
@@ -366,27 +409,10 @@ void CardGui::Render()
         //draw the card image
         renderer->RenderQuad(quad.get(), actX, actY, actT, scale, scale);
 
-        // Foil: an animated holographic sheen shifting over the card art (additive blend).
+        // Foil: animated holographic sheen (star-burst streaks + rainbow) over the card art.
         if (card->foil)
-        {
-            float hw = 0.5f * scale * quad->mWidth;
-            float hh = 0.5f * scale * quad->mHeight;
-            float ph = (float) ((JGEGetTime() / 25) % 360) * 3.14159265f / 180.0f;
-            int a = (int) (actA * 0.33f);
-            if (a < 0) a = 0;
-            PIXEL_TYPE cols[4];
-            for (int i = 0; i < 4; i++)
-            {
-                float d = ph + i * 1.5708f; // 90 deg per corner -> shifting rainbow
-                int r = (int) (110 + 110 * sin(d));
-                int g = (int) (110 + 110 * sin(d + 2.0944f)); // +120 deg
-                int b = (int) (110 + 110 * sin(d + 4.1888f)); // +240 deg
-                cols[i] = ARGB(a, r, g, b);
-            }
-            renderer->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE);
-            renderer->FillRect(actX - hw, actY - hh, hw * 2, hh * 2, cols);
-            renderer->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA);
-        }
+            renderFoilSheen(renderer, actX, actY, 0.5f * scale * quad->mWidth,
+                            0.5f * scale * quad->mHeight, actA / 255.0f);
     }
 
     if (alternate)
@@ -1169,27 +1195,11 @@ void CardGui::TinyCropRender(MTGCard * card, const Pos& pos, JQuad * quad, bool 
 
     // Foil holographic sheen for collectible foils, over the composited crop card. This is
     // the path most full-card previews use (pack reveal big card, deck editor, etc.).
+    if (foil)
     {
-        if (foil)
-        {
-            float ch = 250.0f * pos.actZ;               // composited card frame height
-            float cw = ch * (BigWidth / BigHeight);     // width from card aspect
-            float ph = (float) ((JGEGetTime() / 25) % 360) * 3.14159265f / 180.0f;
-            int a = (int) (pos.actA * 0.42f);
-            if (a < 0) a = 0;
-            PIXEL_TYPE cols[4];
-            for (int i = 0; i < 4; i++)
-            {
-                float d = ph + i * 1.5708f;
-                int r = (int) (110 + 110 * sin(d));
-                int g = (int) (110 + 110 * sin(d + 2.0944f));
-                int b = (int) (110 + 110 * sin(d + 4.1888f));
-                cols[i] = ARGB(a, r, g, b);
-            }
-            renderer->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE);
-            renderer->FillRect(pos.actX - cw / 2, pos.actY - ch / 2, cw, ch, cols);
-            renderer->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA);
-        }
+        float ch = 250.0f * pos.actZ;               // composited card frame height
+        float cw = ch * (BigWidth / BigHeight);     // width from card aspect
+        renderFoilSheen(renderer, pos.actX, pos.actY, cw / 2.0f, ch / 2.0f, pos.actA / 255.0f);
     }
 
     RenderCountersBig(card, pos);
@@ -1310,28 +1320,9 @@ void CardGui::RenderBig(MTGCard* card, const Pos& pos, bool thumb, bool noborder
 
         // Foil: animated holographic sheen for collectible foils (flag passed in from the
         // instance). This is the path used by the pack reveal, zone lists and previews.
-        {
-            if (foil)
-            {
-                float hw = 0.5f * scale * quad->mWidth;
-                float hh = 0.5f * scale * quad->mHeight;
-                float ph = (float) ((JGEGetTime() / 25) % 360) * 3.14159265f / 180.0f;
-                int a = (int) (pos.actA * 0.42f);
-                if (a < 0) a = 0;
-                PIXEL_TYPE cols[4];
-                for (int i = 0; i < 4; i++)
-                {
-                    float d = ph + i * 1.5708f;
-                    int r = (int) (110 + 110 * sin(d));
-                    int g = (int) (110 + 110 * sin(d + 2.0944f));
-                    int b = (int) (110 + 110 * sin(d + 4.1888f));
-                    cols[i] = ARGB(a, r, g, b);
-                }
-                renderer->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE);
-                renderer->FillRect(pos.actX - hw, pos.actY - hh, hw * 2, hh * 2, cols);
-                renderer->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA);
-            }
-        }
+        if (foil)
+            renderFoilSheen(renderer, x, pos.actY, 0.5f * scale * quad->mWidth,
+                            0.5f * scale * quad->mHeight, pos.actA / 255.0f);
 
         RenderCountersBig(card, pos);
         return;
