@@ -6,7 +6,7 @@ This repository is a modernized fork of Wagic, the Homebrew, focused exclusively
 
 ## Overview
 
-The original Wagic project supports multiple legacy platforms and build systems. This fork is intended to steamline the build pipeline for Android development and migrate the build system to Android Studio/Gradle.
+The original Wagic project supports multiple legacy platforms and build systems. This fork is intended to streamline the build pipeline for Android development and migrate the build system to Android Studio/Gradle.
 
 ---
 
@@ -33,7 +33,7 @@ The long-term goal:
 
 ### Build Requirements
 
-- Android Studio (latest recommended)
+- Android Studio
 - Android SDK
 - Android NDK (required for native components)
 
@@ -41,7 +41,7 @@ The long-term goal:
 
 ### Build Instructions
 
-1. Open the Android subproject in Android Studio (wagic-Android\projects\mtg\Android)
+1. Open the Android subproject in Android Studio (wagic\projects\mtg\Android)
 2. Allow Gradle to sync  
 3. Select a device or emulator  
 4. Run the `Wagic` module
