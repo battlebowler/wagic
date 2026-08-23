@@ -253,3 +253,22 @@ captures/
 # NDK build outputs (ndk-build generated, not source)
 projects/mtg/Android/libs/
 projects/mtg/Android/obj/
+
+# Android NDK C++ build intermediates + IDE compile output
+.cxx/
+/out/
+*.apk
+*.apk.idsig
+*.intermediate.manifest
+
+#############
+## Claude Code (local agent/editor files)
+#############
+.claude/
+
+#############
+## Local scratch (not project assets)
+#############
+# numbered temp archives left in the project root
+/projects/mtg/zip1.zip
+/projects/mtg/zip2.zip

@@ -47,6 +47,29 @@ MTGPlayerCards::MTGPlayerCards(MTGDeck * deck)
     initDeck(deck);
 }
 
+void MTGPlayerCards::setFoils(MTGDeck * collection)
+{
+    if (!collection || !library) return;
+    // All the deck's cards are in the library at setup. Mark up to getFoilCount(id) copies
+    // of each card foil so a single owned foil doesn't turn every copy in the deck foil;
+    // the flag rides on the instance as it later moves to hand/battlefield/etc.
+    map<int, int> remaining;
+    for (size_t i = 0; i < library->cards.size(); i++)
+    {
+        MTGCardInstance * card = library->cards[i];
+        if (!card) continue;
+        int id = card->getId();
+        map<int, int>::iterator r = remaining.find(id);
+        int left = (r == remaining.end()) ? collection->getFoilCount(id) : r->second;
+        if (left > 0)
+        {
+            card->foil = true;
+            left--;
+        }
+        remaining[id] = left;
+    }
+}
+
 void MTGPlayerCards::initDeck(MTGDeck * deck)
 {
     resetLibrary();

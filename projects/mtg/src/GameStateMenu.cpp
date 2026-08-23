@@ -170,7 +170,14 @@ void GameStateMenu::Start()
 #endif
 
     if (mBg)
+    {
         mBg->SetHotSpot(mBg->mWidth/2, 0);
+        // Trim the bottom edge texels so the title quad's lower boundary doesn't render as a
+        // faint horizontal line beneath the logo (edge bleed on some theme title images).
+        float tqx, tqy, tqw, tqh;
+        mBg->GetTextureRect(&tqx, &tqy, &tqw, &tqh);
+        mBg->SetTextureRect(tqx, tqy, tqw, tqh - 2.0f);
+    }
 
     if (MENU_STATE_MAJOR_MAINMENU == currentState)
         currentState = currentState | MENU_STATE_MINOR_FADEIN;
@@ -472,7 +479,9 @@ void GameStateMenu::ensureMGuiController()
                         startX + (i * space), 40 + SCREEN_HEIGHT / 2,
                         mIcons[iconId].get(), mIcons[iconId + 1].get(),
                         item->mParticleFile.c_str(), WResourceManager::Instance()->GetQuad("particles").get(),
-                        (i == 0));
+                        // No default focus: touch is one-tap, so nothing should sit pre-focused
+                        // (that left Play enlarged, with the big ghost icon + white label).
+                        false);
                 // Row-select: a tap anywhere in the icon row engages the horizontally
                 // nearest icon in one tap (no dead zones at the row ends, no wrong-neighbour
                 // hits between icons).

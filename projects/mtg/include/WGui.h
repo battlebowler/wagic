@@ -359,9 +359,11 @@ public:
     virtual void Render();
     WSyncable mOffset;
     void setFoil(bool f) { mFoil = f; } // draw a foil sheen over the previewed card
+    void setScale(float s) { mScale = s; } // scale the previewed card (1.0 = full size)
 protected:
     bool bThumb;
     bool mFoil = false;
+    float mScale = 1.0f;
 };
 
 /**
@@ -891,6 +893,7 @@ class WGuiListRow: public WGuiList
 public:
     WGuiListRow(string n, WSyncable * s = NULL);
     virtual void Render();
+    virtual bool CheckUserInput(JButton key);
 };
 
 /**
@@ -963,6 +966,7 @@ public:
         FILTER_CMC,
         FILTER_POWER,
         FILTER_TOUGH,
+        FILTER_FOIL,
         END_FILTERS
     };
 protected:

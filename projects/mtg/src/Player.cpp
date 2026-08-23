@@ -164,6 +164,13 @@ HumanPlayer::HumanPlayer(GameObserver *observer, string file, string fileSmall, 
     mAvatarName = "avatar.jpg";
     playMode = MODE_HUMAN;
     premade = isPremade;
+    // In-duel foils: mark the local player's owned foil cards so they shimmer in play.
+    // Skipped for premade decks, whose cards aren't drawn from the local collection.
+    if (!isPremade && game)
+    {
+        MTGDeck collection(options.profileFile(PLAYER_COLLECTION).c_str(), MTGCollection());
+        game->setFoils(&collection);
+    }
 }
 
 ManaPool * Player::getManaPool()

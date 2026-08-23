@@ -64,7 +64,12 @@ void DuelLayers::CheckUserInput(int isAI)
         int dragX, dragY;
         if (jge->GetDragCoordinates(dragX, dragY))
         {
-            if (mCardSelector)
+            // If a zone card-list is open (graveyard / exile / library / ...), browse THAT
+            // with the finger -- its big preview follows the card under the finger, like the
+            // hand does -- instead of hovering the battlefield behind it.
+            if (observer->OpenedDisplay)
+                observer->OpenedDisplay->hoverAt((float)dragX, (float)dragY);
+            else if (mCardSelector)
                 mCardSelector->HoverAt((float)dragX, (float)dragY);
             while (jge->ReadButton()) {}
             jge->LeftClickedProcessed();

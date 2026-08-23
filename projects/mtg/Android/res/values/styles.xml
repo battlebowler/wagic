@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Modern Material base theme for the app. Fullscreen + no action bar so the SDL GL
+         surface fills the screen; native dialogs (e.g. the import/export admin menu) and the
+         system bars adopt the modern Material look instead of the legacy pre-Material theme
+         (@android:style/Theme.NoTitleBar.Fullscreen) that was used before. -->
+    <style name="WagicTheme" parent="@android:style/Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:colorPrimary">#1B5E20</item>
+        <item name="android:colorPrimaryDark">#0D3311</item>
+        <item name="android:colorAccent">#B71C1C</item>
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+</resources>

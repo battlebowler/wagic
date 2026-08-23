@@ -193,6 +193,9 @@ void GameStateShop::Start()
         // the item list on the left.
         bigDisplay->setX(SCREEN_WIDTH_F * 0.72f);
         bigDisplay->setY(135);
+        // Full-size card art nearly fills the preview column and dwarfs the booster packs;
+        // trim it a touch so cards and packs read at a similar size.
+        bigDisplay->setScale(0.85f);
     }
 
     for (int i = 0; i < 8; ++i)
@@ -342,6 +345,22 @@ void GameStateShop::cancelBooster(int)
 {
     return; //TODO FIXME Tie boosters into pricelist.
 }
+
+// Foils command a big premium over the same card non-foil.
+static const int kFoilPriceMult = 6;
+
+// Older sets cost more: scale the price up as the set's release year recedes. Sets from
+// ~2022 on stay at 1x; the oldest sets (Alpha/Beta, 1993) top out around 5x. A year of 0
+// (unknown, or a mixed/custom pack with no single set) gets no age premium.
+static float agePriceMultiplier(int year)
+{
+    if (year <= 0) return 1.0f;
+    float mult = 1.0f + 0.12f * (float) (2022 - year);
+    if (mult < 1.0f) mult = 1.0f;
+    if (mult > 5.0f) mult = 5.0f;
+    return mult;
+}
+
 void GameStateShop::purchaseCard(int controlId)
 {
     MTGCard * c = srcCards->getCard(controlId - BOOSTER_SLOTS);
@@ -355,10 +374,11 @@ void GameStateShop::purchaseCard(int controlId)
         mFoilSingle[controlId] = false; // the foil copy has been sold
     }
     int price = mPrices[controlId];
-    pricelist->setPrice(c->getMTGId(), price); // In case they changed their minds after cancelling.
     playerdata->credits -= price;
     GameApp::mycredits = playerdata->credits;
-    //Update prices
+    //Update prices. The demand bump applies to the BASE pricelist price only — the age and
+    //foil premiums are display multipliers and must NOT be baked into the saved base price
+    //(otherwise buying a foil/old-set card would permanently inflate that card everywhere).
     int rnd;
     switch (options[Options::ECON_DIFFICULTY].number)
     {
@@ -372,9 +392,12 @@ void GameStateShop::purchaseCard(int controlId)
         rnd = rand() % 25;
         break;
     }
-    price = price + (rnd * price) / 100;
-    pricelist->setPrice(c->getMTGId(), price);
-    mPrices[controlId] = pricelist->getPurchasePrice(c->getMTGId()); //Prices go up immediately.
+    int base = pricelist->getPurchasePrice(c->getMTGId());
+    base = base + (rnd * base) / 100;
+    pricelist->setPrice(c->getMTGId(), base);
+    //Re-apply the age premium for display (the foil copy, if any, was already consumed above).
+    MTGSetInfo * psi = setlist.getInfo(c->setId);
+    mPrices[controlId] = (int) (pricelist->getPurchasePrice(c->getMTGId()) * agePriceMultiplier(psi ? psi->year : 0)); //Prices go up immediately.
     mInventory[controlId]--;
     updateCounts();
     mTouched = true;
@@ -522,13 +545,14 @@ static int chooseBoosterArtVariant(const string& setId)
     }
     return (count <= 0) ? 0 : (1 + rand() % count);
 }
+
 void GameStateShop::load()
 {
     for (int i = 0; i < BOOSTER_SLOTS; i++)
     {
         mBooster[i].randomize(packlist);
         mInventory[i] = 1 + rand() % mBooster[i].maxInventory();
-        mPrices[i] = pricelist->getOtherPrice(mBooster[i].basePrice());
+        mPrices[i] = (int) (pricelist->getOtherPrice(mBooster[i].basePrice()) * agePriceMultiplier(mBooster[i].getSetYear()));
         mBoosterArt[i] = chooseBoosterArtVariant(mBooster[i].getSetId());
     }
     for (int i = BOOSTER_SLOTS; i < SHOP_ITEMS; i++)
@@ -544,14 +568,13 @@ void GameStateShop::load()
         }
         // Foils in singles: rarer than in packs. Only foil-era sets, ~4% per restock.
         mFoilSingle[i] = false;
-        {
-            MTGSetInfo * si = setlist.getInfo(c->setId);
-            int yr = si ? si->year : 0;
-            if (yr >= 1999 && (rand() % 100) < 4)
-                mFoilSingle[i] = true;
-        }
-        mPrices[i] = purchasePrice(i - BOOSTER_SLOTS);
-        if (mFoilSingle[i]) mPrices[i] *= 3; // foils command a premium
+        MTGSetInfo * si = setlist.getInfo(c->setId);
+        int yr = si ? si->year : 0;
+        if (yr >= 1999 && (rand() % 100) < 4)
+            mFoilSingle[i] = true;
+        // Older sets cost more; foils cost a lot more (both stack on the base price).
+        mPrices[i] = (int) (purchasePrice(i - BOOSTER_SLOTS) * agePriceMultiplier(yr));
+        if (mFoilSingle[i]) mPrices[i] *= kFoilPriceMult;
         mCounts[i] = myCollection->countByName(c);
         switch (c->getRarity())
         {
@@ -1037,10 +1060,12 @@ void GameStateShop::Render()
                 bq = WResourceManager::Instance()->RetrieveTempQuad(candidates[ci]);
             if (bq.get() && bq->mHeight > 0)
             {
-                float targetH = SCREEN_HEIGHT_F * 0.6f;
+                // Bigger pack art (was 0.6), centred on the same point as the card preview
+                // (0.72W, y=135) so cards and packs sit at a matched size and position.
+                float targetH = SCREEN_HEIGHT_F * 0.75f;
                 float scale = targetH / bq->mHeight;
                 bq->SetHotSpot(bq->mWidth / 2.0f, bq->mHeight / 2.0f);
-                r->RenderQuad(bq.get(), SCREEN_WIDTH_F * 0.72f, SCREEN_HEIGHT_F * 0.42f, 0, scale, scale);
+                r->RenderQuad(bq.get(), SCREEN_WIDTH_F * 0.72f, 135.0f, 0, scale, scale);
             }
         }
 

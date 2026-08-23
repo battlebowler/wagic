@@ -245,6 +245,9 @@ public:
     void showHand();
     void resetLibrary();
     void initDeck(MTGDeck * deck);
+    // Mark library card instances as foil based on how many foils the given collection owns
+    // of each card (up to that count), so a player's owned foils shimmer during a duel.
+    void setFoils(MTGDeck * collection);
     void beforeBeginPhase();
     MTGCardInstance * putInGraveyard(MTGCardInstance * card);
     MTGCardInstance * putInExile(MTGCardInstance * card);

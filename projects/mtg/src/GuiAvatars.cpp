@@ -109,16 +109,24 @@ void GuiAvatars::Deactivate(PlayGuiObject* c)
         if (observer->guiOpenDisplay && c == observer->guiOpenDisplay)
             observer->guiOpenDisplay->toggleDisplay();
     }
-    // Leaving the avatar/its zones hides that player's whole column again.
+    // Leaving the avatar/its zones hides that player's whole column again. Clear mHasFocus on
+    // EVERY zone in the column, not just `c`: otherwise a zone that was focused stays flagged
+    // (its pulsing white highlight in GuiGameZone::Render never clears) when the rail is hidden
+    // via the avatar toggle (which deactivates the avatar, not the focused zone) and then shown
+    // again.
     if ((opponentGraveyard == c) || (opponentExile == c) || (opponentCommandZone == c) || (opponentLibrary == c) || (opponentHand == c) || (opponent == c))
     {
         opponentLibrary->alpha = opponentGraveyard->alpha = opponentExile->alpha = opponentCommandZone->alpha = opponentHand->alpha = 0.0f;
+        opponentLibrary->mHasFocus = opponentGraveyard->mHasFocus = opponentExile->mHasFocus =
+            opponentCommandZone->mHasFocus = opponentHand->mHasFocus = opponent->mHasFocus = false;
         opponent->zoom = 0.9f;
         active = NULL;
     }
     else if ((selfGraveyard == c) || (selfExile == c) || (selfCommandZone == c) || (selfSideboard == c) || (selfLibrary == c) || (self == c))
     {
         selfLibrary->alpha = selfGraveyard->alpha = selfExile->alpha = selfCommandZone->alpha = selfSideboard->alpha = 0.0f;
+        selfLibrary->mHasFocus = selfGraveyard->mHasFocus = selfExile->mHasFocus =
+            selfCommandZone->mHasFocus = selfSideboard->mHasFocus = self->mHasFocus = false;
         self->zoom = 0.5f;
         active = NULL;
     }

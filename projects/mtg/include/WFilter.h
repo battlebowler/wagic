@@ -467,5 +467,37 @@ protected:
     int ability;
 };
 
+/**
+  Matches a card the player owns (or does not own) as a foil. Foil status lives in the
+  collection (MTGDeck::foilCount, keyed by card id), not on the card definition, so this
+  filter reads a collection pointer supplied by whoever opens the filter UI (the deck
+  editor). With no collection set it matches everything, i.e. it is a no-op.
+*/
+class WCFilterFoil: public WCardFilter
+{
+public:
+    WCFilterFoil(bool wantFoil = true)
+    {
+        foil = wantFoil;
+    }
+    ;
+    WCFilterFoil(string arg);
+    bool isMatch(MTGCard * c);
+    string getCode();
+    float filterFee()
+    {
+        return 0.2f;
+    }
+    ;
+    static void setCollection(MTGDeck * c)
+    {
+        collection = c;
+    }
+    ;
+protected:
+    bool foil;
+    static MTGDeck * collection;
+};
+
 /**@} This comment used by Doxyyen. */
 #endif

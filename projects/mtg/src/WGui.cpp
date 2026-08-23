@@ -1486,7 +1486,7 @@ void WGuiCardImage::Render()
 {
     JRenderer * renderer = JRenderer::GetInstance();
     MTGCard * c = NULL;
-    Pos p(x + margin, y + margin, 1, 0, 255);
+    Pos p(x + margin, y + margin, mScale, 0, 255);
 
     if (!source || (c = source->getCard(mOffset.getPos())) == NULL)
     { //No card, use card back.
@@ -1724,6 +1724,37 @@ WGuiListRow::WGuiListRow(string n, WSyncable * s) :
     height = 20;
 }
 
+bool WGuiListRow::CheckUserInput(JButton key)
+{
+    // A row's columns share (roughly) a Y, so the base class's row-by-Y tap selection
+    // can't tell them apart. Pick the column nearest the tap in 2D (this also copes with
+    // rows that wrapped to a second visual line), then let the OK fall through to open it.
+    JGE * mEngine = JGE::GetInstance();
+    int i, j;
+    if ((key == JGE_BTN_OK) && mEngine->GetLeftClickCoordinates(i, j))
+    {
+        int n = currentItem;
+        unsigned int minD = static_cast<unsigned int>(-1);
+        for (size_t k = 0; k < items.size(); k++)
+        {
+            if (!items[k]->Selectable()) continue;
+            int dx = static_cast<int>(items[k]->getX()) - i;
+            int dy = static_cast<int>(items[k]->getY()) - j;
+            unsigned int d = static_cast<unsigned int>(dx * dx + dy * dy);
+            if (d < minD)
+            {
+                minD = d;
+                n = static_cast<int>(k);
+            }
+        }
+        if (n != currentItem && n >= 0 && items[n]->Selectable()) setSelected(n);
+        // Consume the click so the base (WGuiList/WGuiMenu) won't re-select by Y; the OK
+        // still falls through to activate the now-focused column.
+        mEngine->LeftClickedProcessed();
+    }
+    return WGuiList::CheckUserInput(key);
+}
+
 //WGuiFilterUI
 bool WGuiFilters::Finish(bool emptyset)
 {
@@ -1790,20 +1821,20 @@ void WGuiFilters::ButtonPressed(int controllerId, int controlId)
 void WGuiFilters::buildList()
 {
     list = NEW WGuiList("");
-    WGuiButton * l = NEW WGuiButton(NEW WGuiItem("Add Filter"), -102, -10, this);
-    WGuiButton * r = NEW WGuiButton(NEW WGuiItem("Return"), -102, -11, this);
-    WGuiButton * mid = NEW WGuiButton(NEW WGuiItem("Clear"), -102, -66, this);
-    WGuiSplit * sub = NEW WGuiSplit(mid, r);
-    sub->setHeight(25);
-    sub->setWidth(240);
-    l->setHeight(25);
-    l->setWidth(160);
-    WGuiSplit * wgs = NEW WGuiSplit(l, sub, true);
-    //WGuiSplit * wgs = NEW WGuiSplit(mid, r);
     subMenu = NULL;
     list->Add(NEW WGuiHeader(displayValue));
-    //list->Add(l);
-    list->Add(wgs);
+    // Touch-first layout: each action is its own full-width row, so a single tap on the
+    // row both selects and activates it. The old side-by-side WGuiSplit required the tap
+    // to land on the already-focused half, which felt like nudging a trackpad.
+    WGuiButton * add = NEW WGuiButton(NEW WGuiItem("Add Filter"), -102, -10, this);
+    WGuiButton * clr = NEW WGuiButton(NEW WGuiItem("Clear"), -102, -66, this);
+    WGuiButton * app = NEW WGuiButton(NEW WGuiItem("Apply"), -102, -11, this);
+    add->setHeight(24);
+    clr->setHeight(24);
+    app->setHeight(24);
+    list->Add(add);
+    list->Add(clr);
+    list->Add(app);
     list->Entering(JGE_BTN_NONE);
 }
 
@@ -2051,6 +2082,11 @@ void WGuiFilterItem::updateValue()
             mParent->subMenu->Add(FILTER_RARITY, "Rarity");
             delMenu = false;
         }
+        if (mParent->isAvailable(FILTER_FOIL))
+        {
+            mParent->subMenu->Add(FILTER_FOIL, "Foil");
+            delMenu = false;
+        }
         if (mParent->isAvailable(FILTER_CMC))
         {
             mParent->subMenu->Add(FILTER_CMC, "Mana Cost");
@@ -2151,6 +2187,11 @@ void WGuiFilterItem::updateValue()
             mParent->addArg("Common", "r:c;");
             mParent->addArg("Basic", "r:l;");
             mParent->addArg("Special Rarity", "{r:m;|r:t;|r:r;|r:u;|r:c;|r:l;}");
+        }
+        else if (filterType == FILTER_FOIL)
+        {
+            mParent->addArg("Foil only", "foil:1;");
+            mParent->addArg("Non-foil only", "foil:0;");
         }
         else if (filterType == FILTER_CMC)
         {

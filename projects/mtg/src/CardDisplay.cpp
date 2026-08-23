@@ -250,6 +250,42 @@ bool CardDisplay::CheckUserInput(JButton key)
     return false;
 }
 
+void CardDisplay::hoverAt(float px, float py)
+{
+    if (!mObjects.size()) return;
+
+    // Nearest card to the finger (same 2D metric the tap handler uses), then move the
+    // selection there so its big preview follows the finger. No click is consumed.
+    unsigned int minDistance2 = (unsigned int) -1;
+    int n = mCurr;
+    for (size_t i = 0; i < mObjects.size(); i++)
+    {
+        float top, left;
+        if (mObjects[i]->getTopLeft(top, left))
+        {
+            unsigned int distance2 = static_cast<unsigned int>((top - py) * (top - py) + (left - px) * (left - px));
+            if (distance2 < minDistance2)
+            {
+                minDistance2 = distance2;
+                n = (int) i;
+            }
+        }
+    }
+
+    JButton key = (n < mCurr) ? JGE_BTN_LEFT : JGE_BTN_RIGHT;
+    if (n < start_item)
+        rotateLeft();
+    else if (n >= start_item + nb_displayed_items)
+        rotateRight();
+
+    if (n != mCurr && mObjects[mCurr] != NULL && mObjects[mCurr]->Leaving(key))
+    {
+        mCurr = n;
+        mObjects[mCurr]->Entering();
+    }
+}
+
+
 void CardDisplay::Render(bool norect)
 {
     //norect - code shop

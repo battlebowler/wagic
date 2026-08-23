@@ -174,8 +174,32 @@ WCardFilter * WCFilterFactory::Terminal(string src, string arg)
     else if (type == "pow" || type == "power")
         return NEW WCFilterPower(arg);
     else if (type == "tgh" || type == "tough" || type == "toughness") return NEW WCFilterToughness(arg);
+    else if (type == "foil")
+        return NEW WCFilterFoil(arg);
 
     return NEW WCFilterNULL();
+}
+
+//WCFilterFoil
+MTGDeck * WCFilterFoil::collection = NULL;
+
+WCFilterFoil::WCFilterFoil(string arg)
+{
+    foil = true;
+    if (arg.size() && (arg[0] == '0' || tolower((unsigned char) arg[0]) == 'n')) foil = false;
+}
+
+bool WCFilterFoil::isMatch(MTGCard * c)
+{
+    if (!c) return false;
+    if (!collection) return true; //No collection context supplied: don't filter anything out.
+    bool isFoil = (collection->getFoilCount(c->getId()) > 0);
+    return isFoil == foil;
+}
+
+string WCFilterFoil::getCode()
+{
+    return foil ? "foil:1;" : "foil:0;";
 }
 
 //WCFilterLetter

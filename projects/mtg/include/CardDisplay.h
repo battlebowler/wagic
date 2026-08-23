@@ -24,6 +24,9 @@ public:
     // Nearest pack-reveal thumbnail to a screen point (-1 if none). Thumbnail x/y are set
     // each frame in Render(norect); used for finger-anchored swipe selection.
     int thumbAtPoint(float px, float py) const;
+    // Finger-anchored browse for the in-duel zone card list: move the selection/preview to the
+    // card nearest the drag point (like the hand). Does NOT consume the click.
+    void hoverAt(float px, float py);
     void rotateLeft();
     void rotateRight();
     bool CheckUserInput(JButton key);

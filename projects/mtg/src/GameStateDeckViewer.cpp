@@ -238,6 +238,9 @@ void GameStateDeckViewer::Start()
     pricelist = NEW PriceList("settings/prices.dat", MTGCollection());
     playerdata = NEW PlayerData(MTGCollection());
     myCollection = NEW DeckDataWrapper(playerdata->collection);
+    // Give the Foil filter a handle on the live collection so it can tell which cards are
+    // owned as foils (foil status lives in the collection, not on the card definition).
+    WCFilterFoil::setCollection(playerdata->collection);
     myCollection->Sort(WSrcCards::SORT_ALPHA);
     setupView(mCurrentView, myCollection);
     toggleDeckButton->setText("View Deck");
@@ -308,6 +311,7 @@ void GameStateDeckViewer::End()
         SAFE_DELETE(myDungeonZone);
     }
     SAFE_DELETE(pricelist);
+    WCFilterFoil::setCollection(NULL); //Drop the collection handle before it is freed.
     SAFE_DELETE(playerdata);
     SAFE_DELETE(filterMenu);
     SAFE_DELETE(source);
