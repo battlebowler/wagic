@@ -192,19 +192,28 @@ int WSrcCards::loadMatches(WSrcCards* src, bool all)
 int WSrcCards::addRandomCards(MTGDeck * i, int howmany)
 {
     if (!cards.size() || (filtersRoot && !validated.size())) return howmany;
+
+    // Pick WITHOUT replacement so a single booster slot never yields the same card twice
+    // (real packs don't repeat within a slot). This WSrcCards variant is only used by booster
+    // assembly; deck-building uses MTGDeck::addRandomCards, which intentionally allows repeats.
+    const bool useValidated = !validated.empty();
+    size_t poolSize = useValidated ? validated.size() : cards.size();
+    vector<char> used(poolSize, 0);
+    size_t distinct = 0;
     for (int x = 0; x < howmany; x++)
     {
-        if (validated.size())
+        size_t pos;
+        if (distinct >= poolSize)
         {
-            size_t pos = rand() % validated.size();
-            MTGCard * c = cards[validated[pos]];
-            i->add(c);
+            pos = rand() % poolSize;                 // slot wants more than the pool has: allow a repeat
         }
         else
         {
-            size_t pos = rand() % cards.size();
-            i->add(cards[pos]);
+            do { pos = rand() % poolSize; } while (used[pos]);
+            used[pos] = 1;
+            distinct++;
         }
+        i->add(useValidated ? cards[validated[pos]] : cards[pos]);
     }
     return 0;
 }

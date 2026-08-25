@@ -1347,13 +1347,46 @@ void ShopBooster::randomCustom(MTGPacks * packlist)
     if (!pack)
         randomStandard();
 }
+// Weight an unlocked set by release year so newer sets are more common and older sets rarer
+// (a shop "find"). Unknown-year sets get a light weight. Kept in sync between the two passes
+// in randomStandard().
+static int shopSetWeight(int year)
+{
+    return (year > 1990) ? (year - 1990) : 5;
+}
+
 void ShopBooster::randomStandard()
 {
     // A shop booster slot always offers a SINGLE set (per user request) — never a mixed
-    // "X & Y" booster. Pick one random set and use its pack (or the default pack scoped to
-    // that set if it has none).
-    mainSet = setlist.randomSet(-1);
+    // "X & Y" booster. Pick one set weighted toward newer releases, so older sets show up
+    // rarely (matching their higher price). Fall back to a uniform pick if nothing matched.
+    mainSet = NULL;
     altSet = NULL;
+
+    int n = setlist.size();
+    long total = 0;
+    for (int i = 0; i < n; i++)
+    {
+        if (!options[Options::optionSet(i)].number) continue; // locked set
+        MTGSetInfo * si = setlist.getInfo(i);
+        if (si) total += shopSetWeight(si->year);
+    }
+    if (total > 0)
+    {
+        long r = (long) (rand() % total);
+        for (int i = 0; i < n; i++)
+        {
+            if (!options[Options::optionSet(i)].number) continue;
+            MTGSetInfo * si = setlist.getInfo(i);
+            if (!si) continue;
+            int w = shopSetWeight(si->year);
+            if (r < w) { mainSet = si; break; }
+            r -= w;
+        }
+    }
+    if (!mainSet)
+        mainSet = setlist.randomSet(-1); // fallback
+
     pack = mainSet ? mainSet->mPack : NULL;
 }
 int ShopBooster::maxInventory()
