@@ -12,9 +12,6 @@
 #include "GuiPhaseBar.h"
 #include "AIPlayerBaka.h"
 #include "MTGRules.h"
-#ifdef ANDROID
-#include <android/log.h>  // TEMP perf instrumentation for the duel lag investigation
-#endif
 #include "Trash.h"
 #include "DeckManager.h"
 #include "GuiCombat.h"
@@ -422,8 +419,14 @@ void GameObserver::startGame(GameType gtype, Rules * rules)
     mGameType = gtype;
     turn = 0;
     mRules = rules;
-    if (rules) 
+    if (rules)
         rules->initPlayers(this);
+
+    // Mark owned foils on each human player's finalized library, after all deck rebuilds in
+    // initPlayers and before initGame draws the opening hand, so foil cards shimmer in play.
+    for (int i = 0; i < 2; i++)
+        if (players[i] && !players[i]->isAI())
+            players[i]->applyFoils();
 
     options.automaticStyle(players[0], players[1]);
 
@@ -436,7 +439,7 @@ void GameObserver::startGame(GameType gtype, Rules * rules)
 
     resetStartupGame();
 
-    if (rules) 
+    if (rules)
         rules->initGame(this);
 
     //Preload images from hand
@@ -606,27 +609,14 @@ void GameObserver::Update(float dt)
         player = isInterrupting;
     if(mLayers)
     {
-        // TEMP perf instrumentation (duel lag): time the AI/ability update, the
-        // stuffHappened re-eval loop (with an anti-hang cap), and gameStateBasedEffects.
-        int _t0 = JGEGetTime();
         mLayers->Update(dt, player);
-        int _t1 = JGEGetTime();
-        int _loopN = 0;
+        int loopN = 0;
         while (mLayers->actionLayer()->stuffHappened)
         {
             mLayers->actionLayer()->Update(0);
-            if (++_loopN > 2000) break; // safety cap: a runaway continuous effect can't hang the frame
+            if (++loopN > 2000) break; // safety cap: a runaway continuous effect can't hang the frame
         }
-        int _t2 = JGEGetTime();
         gameStateBasedEffects();
-        int _t3 = JGEGetTime();
-#ifdef ANDROID
-        int _total = _t3 - _t0;
-        if (_total > 10 || _loopN > 5)
-            __android_log_print(ANDROID_LOG_INFO, "WagicPerf",
-                "total=%dms layer/AI=%dms stuffLoop=%dx(%dms) gsbe=%dms phase=%d",
-                _total, _t1 - _t0, _loopN, _t2 - _t1, _t3 - _t2, (int) mCurrentGamePhase);
-#endif
     }
     oldGamePhase = mCurrentGamePhase;
 }
@@ -1388,12 +1378,9 @@ void GameObserver::Affinity()
 
 void GameObserver::Render()
 {
-    int _r0 = JGEGetTime();
     if(mLayers)
         mLayers->Render();
-    int _r1 = JGEGetTime();
-    if (targetChooser || (mLayers && mLayers->actionLayer()->isWaitingForAnswer()))
-        JRenderer::GetInstance()->DrawRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, ARGB(255,255,0,0));
+    // (Removed the full-screen red targeting/response border for a cleaner battlefield.)
     if (mExtraPayment)
         mExtraPayment->Render();
 
@@ -1401,12 +1388,6 @@ void GameObserver::Render()
     {
         players[i]->Render();
     }
-#ifdef ANDROID
-    int _r2 = JGEGetTime();
-    if (_r2 - _r0 > 12) // TEMP perf instrumentation: total duel render time
-        __android_log_print(ANDROID_LOG_INFO, "WagicPerf", "RENDER total=%dms layers=%dms players=%dms",
-            _r2 - _r0, _r1 - _r0, _r2 - _r1);
-#endif
 }
 
 void GameObserver::ButtonPressed(PlayGuiObject * target)

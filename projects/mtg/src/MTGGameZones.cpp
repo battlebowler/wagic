@@ -50,23 +50,37 @@ MTGPlayerCards::MTGPlayerCards(MTGDeck * deck)
 void MTGPlayerCards::setFoils(MTGDeck * collection)
 {
     if (!collection || !library) return;
-    // All the deck's cards are in the library at setup. Mark up to getFoilCount(id) copies
-    // of each card foil so a single owned foil doesn't turn every copy in the deck foil;
-    // the flag rides on the instance as it later moves to hand/battlefield/etc.
-    map<int, int> remaining;
+    // Remember each deck card's owned-foil count, then apply. Storing it lets us re-apply
+    // after a later initDeck (deck rebuild during setup) that would otherwise wipe the flags.
+    mFoilCounts.clear();
+    for (size_t i = 0; i < library->cards.size(); i++)
+    {
+        MTGCardInstance * card = library->cards[i];
+        if (!card) continue;
+        int id = card->getId();
+        if (!mFoilCounts.count(id))
+            mFoilCounts[id] = collection->getFoilCount(id);
+    }
+    applyStoredFoils();
+}
+
+void MTGPlayerCards::applyStoredFoils()
+{
+    if (mFoilCounts.empty() || !library) return;
+    // Mark up to mFoilCounts[id] copies of each card foil (so one owned foil doesn't foil
+    // every copy). Called after every initDeck so a deck rebuild re-applies the flags.
+    map<int, int> remaining = mFoilCounts;
     for (size_t i = 0; i < library->cards.size(); i++)
     {
         MTGCardInstance * card = library->cards[i];
         if (!card) continue;
         int id = card->getId();
         map<int, int>::iterator r = remaining.find(id);
-        int left = (r == remaining.end()) ? collection->getFoilCount(id) : r->second;
-        if (left > 0)
+        if (r != remaining.end() && r->second > 0)
         {
             card->foil = true;
-            left--;
+            r->second--;
         }
-        remaining[id] = left;
     }
 }
 
@@ -242,6 +256,9 @@ void MTGPlayerCards::setOwner(Player * player)
     sideboard->setOwner(player);
     commandzone->setOwner(player);
     temp->setOwner(player);
+    // Re-apply owned foils to the freshly-built library, so a deck rebuild during setup
+    // doesn't clear the flags that setFoils set.
+    applyStoredFoils();
 }
 
 void MTGPlayerCards::initGame(int shuffle, int draw)
@@ -962,6 +979,7 @@ MTGCardInstance * MTGGameZone::removeCard(MTGCardInstance * card, int createCopy
                 copy->previous = card;
                 copy->view = card->view;
                 copy->isToken = card->isToken;
+                copy->foil = card->foil;   // preserve the premium/foil shine across zone moves (draw, play, ...)
                 copy->X = card->X;
                 copy->castX = card->castX;
                 copy->kicked = card->kicked;

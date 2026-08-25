@@ -164,13 +164,18 @@ HumanPlayer::HumanPlayer(GameObserver *observer, string file, string fileSmall, 
     mAvatarName = "avatar.jpg";
     playMode = MODE_HUMAN;
     premade = isPremade;
+    // Foils are applied once from GameObserver::startGame, after the deck is finalized and
+    // before the opening hand is drawn — not here, to avoid reloading the collection on the
+    // many HumanPlayer constructions the AI does while simulating.
+}
+
+void HumanPlayer::applyFoils()
+{
     // In-duel foils: mark the local player's owned foil cards so they shimmer in play.
     // Skipped for premade decks, whose cards aren't drawn from the local collection.
-    if (!isPremade && game)
-    {
-        MTGDeck collection(options.profileFile(PLAYER_COLLECTION).c_str(), MTGCollection());
-        game->setFoils(&collection);
-    }
+    if (premade || !game) return;
+    MTGDeck collection(options.profileFile(PLAYER_COLLECTION).c_str(), MTGCollection());
+    game->setFoils(&collection);
 }
 
 ManaPool * Player::getManaPool()

@@ -46,6 +46,10 @@ DeckMenu::DeckMenu(int id, JGuiListener* listener, int fontId, const string _tit
     mAlwaysShowDetailsButton = false;
     mSelectedDeck = NULL;
 
+    // Touch content-scroll: the finger drags the list, the highlight stays on the selected
+    // deck (see updateDragScroll / CheckUserInput / Render).
+    mUseScroll = true;
+
     // All positions as fractions of screen dimensions.
     // Original PSP values (for 480x272) in comments.
     mY = SCREEN_HEIGHT_F * (50.0f / 272.0f);       // was 50
@@ -301,11 +305,16 @@ void DeckMenu::Render()
     float lineHeight = SCREEN_HEIGHT_F * DeckMenuConst::kLineHeight;
     if (timeOpen < 1) height *= timeOpen > 0 ? timeOpen : -timeOpen;
 
-    for (int i = startId; i < startId + maxItems; i++)
+    for (int i = 0; i < mCount; i++)
     {
-        if (i > mCount - 1) break;
         DeckMenuItem *currentMenuItem = static_cast<DeckMenuItem*> (mObjects[i]);
-        if (currentMenuItem->getY() - lineHeight * startId < mY + height - lineHeight + SCREEN_HEIGHT_F * (7.0f / 272.0f))
+        float renderedY = currentMenuItem->getY() - mScrollPx;
+        // Only draw rows that fit ENTIRELY within the list window, so nothing spills past it
+        // (no scissor clip on this target). The list scrolls under fixed top/bottom edges.
+        float listTopY = mY + SCREEN_HEIGHT_F * DeckMenuConst::kVerticalMargin;
+        float listBotY = listTopY + maxItems * lineHeight;
+        if (renderedY < listTopY - 1.0f) continue;              // top not fully inside
+        if (renderedY + lineHeight > listBotY + 1.0f) break;    // bottom not fully inside (rows ordered)
         {
             // only load stats for visible items in the list
             DeckMetaData* metaData = currentMenuItem->getMetaData();
@@ -387,8 +396,19 @@ void DeckMenu::Render()
             }
             else // reset the font color to be slightly muted
                 mFont->SetColor(ARGB(150,255,255,255));
-            currentMenuItem->RenderWithOffset(-lineHeight * startId);
+            currentMenuItem->RenderWithOffset(-mScrollPx);
         }
+    }
+
+    // Pulsing up/down indicators at the right edge of the deck column when there is more
+    // of the list to scroll to.
+    {
+        float listTop = mY + SCREEN_HEIGHT_F * DeckMenuConst::kVerticalMargin;
+        float viewportH = maxItems * lineHeight;
+        mScrollMax = mCount * lineHeight - viewportH; // recompute here so the arrows are right on frame 1
+        if (mScrollMax < 0.0f) mScrollMax = 0.0f;
+        clampScroll();
+        renderScrollArrows(SCREEN_WIDTH_F * (216.0f / 480.0f), listTop + 3.0f, listTop + viewportH - 3.0f, selectionT);
     }
     //psp
     RenderDeckManaColors();
@@ -399,34 +419,46 @@ void DeckMenu::Render()
         mFont->DrawString(title.c_str(), titleX, titleY, JGETEXT_CENTER);
     }
 
-    renderer->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE);
-    stars->Render();
-    renderer->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA);
+    // stars->Render() removed: the roaming selection sparkle is no longer used on lists.
 
 }
 
 void DeckMenu::Update(float dt)
 {
-    JGuiController::Update(dt);
+    updateDragScroll();        // finger drag -> mScrollPx (content follows the finger)
+    JGuiController::Update(dt); // reads one button -> CheckUserInput (scroll step or tap)
     UpdateVisuals(dt);
+}
+
+bool DeckMenu::CheckUserInput(JButton key)
+{
+    // Up/down (from a swipe or the d-pad) scroll the content instead of roaming the cursor.
+    float step = SCREEN_HEIGHT_F * DeckMenuConst::kLineHeight;
+    if (scrollKey(key, step)) return true;
+    // Everything else (taps, cancel, action) uses the normal controller handling; taps
+    // hit-test against the scrolled row positions (DeckMenuItem::HitTest tracks the offset).
+    return JGuiController::CheckUserInput(key);
 }
 
 
 void DeckMenu::UpdateVisuals(float dt)
 {
-    if (mCurr > startId + maxItems - 1)
-        startId = mCurr - maxItems + 1;
-    else if (mCurr < startId)
-        startId = mCurr;
+    float lineHeight = SCREEN_HEIGHT_F * DeckMenuConst::kLineHeight;
+
+    // Content-scroll: the finger (updateDragScroll) drives mScrollPx; the cursor no longer
+    // pages the list. Clamp to the overflow past the visible window.
+    mScrollMax = mCount * lineHeight - maxItems * lineHeight;
+    if (mScrollMax < 0.0f) mScrollMax = 0.0f;
+    clampScroll();
 
     stars->Update(dt);
     selectionT += 3 * dt;
     selectionY += (mSelectionTargetY - selectionY) * 8 * dt;
 
-    float lineHeight = SCREEN_HEIGHT_F * DeckMenuConst::kLineHeight;
     float horizMargin = SCREEN_WIDTH_F * DeckMenuConst::kHorizontalMargin;
     float starsX = starsOffsetX + ((mWidth - 2 * horizMargin) * (1 + cos(selectionT)) / 2);
-    float starsY = selectionY + SCREEN_HEIGHT_F * (5.0f / 272.0f) * cos(selectionT * 2.35f) + lineHeight / 2 - lineHeight * startId;
+    // The highlight/stars ride with the selected item as the list scrolls.
+    float starsY = selectionY + SCREEN_HEIGHT_F * (5.0f / 272.0f) * cos(selectionT * 2.35f) + lineHeight / 2 - mScrollPx;
     stars->MoveTo(starsX, starsY);
 
     //

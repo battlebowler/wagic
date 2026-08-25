@@ -246,8 +246,12 @@ public:
     void resetLibrary();
     void initDeck(MTGDeck * deck);
     // Mark library card instances as foil based on how many foils the given collection owns
-    // of each card (up to that count), so a player's owned foils shimmer during a duel.
+    // of each card (up to that count), so a player's owned foils shimmer during a duel. The
+    // counts are remembered (mFoilCounts) and re-applied after every initDeck, so a deck
+    // rebuild during game setup doesn't wipe the flags.
     void setFoils(MTGDeck * collection);
+    void applyStoredFoils();       // re-mark the (possibly rebuilt) library from mFoilCounts
+    map<int, int> mFoilCounts;     // cardId -> owned foil count (from the local collection)
     void beforeBeginPhase();
     MTGCardInstance * putInGraveyard(MTGCardInstance * card);
     MTGCardInstance * putInExile(MTGCardInstance * card);

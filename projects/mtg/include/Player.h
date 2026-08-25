@@ -117,6 +117,13 @@ public:
         return (playMode == MODE_HUMAN);
     }
 
+    // Mark this player's owned foils on its (finalized) library. No-op for AI; the local
+    // HumanPlayer loads the collection and flags matching cards. Must run AFTER the deck is
+    // (re)built in Rules::initPlayers, or the flags get wiped by that rebuild.
+    virtual void applyFoils()
+    {
+    }
+
     Player * opponent();
     int getId();
     JQuadPtr getIcon();
@@ -146,6 +153,7 @@ class HumanPlayer: public Player
 public:
     HumanPlayer(GameObserver *observer, string deckFile, string deckFileSmall, bool premade = false, MTGDeck * deck = NULL);
     void End();
+    virtual void applyFoils();
     friend ostream& operator<<(ostream&, const HumanPlayer&);
 };
 

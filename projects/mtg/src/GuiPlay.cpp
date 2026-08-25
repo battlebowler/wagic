@@ -176,12 +176,8 @@ void GuiPlay::BattleField::Update(float dt)
 }
 void GuiPlay::BattleField::Render()
 {
-    if (height > 3)
-    {
-        JRenderer::GetInstance()->FillRect(0, SCREEN_HEIGHT / 2 + 8.5f - height / 2, 480, height, ARGB(127, red, 0, 0));
-        if(red > 1)
-            JRenderer::GetInstance()->DrawRect(-2, SCREEN_HEIGHT / 2 + 8.5f - height / 2, 484, height, ARGB(255, 255, 165, 0));        
-    }
+    // (Removed the red attack-zone band + orange outline shown during combat, for a cleaner
+    // battlefield. The Update() height/color animation is harmless and left intact.)
 }
 
 GuiPlay::GuiPlay(DuelLayers* view) :

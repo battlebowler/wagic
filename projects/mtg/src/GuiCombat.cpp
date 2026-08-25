@@ -517,7 +517,7 @@ void GuiCombat::Render()
         ok_quad->SetHotSpot(ok_quad->mWidth/2, ok_quad->mHeight/2);
         ok.Render(ok_quad.get());
     }
-    renderer->DrawLine(0, SCREEN_HEIGHT / 2, SCREEN_WIDTH, SCREEN_HEIGHT / 2, ARGB(255, 255, 64, 0));
+    // (Removed the red combat divider line across the middle of the battlefield.)
     if (FIRST_STRIKE == step)
     {
         WFont * mFont = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);

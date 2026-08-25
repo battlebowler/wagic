@@ -361,6 +361,18 @@ static float agePriceMultiplier(int year)
     return mult;
 }
 
+// Small sets (e.g. Expeditions/Masterpieces at ~25-45 cards) are almost all rares/mythics,
+// so a pack of one is worth far more than a pack of a full ~250-card set. Scale the booster
+// price up as the set gets smaller. setSize <= 0 (unknown / mixed pack) gets no premium.
+static float smallSetPriceMultiplier(int setSize)
+{
+    if (setSize <= 0) return 1.0f;
+    float mult = 1.0f + 0.011f * (float) (180 - setSize);
+    if (mult < 1.0f) mult = 1.0f;
+    if (mult > 3.0f) mult = 3.0f;
+    return mult;
+}
+
 void GameStateShop::purchaseCard(int controlId)
 {
     MTGCard * c = srcCards->getCard(controlId - BOOSTER_SLOTS);
@@ -552,7 +564,12 @@ void GameStateShop::load()
     {
         mBooster[i].randomize(packlist);
         mInventory[i] = 1 + rand() % mBooster[i].maxInventory();
-        mPrices[i] = (int) (pricelist->getOtherPrice(mBooster[i].basePrice()) * agePriceMultiplier(mBooster[i].getSetYear()));
+        int bsetNum = setlist.findSet(mBooster[i].getSetId());
+        MTGSetInfo * bsi = (bsetNum >= 0) ? setlist.getInfo(bsetNum) : NULL;
+        int bsetSize = bsi ? bsi->totalCards() : 0;
+        mPrices[i] = (int) (pricelist->getOtherPrice(mBooster[i].basePrice())
+                            * agePriceMultiplier(mBooster[i].getSetYear())
+                            * smallSetPriceMultiplier(bsetSize));
         mBoosterArt[i] = chooseBoosterArtVariant(mBooster[i].getSetId());
     }
     for (int i = BOOSTER_SLOTS; i < SHOP_ITEMS; i++)
@@ -896,12 +913,22 @@ void GameStateShop::Update(float dt)
                     mEngine->LeftClickedProcessed();
                     if (slot >= 0)
                     {
+                        // Tap a list row: SELECT + preview only. Buying now requires tapping
+                        // the previewed card/pack (below), so a stray list tap can't purchase.
+                        // bigSync isn't hooked upstream, so setting its offset is equivalent
+                        // to the menu's (protected) syncMove().
                         shopMenu->setSelected(slot);
-                        // Sync the preview + purchase target to the tapped slot. bigSync
-                        // isn't hooked upstream, so setting its offset is equivalent to
-                        // the menu's (protected) syncMove().
                         bigSync.setOffset(slot);
-                        ButtonPressed(-102, slot);
+                        srcCards->Touch();
+                    }
+                    else
+                    {
+                        // Tap the previewed card/pack (the right-hand preview area) to buy the
+                        // currently selected item.
+                        int sel = shopMenu->getSelected();
+                        if (sel >= 0 && cx > kShopListX + shopListW() &&
+                            cy > kShopListTop && cy < SCREEN_HEIGHT_F - 24.0f)
+                            ButtonPressed(-102, sel);
                     }
                     return;
                 }
@@ -1067,6 +1094,16 @@ void GameStateShop::Render()
                 bq->SetHotSpot(bq->mWidth / 2.0f, bq->mHeight / 2.0f);
                 r->RenderQuad(bq.get(), SCREEN_WIDTH_F * 0.72f, 135.0f, 0, scale, scale);
             }
+        }
+
+        // Buy hint above the preview: purchases are made by tapping the previewed card/pack.
+        {
+            float oldSc = mFont->GetScale();
+            mFont->SetScale(0.6f);
+            mFont->SetColor(ARGB(205, 235, 225, 165));
+            mFont->DrawString(_("Tap card or pack to buy"), SCREEN_WIDTH_F * 0.72f, 12.0f, JGETEXT_CENTER);
+            mFont->SetColor(ARGB(255, 255, 255, 255));
+            mFont->SetScale(oldSc);
         }
 
         float listW = shopListW();

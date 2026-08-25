@@ -13,7 +13,9 @@
 #if defined (PSP) 
 #define HUGE_CACHE_LIMIT 25000000  // Size of the cache for PSP (in bytes) - old value is 20mb - reverted
 #else
-#define HUGE_CACHE_LIMIT 60000000  // Size of the cache for Windows and Linux (in bytes) - old value is 20mb increased to 60mb
+#define HUGE_CACHE_LIMIT 192000000  // Texture cache byte limit (was 60MB). A busy battlefield + backdrops
+                                    // exceeded 60MB, evicting on-screen card textures and reloading them
+                                    // every frame (~6ms/card => ~4 FPS). 192MB keeps them resident.
 #endif
 #define SAMPLES_CACHE_SIZE 1500000  // Size in bytes of the cached samples
 #define PSI_CACHE_SIZE 500000  // Size in bytes of the cached particles
@@ -31,7 +33,7 @@
 #define OTHERS_OFFSET 2000000000
 
 //Hard Limits.
-#define MAX_CACHE_OBJECTS 300
+#define MAX_CACHE_OBJECTS 768   // was 300; raised so a busy board's card textures aren't evicted by count
 #define MAX_CACHE_ATTEMPTS 10
 #define MAX_CACHE_MISSES 200
 #define MAX_CACHED_SAMPLES 50

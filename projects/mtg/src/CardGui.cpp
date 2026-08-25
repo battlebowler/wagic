@@ -37,41 +37,50 @@ const float kWidthScaleFactor = 0.8f * (SCREEN_HEIGHT / 272.0f);
 // band that travels across the card (the tilt-and-it-shimmers effect). alpha01 is the
 // card's overall opacity (0..1) so the effect fades with the card. Shared by all three card
 // render paths (RenderBig / TinyCropRender / instance Render).
-static void renderFoilSheen(JRenderer * r, float cx, float cy, float halfW, float halfH, float alpha01)
+// Opacity of the holographic foil overlay (user-authored art in graphics/foil.png), applied
+// on top of the card art. Tune here if the shine reads too strong or too faint.
+static const float kFoilOverlayAlpha = 0.40f;
+// Inset the overlay so the shine covers the art/text but stays inside the card's black border
+// (real foils don't shine on the border). <1.0 also means it never overshoots the card when the
+// border is turned off. Tune to sit just inside the border.
+static const float kFoilOverlayScale = 0.90f;
+
+static void renderFoilSheen(JRenderer * r, float cx, float cy, float halfW, float halfH, float angle, float alpha01)
 {
     if (!r || alpha01 <= 0.01f || halfW <= 1.0f || halfH <= 1.0f) return;
 
-    const float left = cx - halfW, top = cy - halfH;
-    const float w = halfW * 2.0f, h = halfH * 2.0f;
+    halfW *= kFoilOverlayScale;
+    halfH *= kFoilOverlayScale;
 
-    const float tt = (float) JGEGetTime() * 0.001f; // seconds
-    const float baseHue = tt * 0.12f;               // slow rainbow drift
+    // Load the holographic overlay texture (graphics/foil.png). Retrieved each call so it stays
+    // valid if the cache evicts it or the resource manager is rebuilt; the lookup is cheap and
+    // only a handful of foil cards are ever on screen. If the art is missing, draw no sheen.
+    JQuadPtr foilQuad = WResourceManager::Instance()->RetrieveTempQuad("foil.png");
+    if (!foilQuad) return;
 
-    r->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE); // additive
+    int a = (int)(alpha01 * kFoilOverlayAlpha * 255.0f);
+    if (a > 255) a = 255;
+    if (a <= 0) return;
+    PIXEL_TYPE col = ARGB(a, 255, 255, 255); // white tint = show the overlay art, at 'a' alpha
 
-    // 1) diagonal rainbow wash
+    // Corner offsets in screen space (Y down): BL, BR, TR, TL — the SAME index->corner order the
+    // card quad uses, so our triangle winding matches and GL back-face culling keeps the quad
+    // (the reversed order was being culled). Rotating each by the card's angle also makes the
+    // overlay track a tapped/rotated card, and the order maps the texture the right way up.
+    const float cs = cosf(angle), sn = sinf(angle);
+    const float ox[4] = { -halfW, +halfW, +halfW, -halfW };
+    const float oy[4] = { +halfH, +halfH, -halfH, -halfH };
+    VertexColor pt[4];
+    for (int i = 0; i < 4; i++)
     {
-        int a = (int) (alpha01 * 0.32f * 255.0f);
-        if (a > 255) a = 255;
-        if (a > 0)
-        {
-            PIXEL_TYPE cols[4];
-            for (int i = 0; i < 4; i++)
-            {
-                float d = baseHue + i * 1.5708f;
-                int rr = (int) (90 + 90 * sin(d));
-                int gg = (int) (90 + 90 * sin(d + 2.0944f));
-                int bb = (int) (90 + 90 * sin(d + 4.1888f));
-                cols[i] = ARGB(a, rr, gg, bb);
-            }
-            r->FillRect(left, top, w, h, cols);
-        }
+        pt[i].x = cx + ox[i] * cs - oy[i] * sn;
+        pt[i].y = cy + ox[i] * sn + oy[i] * cs;
+        pt[i].z = 0.0f;
+        pt[i].color = col;
     }
 
-    // (Diagonal foil streaks were removed per user preference — the animated rainbow wash
-    // alone reads best. The wash + additive blend above is the whole effect now.)
-
-    r->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA); // restore
+    r->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA); // normal alpha (50% overlay)
+    r->RenderQuad(foilQuad.get(), pt);
 }
 
 // Touch hit-testing. Cards are drawn centered on (actX, actY): CardGui::Render scales
@@ -409,10 +418,12 @@ void CardGui::Render()
         //draw the card image
         renderer->RenderQuad(quad.get(), actX, actY, actT, scale, scale);
 
-        // Foil: animated holographic sheen (star-burst streaks + rainbow) over the card art.
+        // Foil holographic overlay: drawn on the art right after the card image (so the later
+        // border/highlight/mask overlays still sit on top of it), and inset via kFoilOverlayScale
+        // so it stays inside the card's black border.
         if (card->foil)
             renderFoilSheen(renderer, actX, actY, 0.5f * scale * quad->mWidth,
-                            0.5f * scale * quad->mHeight, actA / 255.0f);
+                            0.5f * scale * quad->mHeight, actT, actA / 255.0f);
     }
 
     if (alternate)
@@ -1199,7 +1210,7 @@ void CardGui::TinyCropRender(MTGCard * card, const Pos& pos, JQuad * quad, bool 
     {
         float ch = 250.0f * pos.actZ;               // composited card frame height
         float cw = ch * (BigWidth / BigHeight);     // width from card aspect
-        renderFoilSheen(renderer, pos.actX, pos.actY, cw / 2.0f, ch / 2.0f, pos.actA / 255.0f);
+        renderFoilSheen(renderer, pos.actX, pos.actY, cw / 2.0f, ch / 2.0f, pos.actT, pos.actA / 255.0f);
     }
 
     RenderCountersBig(card, pos);
@@ -1322,7 +1333,7 @@ void CardGui::RenderBig(MTGCard* card, const Pos& pos, bool thumb, bool noborder
         // instance). This is the path used by the pack reveal, zone lists and previews.
         if (foil)
             renderFoilSheen(renderer, x, pos.actY, 0.5f * scale * quad->mWidth,
-                            0.5f * scale * quad->mHeight, pos.actA / 255.0f);
+                            0.5f * scale * quad->mHeight, pos.actT, pos.actA / 255.0f);
 
         RenderCountersBig(card, pos);
         return;

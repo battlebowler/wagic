@@ -6,6 +6,8 @@
 #include "WEvent.h"
 #include "AllAbilities.h"
 #include "MTGRules.h"
+#include "SimpleMenuItem.h"
+#include "Translate.h"
 
 MTGAbility* ActionLayer::getAbility(int type)
 {
@@ -401,6 +403,9 @@ void ActionLayer::setMenuObject(Targetable * object, bool must)
 
     abilitiesMenu = NEW SimpleMenu(observer->getInput(), observer->getResourceManager(), 10, this, Fonts::MAIN_FONT, 100, 100, object->getDisplayName().c_str());
     abilitiesTriggered = NEW SimpleMenu(observer->getInput(), observer->getResourceManager(), 10, this, Fonts::MAIN_FONT, 100, 100, object->getDisplayName().c_str());
+    // Horizontal interrupt-style bar (bottom-centered, matching the interrupt dialog) for UI consistency.
+    abilitiesMenu->mInterruptStyle = true;
+    abilitiesTriggered->mInterruptStyle = true;
     currentActionCard = (MTGCardInstance*)object;
     for (size_t i = 0; i < mObjects.size(); i++)
     {
@@ -437,6 +442,27 @@ void ActionLayer::setMenuObject(Targetable * object, bool must)
         abilitiesMenu->Add(kCancelMenuID, "Cancel");
     else
         cantCancel = 1;
+
+    // For a single optional ("may") ability, present it as a clean Yes/No decision: the ability
+    // name becomes the dialog title, "Yes" uses it, "No" declines (the Cancel item). Prompts with
+    // several abilities keep their individual ability-name buttons.
+    {
+        int abilityCount = 0, abilityIdx = -1, cancelIdx = -1;
+        for (int i = 0; i < abilitiesMenu->mCount; i++)
+        {
+            if (abilitiesMenu->mObjects[i]->GetId() == kCancelMenuID) cancelIdx = i;
+            else { abilityCount++; abilityIdx = i; }
+        }
+        if (abilityCount == 1)
+        {
+            SimpleMenuItem * abil = static_cast<SimpleMenuItem*>(abilitiesMenu->mObjects[abilityIdx]);
+            abilitiesMenu->setTitle(abil->getText());
+            abil->setText(_("Yes"));
+            if (cancelIdx >= 0)
+                static_cast<SimpleMenuItem*>(abilitiesMenu->mObjects[cancelIdx])->setText(_("No"));
+        }
+    }
+
     modal = 1;
 }
 
@@ -450,6 +476,7 @@ void ActionLayer::setCustomMenuObject(Targetable * object, bool must,vector<MTGA
     menuObject = object;
     SAFE_DELETE(abilitiesMenu);
     abilitiesMenu = NEW SimpleMenu(observer->getInput(), observer->getResourceManager(), 10, this, Fonts::MAIN_FONT, 100, 100, customName.size()?customName.c_str():object->getDisplayName().c_str());
+    abilitiesMenu->mInterruptStyle = true;
     currentActionCard = NULL;
     abilitiesMenu->isMultipleChoice = false;
     if(abilities.size())

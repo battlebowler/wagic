@@ -284,6 +284,9 @@ void GameStateOptions::Render()
         JRenderer::GetInstance()->RenderQuad(wpQuad.get(), 0, 0, 0, SCREEN_WIDTH_F / wpQuad->mWidth, SCREEN_HEIGHT_F / wpQuad->mHeight);
     }
 #endif
+    // Trophy-Room-style dark backdrop over the busy settings wallpaper so the option rows
+    // (and the credits scroll) read cleanly. Drawn before both, so they sit on top.
+    JRenderer::GetInstance()->FillRect(0, 0, SCREEN_WIDTH_F, SCREEN_HEIGHT_F, ARGB(235, 12, 14, 18));
     const char * const CreditsText[] = {
         "Wagic, The Homebrew?! by Wololo",
         "",
@@ -346,7 +349,11 @@ void GameStateOptions::Render()
     if (pos < -20)
         timer = 0;
 
+    // Render the tabs + active settings list in the Trophy-Room dark palette.
+    extern bool gWGuiDarkList;
+    gWGuiDarkList = true;
     optionsTabs->Render();
+    gWGuiDarkList = false;
 
     if (mState == SHOW_OPTIONS_MENU)
         optionsMenu->Render();

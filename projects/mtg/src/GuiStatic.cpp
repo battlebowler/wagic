@@ -99,12 +99,8 @@ void GuiAvatar::Render()
             avatarRed = 255;
     }
 
-    if (player->getObserver()->currentPlayer == player)
-        r->DrawRect(x0 - 1, y0 - 1, 36 * actZ, 51 * actZ, ARGB((int)actA, 0, 255, 0));
-    else if (player->getObserver()->currentActionPlayer == player)
-        r->DrawRect(x0, y0, 34 * actZ, 49 * actZ, ARGB((int)actA, 0, 0, 255));
-    if (player->getObserver()->isInterrupting == player)
-        r->DrawRect(x0, y0, 34 * actZ, 49 * actZ, ARGB((int)actA, 255, 0, 0));
+    // (Removed the avatar turn/action outlines: green = whose turn, blue = current action
+    // player, red = interrupting player. Kept off for a cleaner battlefield.)
 
     //Life
     char buffer[10];
@@ -240,6 +236,11 @@ void GuiGameZone::Render()
     }
     //Texture
     JQuadPtr quad = WResourceManager::Instance()->GetQuad(kGenericCardThumbnailID);
+    // Remember the generic card-back thumbnail so we can tell whether a REAL zone icon / top
+    // card actually replaced it below. If nothing did (e.g. the theme is missing the zone
+    // icons), we must NOT draw this generic thumbnail — it fills the whole button with a light
+    // card-back, which is the "white box with a stray card image" the rail was showing.
+    JQuadPtr genericQuad = quad;
     JQuadPtr overlay;
     float scale = defaultHeight / quad->mHeight;
     float scale2 = scale;
@@ -366,8 +367,9 @@ void GuiGameZone::Render()
         height = bh;
     }
 
-    //render small card quad
-    if(quad)
+    //render small card quad — but only a REAL zone icon or top-card, never the generic
+    // card-back fallback (which would fill the button white).
+    if(quad && quad.get() != genericQuad.get())
     {
         JRenderer::GetInstance()->RenderQuad(quad.get(), actX+modx, actY+mody, 0.0, scale2 * actZ, scale2 * actZ);
     }

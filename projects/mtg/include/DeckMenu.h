@@ -79,6 +79,7 @@ public:
 
     virtual void Render();
     virtual void Update(float dt);
+    virtual bool CheckUserInput(JButton key);
     // Advance only the visuals (particles/selection animation) without processing input.
     // Used when a modal popup is displayed on top of the menu so the background keeps
     // animating instead of freezing.

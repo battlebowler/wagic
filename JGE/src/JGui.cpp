@@ -10,6 +10,8 @@
 
 #include "../include/JGE.h"
 #include "../include/JGui.h"
+#include "../include/JRenderer.h"
+#include <cmath>
 
 JGE* JGuiObject::mEngine = NULL;
 
@@ -74,6 +76,71 @@ JGuiController::JGuiController(JGE* jge, int id, JGuiListener* listener) :
     mStyle = 0;
 
     mActive = true;
+
+    mUseScroll = false;
+    mTapSelectsOnly = false;
+    mScrollPx = 0.0f;
+    mScrollMax = 0.0f;
+    mDragLastY = -9999.0f;
+}
+
+void JGuiController::clampScroll()
+{
+    if (mScrollPx > mScrollMax) mScrollPx = mScrollMax;
+    if (mScrollPx < 0.0f) mScrollPx = 0.0f;
+}
+
+void JGuiController::updateDragScroll()
+{
+    if (!mUseScroll || !mEngine) return;
+    int dgx = 0, dgy = 0;
+    if (mEngine->GetDragCoordinates(dgx, dgy))
+    {
+        // Content follows the finger 1:1 (like a normal touch surface).
+        if (mDragLastY > -9000.0f) mScrollPx -= (float) (dgy - mDragLastY);
+        mDragLastY = (float) dgy;
+    }
+    else
+        mDragLastY = -9999.0f; // finger up / idle: next drag starts fresh (no jump)
+    clampScroll();
+}
+
+bool JGuiController::scrollKey(JButton key, float step)
+{
+    if (!mUseScroll) return false;
+    if (key != JGE_BTN_UP && key != JGE_BTN_DOWN) return false;
+    // A live drag already scrolled this frame; swallow the emitted key so we don't double.
+    int dgx = 0, dgy = 0;
+    if (mEngine && mEngine->GetDragCoordinates(dgx, dgy)) return true;
+    // Reversed to match the drag direction / user preference: up -> further down the list.
+    if (key == JGE_BTN_UP) mScrollPx += step;
+    else                   mScrollPx -= step;
+    clampScroll();
+    return true;
+}
+
+void JGuiController::renderScrollArrows(float x, float topY, float botY, float t)
+{
+    if (!mUseScroll) return;
+    JRenderer* r = JRenderer::GetInstance();
+    float pulse = 0.5f + 0.5f * sinf(t * 4.0f); // 0..1
+    int a = 120 + (int) (pulse * 135.0f);       // 120..255 alpha (clearly visible)
+    const float w = 5.0f, h = 6.0f;
+    // Both triangles use the SAME vertex winding so neither is dropped by back-face culling
+    // (FillPolygon draws a GL_TRIANGLE_FAN with a vertical flip; opposite winding = one culled,
+    // which is why the down arrow was missing).
+    if (mScrollPx > 1.0f) // more above -> up triangle (apex, bottom-left, bottom-right)
+    {
+        float vx[3] = { x, x - w, x + w };
+        float vy[3] = { topY - h, topY + h, topY + h };
+        r->FillPolygon(vx, vy, 3, ARGB(a, 255, 255, 255));
+    }
+    if (mScrollPx < mScrollMax - 1.0f) // more below -> down triangle (apex, top-right, top-left)
+    {
+        float vx[3] = { x, x + w, x - w };
+        float vy[3] = { botY + h, botY - h, botY - h };
+        r->FillPolygon(vx, vy, 3, ARGB(a, 255, 255, 255));
+    }
 }
 
 JGuiController::~JGuiController()
@@ -172,13 +239,16 @@ bool JGuiController::CheckUserInput(JButton key)
 
                 if (n >= 0)
                 {
+                    bool wasFocused = (n == mCurr);
                     if (n != mCurr && mObjects[mCurr] != NULL && mObjects[mCurr]->Leaving(JGE_BTN_DOWN))
                     {
                         mCurr = n;
                         mObjects[mCurr]->Entering();
                     }
-                    // Activate the tapped item.
-                    if (mObjects[mCurr] != NULL && mObjects[mCurr]->ButtonPressed())
+                    // Activate the tapped item. With mTapSelectsOnly, a tap on a not-yet-
+                    // focused item only selects it (letting a detail panel preview it); a
+                    // second tap on the now-focused item commits.
+                    if ((!mTapSelectsOnly || wasFocused) && mObjects[mCurr] != NULL && mObjects[mCurr]->ButtonPressed())
                     {
                         if (mListener != NULL)
                             mListener->ButtonPressed(mId, mObjects[mCurr]->GetId());

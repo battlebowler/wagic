@@ -15,8 +15,27 @@
   could override, for example, the color of the background based on whether or notit is highlighted 
   (as WGuiButton does), or be given a particular styling with the WDecoStyled decorator.
 */
+// When set, WGui lists render in the Trophy-Room dark style (dark rows, near-white text,
+// subtle focus). GameStateOptions turns this on only around its own render.
+bool gWGuiDarkList = false;
+
 PIXEL_TYPE WGuiBase::getColor(int type)
 {
+    if (gWGuiDarkList)
+    {
+        // Trophy-Room dark palette: dark blue-grey rows, near-white labels, warm focus.
+        switch (type)
+        {
+        case WGuiColor::SCROLLBUTTON: return ARGB(220, 180, 190, 205);
+        case WGuiColor::SCROLLBAR:    return ARGB(120, 40, 46, 56);
+        case WGuiColor::TEXT_BODY:    return ARGB(255, 232, 236, 244);
+        case WGuiColor::BACK_HEADER:  return ARGB(235, 30, 36, 46);
+        default:
+            if (type < WGuiColor::BACK) // text colours
+                return hasFocus() ? ARGB(255, 255, 232, 150) : ARGB(255, 232, 236, 244);
+            return hasFocus() ? ARGB(240, 36, 50, 68) : ARGB(220, 20, 24, 30); // row backgrounds
+        }
+    }
     switch (type)
     {
     case WGuiColor::TEXT_BODY:
@@ -178,6 +197,8 @@ void WDecoStyled::subBack(WGuiBase * item)
 
 PIXEL_TYPE WDecoStyled::getColor(int type)
 {
+    extern bool gWGuiDarkList;
+    if (gWGuiDarkList) return WGuiBase::getColor(type); // use the Trophy-Room dark palette
     switch (type)
     {
     case WGuiColor::BACK:

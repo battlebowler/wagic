@@ -243,6 +243,8 @@ void GameStateDuel::Start()
 
             deckmenu = NEW DeckMenu(DUEL_MENU_CHOOSE_DECK, this, Fonts::OPTION_FONT, "Choose a Deck",
                 GameStateDuel::selectedPlayerDeckId, true, false);
+            // Tap a deck to select it and preview its details; tap it again to play.
+            deckmenu->mTapSelectsOnly = true;
             deckmenu->enableDisplayDetailsOverride();
             DeckManager *deckManager = DeckManager::GetInstance();
             vector<DeckMetaData *> playerDeckList = BuildDeckList(options.profileFile(), "", NULL, 0, mParent->gameType);
@@ -291,6 +293,7 @@ void GameStateDuel::Start()
     {
         //DeckManager::EndInstance();
         deckmenu = NEW DeckMenu(DUEL_MENU_CHOOSE_DECK, this, Fonts::OPTION_FONT, "Choose a Deck", GameStateDuel::selectedPlayerDeckId, true, true);
+        deckmenu->mTapSelectsOnly = true; // tap to select+preview, tap again to confirm
         int nmbDecks = options[Options::CHEATMODEAIDECK].number ? 1000 : options[Options::AIDECKS_UNLOCKED].number;
         if (nmbDecks > 1)
         {

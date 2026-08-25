@@ -738,8 +738,10 @@ void GameStateMenu::Update(float dt)
         case MENU_STATE_MAJOR_SUBMENU:
             if (subMenuController)
                 subMenuController->Update(dt);
+            // Do NOT update mGuiController while the popup is open: it was consuming input
+            // (a swipe scrolled the icon selection -> ghost icon + Trophy Room highlight,
+            // and a tap could be eaten). The icons still render as a static backdrop.
             ensureMGuiController();
-            mGuiController->Update(dt);
             break;
         case MENU_STATE_MAJOR_DUEL:
             if (MENU_STATE_MINOR_NONE == (currentState & MENU_STATE_MINOR))

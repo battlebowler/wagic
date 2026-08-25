@@ -17,10 +17,6 @@
 #include "WFont.h"
 #include "Translate.h"
 #include "JRenderer.h"
-#ifdef ANDROID
-#include <android/log.h>   // TEMP perf instrumentation (render lag)
-#include <typeinfo>
-#endif
 
 namespace
 {
@@ -256,16 +252,7 @@ void DuelLayers::Render()
     }
     for (int i = nbitems - 1; i >= 0; --i)
     {
-#ifdef ANDROID
-        int _o0 = JGEGetTime();
         objects[i]->Render();
-        int _od = JGEGetTime() - _o0;
-        if (_od > 6)
-            __android_log_print(ANDROID_LOG_INFO, "WagicPerf", "RENDER layer[%d] %s = %dms",
-                i, objects[i] ? typeid(*objects[i]).name() : "null", _od);
-#else
-        objects[i]->Render();
-#endif
     }
     // (No on-screen Next Phase button: tapping the top-right phase text advances the
     // phase. No on-screen menu button: the system Back gesture / edge swipe opens the

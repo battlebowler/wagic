@@ -964,7 +964,10 @@ void ResourceManagerImpl::ResetCacheLimits()
 #ifdef FORCE_LOW_CACHE_MEMORY
     textureWCache.Resize(kConstrainedCacheLimit, MAX_CACHE_OBJECTS);
 #else
-    unsigned long cacheSize = options["cachesize"].number ? (unsigned long)(options["cachesize"].number) * 1024 * 1024 : HUGE_CACHE_LIMIT;
+    // Floor the texture cache at HUGE_CACHE_LIMIT even if a (possibly stale/small) cachesize
+    // option is set, so a busy board doesn't thrash its on-screen card textures.
+    unsigned long optSize = options["cachesize"].number ? (unsigned long)(options["cachesize"].number) * 1024 * 1024 : 0;
+    unsigned long cacheSize = optSize > HUGE_CACHE_LIMIT ? optSize : HUGE_CACHE_LIMIT;
     textureWCache.Resize(cacheSize,MAX_CACHE_OBJECTS);
 #endif
 

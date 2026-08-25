@@ -34,9 +34,17 @@ private:
     void drawHorzPole(float x, float y, float width);
     void drawVertPole(float x, float y, float height);
 
+    // Vertical "interrupt-style" dialog (bottom-centered panel with a grey title bar and stacked
+    // bordered buttons, matching the interrupt dialog). Renders it and records each button's tap
+    // rectangle below.
+    void renderInterruptStyle();
+    std::vector<float> mBtnLeft, mBtnRight, mBtnTop, mBtnBottom; // per-item button tap rectangles
+
 public:
     bool autoTranslate;
     bool isMultipleChoice;
+    // When set, the menu draws as a horizontal interrupt-style button bar (see renderInterruptStyle).
+    bool mInterruptStyle;
     SimpleMenu(JGE*, WResourceManager*, int id, JGuiListener* listener, int fontId, float x, float y, const char * _title = "", int _maxItems = 7, bool centerHorizontal = true, bool centerVertical = true);
     virtual ~SimpleMenu();
     virtual void Render();
@@ -46,6 +54,7 @@ public:
     virtual void Add(int id, const string &Text, string desc = "", bool forceFocus = false);
     int getmCurr(){return mCurr;}
     float getWidth(){return mWidth; }
+    void setTitle(const std::string& t) { title = t; }
     virtual void Close();
 
     void RecenterMenu();

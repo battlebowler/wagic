@@ -120,6 +120,27 @@ protected:
     //int mKeyHoldTime;
 
 public:
+    // --- Touch content-scroll (opt-in via mUseScroll) ---
+    // When enabled the list scrolls its content by mScrollPx (driven 1:1 by the finger
+    // drag) instead of roaming the selection cursor; the drag-emitted up/down become
+    // content steps. The owning widget sets mScrollMax each frame and offsets its own
+    // rendering/highlight by mScrollPx. Non-scrolling controllers leave mUseScroll false
+    // and are completely unaffected.
+    bool  mUseScroll;
+    // When true, a tap on a not-yet-focused item only selects it (so a detail panel can
+    // preview it); a second tap on the focused item commits. Default false = one-tap
+    // select+activate (the normal behaviour everywhere else).
+    bool  mTapSelectsOnly;
+    float mScrollPx;
+    float mScrollMax;
+    float mDragLastY;
+
+    void updateDragScroll();                 // read the finger drag -> mScrollPx (per frame)
+    void clampScroll();                      // clamp mScrollPx to [0, mScrollMax]
+    bool scrollKey(JButton key, float step); // up/down -> content step; true if consumed
+    // Pulsing up/down triangles at x, between topY/botY, shown when more content exists.
+    void renderScrollArrows(float x, float topY, float botY, float t);
+
     vector<JGuiObject*> mObjects;
 
     vector<JGuiObject*> mButtons;

@@ -38,6 +38,8 @@ SimpleMenu::SimpleMenu(JGE* jge, WResourceManager* resourceManager, int id, JGui
 {
     autoTranslate = true;
     isMultipleChoice = false;
+    mInterruptStyle = false;
+    mUseScroll = true; // touch content-scroll (short menus simply won't overflow)
     mHeight = 2 * SimpleMenuConst::kVerticalMargin;
     mWidth = 0;
     mX = x;
@@ -126,8 +128,74 @@ void SimpleMenu::drawVertPole(float x, float y, float height)
     renderer->RenderQuad(jewel.get(), x - 1, y + height - 1);
 }
 
+void SimpleMenu::renderInterruptStyle()
+{
+    JRenderer * renderer = JRenderer::GetInstance();
+    WFont * mFont = WResourceManager::Instance()->GetWFont(fontId);
+    mFont->SetScale(DEFAULT_MAIN_FONT_SCALE);
+
+    const float kBtnPad = 8.0f, kBtnBoxH = 22.0f, kBtnGapV = 6.0f;
+    const float kPadX = 12.0f, kPadY = 8.0f, kTitleH = 24.0f;
+
+    // Content width = widest of the title and the buttons.
+    float contentW = title.empty() ? 0.0f : mFont->GetStringWidth(title.c_str());
+    for (int i = 0; i < mCount; i++)
+    {
+        SimpleMenuItem * smi = static_cast<SimpleMenuItem*>(mObjects[i]);
+        if (!smi) continue;
+        float w = mFont->GetStringWidth(smi->getText().c_str()) + 2 * kBtnPad;
+        if (w > contentW) contentW = w;
+    }
+
+    const bool hasTitle = !title.empty();
+    const float titleBarH = hasTitle ? kTitleH : 0.0f;
+    float panelW = contentW + 2 * kPadX;
+    float panelH = titleBarH + kPadY + mCount * kBtnBoxH + (mCount > 0 ? (mCount - 1) * kBtnGapV : 0.0f) + kPadY;
+
+    // Bottom-centered above the hand — the interrupt dialog's footprint.
+    float panelLeft = (SCREEN_WIDTH_F - panelW) * 0.5f;
+    float panelTop = (SCREEN_HEIGHT_F - 78.0f) - (panelH + 16.0f);
+    if (panelTop < 4.0f) panelTop = 4.0f;
+
+    // Panel: dark backing, grey title bar, light border (interrupt palette).
+    renderer->FillRect(panelLeft - 1, panelTop - 1, panelW + 2, panelH + 2, ARGB(225, 5, 5, 5));
+    if (hasTitle)
+        renderer->FillRect(panelLeft, panelTop, panelW, titleBarH, ARGB(255, 89, 89, 89));
+    renderer->DrawRect(panelLeft - 1, panelTop - 1, panelW + 2, panelH + 2, ARGB(255, 240, 240, 240));
+
+    if (hasTitle)
+    {
+        mFont->SetColor(ARGB(255, 255, 255, 255));
+        float ty = panelTop + (titleBarH - mFont->GetHeight()) * 0.5f;
+        mFont->DrawString(title.c_str(), panelLeft + panelW * 0.5f, ty, JGETEXT_CENTER);
+    }
+
+    // Stacked, full-width bordered buttons; record each tap rectangle.
+    mBtnLeft.clear(); mBtnRight.clear(); mBtnTop.clear(); mBtnBottom.clear();
+    const float btnLeft = panelLeft + kPadX;
+    const float btnW = contentW;
+    float by = panelTop + titleBarH + kPadY;
+    for (int i = 0; i < mCount; i++)
+    {
+        SimpleMenuItem * smi = static_cast<SimpleMenuItem*>(mObjects[i]);
+        if (!smi) { mBtnLeft.push_back(0.0f); mBtnRight.push_back(0.0f); mBtnTop.push_back(0.0f); mBtnBottom.push_back(0.0f); continue; }
+        renderer->FillRect(btnLeft, by, btnW, kBtnBoxH, smi->hasFocus() ? ARGB(255, 110, 110, 120) : ARGB(255, 70, 70, 78));
+        renderer->DrawRect(btnLeft, by, btnW, kBtnBoxH, ARGB(255, 210, 210, 210));
+        mFont->SetColor(ARGB(255, 255, 255, 255));
+        float ly = by + (kBtnBoxH - mFont->GetHeight()) * 0.5f;
+        mFont->DrawString(smi->getText().c_str(), btnLeft + btnW * 0.5f, ly, JGETEXT_CENTER);
+        mBtnLeft.push_back(btnLeft);
+        mBtnRight.push_back(btnLeft + btnW);
+        mBtnTop.push_back(by);
+        mBtnBottom.push_back(by + kBtnBoxH);
+        by += kBtnBoxH + kBtnGapV;
+    }
+}
+
 void SimpleMenu::Render()
 {
+    if (mInterruptStyle) { renderInterruptStyle(); return; }
+
     WFont * titleFont = WResourceManager::Instance()->GetWFont(fontId);
     titleFont->SetColor(ARGB(250,255,255,255));//reseting color on passes as this is a shared font now.
     WFont * mFont = WResourceManager::Instance()->GetWFont(fontId);
@@ -207,43 +275,53 @@ void SimpleMenu::Render()
     //drawHorzPole(mX - 16, mY, mWidth + 32);
     //drawHorzPole(mX - 25, mY + height, mWidth + 50);
 
-    renderer->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE);
-    stars->Render();
-    renderer->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA);
-    if (!title.empty()) 
+    // stars->Render() removed: the roaming selection highlight is no longer used on lists.
+    if (!title.empty())
     {
         float scaleFactor = titleFont->GetScale();
         titleFont->SetScale(SCALE_NORMAL);
         titleFont->DrawString(title.c_str(), mX + mWidth / 2, mY+adjustme-1.5f, JGETEXT_CENTER);
         titleFont->SetScale(scaleFactor);
     }
-    for (int i = startId; i < startId + maxItems; i++)
+    // Only draw rows that fit ENTIRELY within the menu's interior, so nothing spills past
+    // the border (the engine has no scissor clip on this target). The list scrolls under
+    // these fixed edges.
+    float listTop = mY + SimpleMenuConst::kVerticalMargin;
+    float listBottom = mY + height - heightPadding;
+    for (int i = 0; i < mCount; i++)
     {
-        if (i > mCount - 1) break;
         SimpleMenuItem *currentMenuItem = static_cast<SimpleMenuItem*>(mObjects[i]);
-        float currentY = currentMenuItem->getY() - SimpleMenuConst::kLineHeight * startId;
-        float menuBottomEdge = mY + height - SimpleMenuConst::kLineHeight + 7;
-        if (currentY < menuBottomEdge)
-        {
-            if (currentMenuItem->hasFocus())
-            {
-                WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT)->DrawString(currentMenuItem->getDescription().c_str(), mX
-                                + mWidth + 10, mY + 15);
-                mFont->SetColor(ARGB(255,255,255,0));
-            }
-            else
-            {
-                mFont->SetColor(ARGB(150,255,255,255));
-            }
-            (static_cast<SimpleMenuItem*> (mObjects[i]))->RenderWithOffset(-SimpleMenuConst::kLineHeight * startId);
-        }
+        float currentY = currentMenuItem->getY() - mScrollPx;
+        if (currentY < listTop - 1.0f) continue;                                   // top not fully in
+        if (currentY + SimpleMenuConst::kLineHeight > listBottom + 1.0f) break;     // bottom not fully in (rows are ordered)
+        // Highlight removed on touch lists: every row draws the same. The focused row still
+        // supplies the side description text.
+        if (currentMenuItem->hasFocus())
+            WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT)->DrawString(currentMenuItem->getDescription().c_str(), mX + mWidth + 10, mY + 15);
+        mFont->SetColor(ARGB(255, 255, 255, 255));
+        currentMenuItem->RenderWithOffset(-mScrollPx);
         mFont->SetScale(SCALE_NORMAL);
     }
+
+    // Pulsing up/down indicators at the right edge, shown independently: up if there's more
+    // above, down if there's more below (both together when scrollable either way).
+    mScrollMax = mCount * SimpleMenuConst::kLineHeight - maxItems * SimpleMenuConst::kLineHeight;
+    if (mScrollMax < 0.0f) mScrollMax = 0.0f;
+    clampScroll();
+    // Keep the indicators clearly INSIDE the border. The box fill spans
+    // [mY+adjustme-5 .. +(height-heightPadding)+6]; inset the arrow centres well within it.
+    float boxFillTop = mY + adjustme - 5.0f;
+    float boxFillBot = boxFillTop + (height - heightPadding) + 6.0f;
+    renderScrollArrows(mX + mWidth - 10.0f, boxFillTop + 9.0f, boxFillBot - 9.0f, selectionT);
+
     mFont->SetScale(SCALE_NORMAL);
 }
 
 bool SimpleMenu::CheckUserInput(JButton key)
 {
+    // Up/down (from a swipe or the d-pad) scroll the content instead of roaming the cursor.
+    if (scrollKey(key, SimpleMenuConst::kLineHeight)) return true;
+
     // Touch-first one-tap: resolve which menu row the tap landed on and activate it
     // immediately. Taps outside the list (above/below) still scroll the menu by one.
     // This handles the tap regardless of the OK that accompanies it, so a single tap
@@ -263,29 +341,48 @@ bool SimpleMenu::CheckUserInput(JButton key)
             }
         }
 
+        // Interrupt-style: hit-test the button rectangles recorded during render.
+        if (mInterruptStyle && mObjects.size())
+        {
+            for (int i = 0; i < mCount && i < (int) mBtnLeft.size(); i++)
+            {
+                if (mObjects[i] == NULL) continue;
+                if (x >= mBtnLeft[i] && x <= mBtnRight[i] && y >= mBtnTop[i] && y <= mBtnBottom[i])
+                {
+                    if (i != mCurr && mObjects[mCurr] != NULL && mObjects[mCurr]->Leaving(JGE_BTN_DOWN))
+                    {
+                        mCurr = i;
+                        mObjects[mCurr]->Entering();
+                    }
+                    if (mObjects[mCurr] != NULL && mObjects[mCurr]->ButtonPressed() && mListener != NULL)
+                        mListener->ButtonPressed(mId, mObjects[mCurr]->GetId());
+                    break;
+                }
+            }
+            mEngine->LeftClickedProcessed();
+            mEngine->ResetInput();
+            return true;
+        }
+
         if (mObjects.size())
         {
-            float top, left;
-            float menuTopEdge =  mY + SimpleMenuConst::kLineHeight;
-            float menuBottomEdge = mY + mHeight - (SimpleMenuConst::kLineHeight/2);
             bool tappedItem = false;
-
-            if (y < menuTopEdge)
-                n = (mCurr - 1) > 0 ? mCurr -1 : 0;
-            else if (y >= menuBottomEdge)
-                n = (mCurr + 1) < mCount ? mCurr + 1 : mCurr - 1;
-            else
+            // Hit-test only the rows actually visible in the window, at their scrolled
+            // positions (matching Render). No edge-scroll branches: scrolling is done by
+            // dragging, and the old edge branch swallowed taps on menus that don't overflow.
+            float listTop = mY + SimpleMenuConst::kVerticalMargin;
+            float listBottom = mY + mHeight - (SimpleMenuConst::kLineHeight / 2);
+            for (int i = 0; i < mCount; i++)
             {
-                for (int i = 0; i < mCount; i++)
+                SimpleMenuItem * smi = static_cast<SimpleMenuItem*>(mObjects[i]);
+                if (!smi) continue;
+                float itemTop = smi->getY() - mScrollPx;
+                if (itemTop < listTop - 1.0f) continue;                                    // above the window
+                if (itemTop + SimpleMenuConst::kLineHeight > listBottom + 1.0f) continue;   // below the window
+                if ((y > itemTop) && (y <= itemTop + SimpleMenuConst::kLineHeight))
                 {
-                    if (mObjects[i]->getTopLeft(top, left))
-                    {
-                        if ( (y > top) && (y <= (top + SimpleMenuConst::kLineHeight)) )
-                        {
-                            n = i;
-                            tappedItem = true;
-                        }
-                    }
+                    n = i;
+                    tappedItem = true;
                 }
             }
 
@@ -326,18 +423,20 @@ bool SimpleMenu::CheckUserInput(JButton key)
 
 void SimpleMenu::Update(float dt)
 {
+    updateDragScroll();        // finger drag -> mScrollPx (content follows the finger)
     JGuiController::Update(dt);
-    if (mCurr > startId + maxItems - 1)
-        startId = mCurr - maxItems + 1;
-    else if (mCurr < startId) startId = mCurr;
- 
+    // Content-scroll bounds (overflow past the visible window); short menus stay at 0.
+    mScrollMax = mCount * SimpleMenuConst::kLineHeight - maxItems * SimpleMenuConst::kLineHeight;
+    if (mScrollMax < 0.0f) mScrollMax = 0.0f;
+    clampScroll();
+
     if(stars)
         stars->Update(dt);
     selectionT += 3 * dt;
     selectionY += (selectionTargetY - selectionY) * 8 * dt;
     if(stars)
         stars->MoveTo(mX + SimpleMenuConst::kHorizontalMargin + ((mWidth - 2 * SimpleMenuConst::kHorizontalMargin) * (1 + cos(selectionT)) / 2), selectionY + 5 * cos(
-                    selectionT * 2.35f) + SimpleMenuConst::kLineHeight / 2 - SimpleMenuConst::kLineHeight * startId);
+                    selectionT * 2.35f) + SimpleMenuConst::kLineHeight / 2 - mScrollPx);
     if (timeOpen < 0)
     {
         timeOpen += dt * 10;
