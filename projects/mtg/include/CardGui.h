@@ -59,6 +59,16 @@ public:
     void DrawCard(const Pos& inPosition, int inMode = DrawMode::kNormal, bool thumb = false, bool noborder = false, bool gdv = false);
     static void DrawCard(MTGCard* inCard, const Pos& inPosition, int inMode = DrawMode::kNormal, bool thumb = false, bool noborder = false, bool gdv = false, bool foil = false);
 
+    // Draw the holographic foil overlay over a card rendered at (cx,cy) with the given half-size,
+    // rotation, and 0..1 alpha. Exposed so non-CardGui screens (e.g. the collection preview) can
+    // show a card as foil.
+    static void RenderFoilOverlay(JRenderer * r, float cx, float cy, float halfW, float halfH, float angle, float alpha01);
+
+    // True if this card renders with the old-style WHITE border (early core sets), honoring the
+    // player's "force black borders" option. Exposed so screens that draw their own card frame
+    // (e.g. the collection preview's square-interior mat) match RenderBig's border colour exactly.
+    static bool UsesWhiteBorder(MTGCard * card);
+
     static JQuadPtr AlternateThumbQuad(MTGCard * card);
     virtual ostream& toString(ostream&) const;
 };

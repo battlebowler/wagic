@@ -83,6 +83,28 @@ static void renderFoilSheen(JRenderer * r, float cx, float cy, float halfW, floa
     r->RenderQuad(foilQuad.get(), pt);
 }
 
+// Public wrapper so other screens (e.g. the collection card preview) can show a card as foil.
+// Unlike the in-duel sheen (which insets to sit inside the border), callers here pass the card's
+// true half-size and want the sheen to FILL the whole card face, so compensate for the inset
+// applied inside renderFoilSheen. (foil.png fades to transparent only in the last ~1% at the
+// corners, so a full-size draw reads as edge-to-edge foil.)
+void CardGui::RenderFoilOverlay(JRenderer * r, float cx, float cy, float halfW, float halfH, float angle, float alpha01)
+{
+    renderFoilSheen(r, cx, cy, halfW / kFoilOverlayScale, halfH / kFoilOverlayScale, angle, alpha01);
+}
+
+// Same white/black decision RenderBig makes for the universal SHOWBORDER frame (see the set-name
+// list there): early core sets use a white border unless the player forces black borders.
+bool CardGui::UsesWhiteBorder(MTGCard * card)
+{
+    if (!card) return false;
+    string sn = setlist[card->setId].c_str();
+    bool oldWhite = (sn=="2ED"||sn=="RV"||sn=="4ED"||sn=="5ED"||sn=="6ED"||sn=="7ED"||sn=="8ED"||
+                     sn=="9ED"||sn=="S00"||sn=="S99"||sn=="PTK"||sn=="BTD"||sn=="ATH"||sn=="BRB"||
+                     sn=="CHR"||sn=="DM");
+    return oldWhite && !options[Options::BLKBORDER].number;
+}
+
 // Touch hit-testing. Cards are drawn centered on (actX, actY): CardGui::Render scales
 // the card art so its on-screen height is (actZ * 38 * kCardScale) game units (the
 // texture dimensions cancel out), and the width follows the standard card aspect
@@ -1291,17 +1313,17 @@ void CardGui::RenderBig(MTGCard* card, const Pos& pos, bool thumb, bool noborder
         //universal border
         if(options[Options::SHOWBORDER].number)
         {
-            float borderSize = 4.0f * kCardScale;
-            // FillRoundRect/DrawRoundRect render at size (w + 2*radius) x (h + 2*radius)
-            // with radius==borderSize, so passing the card size (offset by -borderSize)
-            // already yields a uniform borderSize frame on all four sides. (Do NOT add
-            // 2*borderSize to w/h — that double-counts and makes the border huge.)
+            // Thin frame with ROUNDED OUTER corners (FillRoundRect). The interior is squared off
+            // later (after the card + foil) with a border-colour mat, because the card art has its
+            // own rounded transparent corners that would otherwise let this rounded border show
+            // through and make the opening look rounded. borderSize is the outer frame width AND
+            // the outer corner radius.
+            float borderSize = 3.5f * kCardScale;
             float bx = pos.actX - (scale * quad->mWidth / 2) - borderSize;
             float by = pos.actY - (scale * quad->mHeight / 2) - borderSize;
             float bw = (scale * quad->mWidth) - 0.02f;
             float bh = (scale * quad->mHeight) - 0.02f;
-            if((cardsetname == "2ED"||cardsetname == "RV"||cardsetname == "4ED"||cardsetname == "5ED"||cardsetname == "6ED"||cardsetname == "7ED"||cardsetname == "8ED"||cardsetname == "9ED"||cardsetname == "S00"||cardsetname == "S99"||cardsetname == "PTK"||cardsetname == "BTD"||cardsetname == "ATH"||cardsetname == "BRB"||cardsetname == "CHR"||cardsetname == "DM")
-               && !options[Options::BLKBORDER].number)
+            if(UsesWhiteBorder(card))
             {//white border
                 renderer->FillRoundRect(bx, by, bw, bh, borderSize, ARGB(255,248,248,255));
                 renderer->DrawRoundRect(bx, by, bw, bh, borderSize, ARGB(150,20,20,20));
@@ -1330,10 +1352,30 @@ void CardGui::RenderBig(MTGCard* card, const Pos& pos, bool thumb, bool noborder
         renderer->RenderQuad(quad.get(), x, pos.actY, pos.actT, (scale-0.005f)+modxscale+gdvadd, (scale-0.005f)+modyscale+gdvadd);
 
         // Foil: animated holographic sheen for collectible foils (flag passed in from the
-        // instance). This is the path used by the pack reveal, zone lists and previews.
+        // instance). This is the path used by the pack reveal, zone lists and previews. Filled to
+        // the card edge (compensating renderFoilSheen's inset); the border mat below trims it back
+        // off the frame so the sheen reads as edge-to-edge inside the border.
         if (foil)
-            renderFoilSheen(renderer, x, pos.actY, 0.5f * scale * quad->mWidth,
-                            0.5f * scale * quad->mHeight, pos.actT, pos.actA / 255.0f);
+            renderFoilSheen(renderer, x, pos.actY, 0.5f * scale * quad->mWidth / kFoilOverlayScale,
+                            0.5f * scale * quad->mHeight / kFoilOverlayScale, pos.actT, pos.actA / 255.0f);
+
+        // Square off the interior corners: lay a thin border-colour mat over the card art's own
+        // rounded transparent corners so the opening has crisp 90-degree corners, while the
+        // rounded OUTER border drawn earlier still shows. matSize must cover the art's corner
+        // radius; keep it and borderSize small so the total frame stays thin.
+        if (options[Options::SHOWBORDER].number)
+        {
+            float matSize = 2.5f * kCardScale;
+            PIXEL_TYPE mc = UsesWhiteBorder(card) ? ARGB(255,248,248,255) : ARGB(255,5,5,5);
+            float cl = pos.actX - (scale * quad->mWidth / 2);
+            float ct = pos.actY - (scale * quad->mHeight / 2);
+            float cw = scale * quad->mWidth;
+            float ch = scale * quad->mHeight;
+            renderer->FillRect(cl, ct, cw, matSize, mc);
+            renderer->FillRect(cl, ct + ch - matSize, cw, matSize, mc);
+            renderer->FillRect(cl, ct, matSize, ch, mc);
+            renderer->FillRect(cl + cw - matSize, ct, matSize, ch, mc);
+        }
 
         RenderCountersBig(card, pos);
         return;

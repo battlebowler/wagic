@@ -13,6 +13,7 @@
 #include "Credits.h"
 #include "WResourceManager.h"
 #include "WFont.h"
+#include "CardGui.h"
 #include "GridDeckView.h"
 #include "DeckDataWrapper.h"
 
@@ -508,12 +509,21 @@ void GameStateAwards::renderSetDetail()
 
         float barH = kRowH - 4.0f;
         bool owned = mDetailRows[i].second;
+        bool foil = (i < (int) mDetailFoil.size()) && mDetailFoil[i];
         bool sel = (i == mDetailSel);
         r->FillRect(listX, ry, listW, barH, ARGB(205, sel ? 40 : 18, sel ? 52 : 22, sel ? 70 : 28));
         r->DrawRect(listX, ry, listW, barH, ARGB(120, 130, 130, 130));
         float ty = ry + (barH - fh) * 0.5f;
+        // Name coloured by REGULAR ownership (white = own the normal copy, grey = missing), so
+        // the normal copy still reads as owned; a gold "(foil)" tag then marks the owned foil copy.
         f->SetColor(owned ? ARGB(255, 240, 240, 240) : ARGB(255, 96, 96, 96));
         f->DrawString(mDetailRows[i].first, listX + 5, ty);
+        if (foil)
+        {
+            float nameW = f->GetStringWidth(mDetailRows[i].first.c_str());
+            f->SetColor(ARGB(255, 255, 210, 90));
+            f->DrawString(std::string(" (foil)"), listX + 5 + nameW, ty);
+        }
     }
 
     // Preview of the selected card in the left column.
@@ -523,25 +533,31 @@ void GameStateAwards::renderSetDetail()
         float pw = listX - 16.0f;
         float pcx = 8.0f + pw * 0.5f;
         float pcy = (top + bottom) * 0.5f;
-        // Prefer the cached image; if it isn't loaded yet, trigger a load (RETRIEVE_EXISTING
-        // alone never loads, which is why the preview was blank for uncached cards).
+        // Render the preview exactly like the in-game card via RenderBig: it draws the real card
+        // frame (rounded outer corners, squared interior, white/black by set) and fills an owned
+        // foil beneath it, and falls back to text when art is missing. q is fetched only for the
+        // aspect ratio / to warm the cache.
         JQuadPtr q = WResourceManager::Instance()->RetrieveCard(c, RETRIEVE_EXISTING);
         if (!q.get())
             q = WResourceManager::Instance()->RetrieveCard(c);
-        if (q.get())
-        {
-            float sc = (bottom - top) * 0.80f / q->mHeight;
-            if (q->mWidth * sc > pw) sc = pw / q->mWidth;
-            q->SetColor(ARGB(255, 255, 255, 255));
-            // Card quads are centre-anchored, so render AT the column centre (the earlier
-            // top-left offset shoved the card up/off the top-left corner).
-            r->RenderQuad(q.get(), pcx, pcy, 0, sc, sc);
-        }
-        else
-        {
-            f->SetColor(ARGB(255, 220, 220, 220));
-            f->DrawString(c->data ? c->data->name : "", pcx, pcy, JGETEXT_CENTER);
-        }
+
+        const float kcs = SCREEN_HEIGHT_F / 272.0f;         // RenderBig's kCardScale
+        float aspect = (q.get() && q->mHeight > 0) ? (q->mWidth / q->mHeight)
+                                                   : (CardGui::BigWidth / CardGui::BigHeight);
+        float cardH = (bottom - top) * 0.72f;               // leave headroom for the drawn border
+        if (cardH * aspect > pw * 0.86f) cardH = pw * 0.86f / aspect;
+        float actZ = cardH / (250.0f * kcs);                // RenderBig card height = actZ*250*kCardScale
+
+        Pos pos(pcx, pcy, actZ, 0.0f, 255.0f);
+        bool isFoil = (mDetailSel < (int) mDetailFoil.size()) && mDetailFoil[mDetailSel];
+        // Force the in-game card border on for the preview regardless of the player's SHOWBORDER
+        // setting, then restore it. DrawCard(kNormal) is the public path into RenderBig, which now
+        // draws the universal card frame (rounded outer corners, squared interior, white/black by
+        // set) and fills an owned foil edge-to-edge beneath that frame.
+        int savedBorder = options[Options::SHOWBORDER].number;
+        options[Options::SHOWBORDER].number = 1;
+        CardGui::DrawCard(c, pos, DrawMode::kNormal, false, false, false, isFoil);
+        options[Options::SHOWBORDER].number = savedBorder;
     }
 }
 
@@ -749,17 +765,26 @@ void GameStateAwards::buildSetCompletion()
     mSetOwned.assign(mUnlockedSets.size(), 0);
     mSetTotal.assign(mUnlockedSets.size(), 0);
 
+    // Foils count toward 100% for sets that can have them (foil era, ~1999+): each card then
+    // counts twice — the regular copy and the foil copy — so the target doubles for those sets.
+    const int kFoilFromYear = 1999;
+    std::vector<bool> setHasFoils(mUnlockedSets.size(), false);
+
     // Denominator: distinct cards in each set (as present in the game data). setId -> row.
     std::map<int, int> setIndex;
     for (size_t i = 0; i < mUnlockedSets.size(); i++)
     {
         MTGSetInfo * si = setlist.getInfo(mUnlockedSets[i]);
-        mSetTotal[i] = si ? si->totalCards() : 0;
+        int total = si ? si->totalCards() : 0;
+        bool foilEra = si && si->year >= kFoilFromYear;
+        setHasFoils[i] = foilEra;
+        mSetTotal[i] = foilEra ? total * 2 : total;
         setIndex[mUnlockedSets[i]] = (int) i;
     }
 
-    // Numerator: distinct cards the player actually owns, tallied per set from the collection
-    // (each getCard() is one distinct owned card; its setId says which set it belongs to).
+    // Numerator: distinct cards the player owns, tallied per set from the collection (each
+    // getCard() is one distinct owned card). For foil-era sets, an owned foil copy of a card
+    // (collection foilCount > 0) counts as a second card toward that set's completion.
     MTGDeck * coll = NEW MTGDeck(options.profileFile(PLAYER_COLLECTION).c_str(), MTGCollection());
     DeckDataWrapper * view = NEW DeckDataWrapper(coll);
     for (int t = 0; t < view->Size(); t++)
@@ -767,8 +792,11 @@ void GameStateAwards::buildSetCompletion()
         MTGCard * c = view->getCard(t);
         if (!c) continue;
         std::map<int, int>::iterator it = setIndex.find(c->setId);
-        if (it != setIndex.end())
-            mSetOwned[it->second]++;
+        if (it == setIndex.end()) continue;
+        int row = it->second;
+        mSetOwned[row]++;                                          // the regular copy
+        if (setHasFoils[row] && coll->getFoilCount(c->getId()) > 0)
+            mSetOwned[row]++;                                      // plus an owned foil copy
     }
     SAFE_DELETE(view);
     SAFE_DELETE(coll);
@@ -794,13 +822,17 @@ bool GameStateAwards::enterSet(int setid)
 
     mDetailRows.clear();
     mDetailCards.clear();
+    mDetailFoil.clear();
+    const bool foilEra = si->year >= 1999;   // only these sets can have foils
     for (int t = 0; t < src->Size(); t++)
     {
         MTGCard * c = src->getCard(t);
         if (!c || !c->data) continue;
         bool have = coll->cards.find(c->getId()) != coll->cards.end() && coll->cards[c->getId()] > 0;
+        bool foil = foilEra && coll->getFoilCount(c->getId()) > 0;
         mDetailRows.push_back(std::make_pair(c->data->name, have));
         mDetailCards.push_back(c);   // database pointer (persists this session) -> preview art
+        mDetailFoil.push_back(foil);
     }
     SAFE_DELETE(coll);
     SAFE_DELETE(src);               // frees the source list; the card pointers stay valid

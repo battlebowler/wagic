@@ -37,6 +37,7 @@ private:
     std::vector<std::pair<std::string, std::string> > mAchv;  // Trophies tab: (name, description)
     std::vector<std::pair<std::string, bool> > mDetailRows;   // set detail: (card name, owned?)
     std::vector<MTGCard*> mDetailCards;                        // parallel card ptrs (for preview)
+    std::vector<bool> mDetailFoil;                             // parallel: owned as foil?
     int mDetailSel;                    // selected card row in the set detail (drives the preview)
     float mScrollPx;                   // smooth pixel scroll offset for the active custom list
     float mDragLastY;                  // last drag Y for smooth-scroll delta (< -9000 = idle)
