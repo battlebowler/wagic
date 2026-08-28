@@ -10,6 +10,7 @@
 #include "SimplePopup.h"
 #include "JTypes.h"
 #include "GameApp.h"
+#include "UITheme.h"
 #include "DeckStats.h"
 #include "DeckManager.h"
 #include <iomanip>
@@ -34,35 +35,37 @@ SimplePopup::SimplePopup(int id, JGuiListener* listener, const int fontId, const
 void SimplePopup::Render()
 {
     mClosed = false;
-    float modX = (SCREEN_WIDTH_F / 2)-5;
-
     JRenderer *r = JRenderer::GetInstance();
     string detailedInformation = getDetailedInformation(mDeckInformation->getFilename());
 
-#if !defined (PSP)
-    JQuadPtr statsholder = WResourceManager::Instance()->RetrieveTempQuad("statsholder.png");//new graphics statsholder
-    //const float textHeight = mTextFont->GetHeight() * mMaxLines;
-    //r->FillRect(0,0,SCREEN_WIDTH_F,SCREEN_HEIGHT_F,ARGB(220,15,15,15));
-    if(statsholder.get())
-        r->RenderQuad(statsholder.get(),0,0,0,SCREEN_WIDTH_F/statsholder->mWidth,SCREEN_HEIGHT_F/statsholder->mHeight);
-#else
-    JQuadPtr statsholder = WResourceManager::Instance()->RetrieveTempQuad("pspstatsholder.png");//new graphics statsholder for PSP
-    //const float textHeight = mTextFont->GetHeight() * mMaxLines;
-    //r->FillRect(0,0,SCREEN_WIDTH_F,SCREEN_HEIGHT_F,ARGB(220,15,15,15));
-    if(statsholder.get())
-        r->RenderQuad(statsholder.get(),0,0,0,SCREEN_WIDTH_F/statsholder->mWidth,SCREEN_HEIGHT_F/statsholder->mHeight);
-#endif
+    // Drawn glass panel (UITheme), pinned to the TOP-RIGHT and right-aligned to the screen, clear
+    // of the deck panel on the left (no overlap). Replaces the old statsholder.png frame texture.
+    const float pw = 196.0f, ph = 178.0f;
+    const float px = SCREEN_WIDTH_F - 12.0f - pw;
+    const float py = 10.0f;
+    UITheme::drawPanel(r, px, py, pw, ph);
 
-    r->FillRoundRect(mX+modX+3, mY + 7, 190.f, 148.f, 0, ARGB( 240, 15, 15, 15 ) );
+    mTextFont->SetColor(ARGB(255, 240, 240, 245));
+    mTextFont->DrawString(detailedInformation.c_str(), px + 9.0f, py + 12.0f);
 
-    // currently causes a crash on the PSP when drawing the corners.
-    // TODO: clean up the image ot make it loook cleaner. Find solution to load gfx to not crash PSP
-#if 0
-    r->DrawRoundRect(mX, mY + 2, mWidth + 11, textHeight - 12, 2.0f, ARGB( 255, 125, 255, 0) );
-    drawBoundingBox( mX-3, mY, mWidth + 3, textHeight );
-#endif
-    mTextFont->DrawString(detailedInformation.c_str(), modX+mX + 9 , mY + 15);
-
+    // Deck colour symbols along the bottom of the panel (same icons as the deck screens).
+    if (mDeckInformation)
+    {
+        string colors = mDeckInformation->getColorIndex();
+        if (colors.size() >= 6)
+        {
+            float ix = px + 16.0f;
+            float iy = py + ph - 15.0f;
+            for (int c = Constants::MTG_COLOR_ARTIFACT; c < Constants::MTG_COLOR_WASTE; ++c)
+            {
+                if (c < (int) manaIcons.size() && colors.at(c) == '1' && manaIcons[c].get())
+                {
+                    r->RenderQuad(manaIcons[c].get(), ix, iy, 0, 0.6f, 0.6f);
+                    ix += 22.0f;
+                }
+            }
+        }
+    }
 }
 
 // draws a bounding box around the popup.

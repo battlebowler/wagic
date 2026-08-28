@@ -10,6 +10,7 @@
 #include "Translate.h"
 #include "TextScroller.h"
 #include "Tasks.h"
+#include "UITheme.h"
 
 #include <iomanip>
 
@@ -113,7 +114,7 @@ DeckMenu::DeckMenu(int id, JGuiListener* listener, int fontId, const string _tit
         stars = NEW hgeParticleSystem(WResourceManager::Instance()->RetrievePSI("stars.psi", WResourceManager::Instance()->GetQuad("stars").get()));
     stars->FireAt(mX, mY);
 
-    const string detailedInfoString = _("info");
+    const string detailedInfoString = _("Info");
     WFont *descriptionFont = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
 
     float stringWidth = descriptionFont->GetStringWidth(detailedInfoString.c_str());
@@ -296,7 +297,7 @@ void DeckMenu::Render()
         // Bottom of the deck-list viewport (all maxItems rows), so the panel always backs the list.
         const float listBottom = mY + SCREEN_HEIGHT_F * (DeckMenuConst::kVerticalMargin + maxItems * DeckMenuConst::kLineHeight);
         const float rh = (listBottom + SCREEN_HEIGHT_F * (4.0f / 272.0f)) - ry;
-        renderer->FillRect(SCREEN_WIDTH_F * (6.0f / 480.0f), ry, SCREEN_WIDTH_F * (282.0f / 480.0f), rh, ARGB(195, 14, 16, 22));
+        UITheme::drawPanel(renderer, SCREEN_WIDTH_F * (6.0f / 480.0f), ry, SCREEN_WIDTH_F * (282.0f / 480.0f), rh, ARGB(195, 14, 16, 22));
     }
 
     // Credits / task scroller removed: that info already lives on the task board.
@@ -366,10 +367,14 @@ void DeckMenu::Render()
                     }
                 }
 
-                // fill in the description part of the screen
-                string text = wordWrap(_(currentMenuItem->getDescription()), descWidth, descriptionFont->mFontID );
-                descriptionFont->SetColor(ARGB(255,255,255,255));
-                descriptionFont->DrawString(text.c_str(), descX, descY);
+                // fill in the description part of the screen (skipped on the opponent chooser,
+                // where the long mode explainers just cluttered the screen).
+                if (!isOpponent)
+                {
+                    string text = wordWrap(_(currentMenuItem->getDescription()), descWidth, descriptionFont->mFontID );
+                    descriptionFont->SetColor(ARGB(255,255,255,255));
+                    descriptionFont->DrawString(text.c_str(), descX, descY);
+                }
 
                 // fill in the statistical portion
                 if (currentMenuItem->hasMetaData())

@@ -102,6 +102,28 @@ void InteractiveButton::Render()
     mainFont->SetScale(_btnOldScale);
 }
 
+void InteractiveButton::layoutRowRight(const std::vector<InteractiveButton*>& btns, float rightEdge, float y, float gap)
+{
+    WFont * f = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+    if (!f) return;
+    float oldScale = f->GetScale();
+    f->SetScale(1.0f);
+    float rightX = rightEdge;   // pill right edge available for the current (rightmost-first) button
+    for (int i = (int) btns.size() - 1; i >= 0; --i)
+    {
+        InteractiveButton * b = btns[i];
+        if (!b) continue;
+        // Render draws the pill spanning [getX-4 .. getX + sw + 3] (FillRoundRect adds 2*radius=10
+        // to the sw-3 width), so place getX so the pill's right edge lands on rightX.
+        float sw = f->GetStringWidth(_(b->getText()).c_str());
+        float gx = rightX - sw - 3.0f;
+        b->setX(gx);
+        b->setY(y);
+        rightX = (gx - 4.0f) - gap;   // next (leftward) button's pill right edge
+    }
+    f->SetScale(oldScale);
+}
+
 void InteractiveButton::setImage( const JQuadPtr imagePtr )
 {
     buttonImage = imagePtr;

@@ -6,6 +6,7 @@
 #include "GameApp.h"
 #include <iomanip>
 #include "Translate.h"
+#include "UITheme.h"
 
 DeckEditorMenu::DeckEditorMenu(int id, JGuiListener* listener, int fontId, const string& _title, DeckDataWrapper *_selectedDeck, StatsWrapper *stats) :
         DeckMenu(id, listener, fontId, _title), selectedDeck(_selectedDeck), stw(stats)
@@ -92,7 +93,24 @@ void DeckEditorMenu::Render()
         mainFont->SetColor(currentColor);
     }
 
-    if (stw && selectedDeck) drawDeckStatistics();
+    if (stw && selectedDeck)
+    {
+        // Right panel behind the deck stats, matching the left options panel. It's drawn on top of
+        // the focused item's description (redundant beside the full deck summary), then headed with
+        // the deck name and the stats.
+        JRenderer * rr = JRenderer::GetInstance();
+        float rpX = descX - SCREEN_WIDTH_F * (6.0f / 480.0f);
+        float rpY = descY - SCREEN_HEIGHT_F * (16.0f / 272.0f);
+        float rpW = descWidth + SCREEN_WIDTH_F * (22.0f / 480.0f);
+        float rpH = descHeight + SCREEN_HEIGHT_F * (16.0f / 272.0f);
+        UITheme::drawPanel(rr, rpX, rpY, rpW, rpH, ARGB(195, 14, 16, 22));
+
+        WFont * hf = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+        hf->SetColor(ARGB(255, 240, 240, 245));
+        hf->DrawString((_("Deck: ") + deckTitle).c_str(), rpX + SCREEN_WIDTH_F * (10.0f / 480.0f), rpY + SCREEN_HEIGHT_F * (4.0f / 272.0f));
+
+        drawDeckStatistics();
+    }
 
 }
 

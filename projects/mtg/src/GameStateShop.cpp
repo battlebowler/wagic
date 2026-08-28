@@ -984,8 +984,13 @@ void GameStateShop::enableButtons()
 
 void GameStateShop::renderButtons()
 {
-    cycleCardsButton->Render();
-    shopMenuButton->Render();
+    // Same uniform right-aligned bottom row as the deck editor: Menu rightmost, even gaps.
+    std::vector<InteractiveButton*> row;
+    row.push_back(cycleCardsButton);  // New Cards
+    row.push_back(shopMenuButton);    // Menu (rightmost)
+    InteractiveButton::layoutRowRight(row, SCREEN_WIDTH_F - 10.0f, SCREEN_HEIGHT_F - 20.0f, 12.0f);
+    for (size_t i = 0; i < row.size(); ++i)
+        row[i]->Render();
 }
 
 void GameStateShop::Render()

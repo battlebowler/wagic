@@ -515,7 +515,7 @@ static void getDuelSetupBackRect(float& x, float& y, float& w, float& h)
     {
         f->SetScale(1.0f);
         sw = f->GetStringWidth(_("Back").c_str());
-        swInfo = f->GetStringWidth(_("info").c_str());
+        swInfo = f->GetStringWidth(_("Info").c_str());
         fh = f->GetHeight();
     }
     w = (sw - 3.0f) + 10.0f;   // visible width  = stringWidth + 7
@@ -1013,7 +1013,6 @@ void GameStateDuel::Update(float dt)
             if (!menu)
             {
                 menu = NEW SimpleMenu(JGE::GetInstance(), WResourceManager::Instance(), DUEL_MENU_GAME_MENU, this, Fonts::MENU_FONT, SCREEN_WIDTH / 2 - 100, 25);
-                menu->mPanelStyle = false; // in-duel pause menu keeps the legacy look
                 menu->Add(MENUITEM_CANCEL, "Cancel");
                 if(taskList->getState() != TaskList::TASKS_ACTIVE){
                     //almosthumane - mulligan
@@ -1306,7 +1305,9 @@ void GameStateDuel::Render()
                 opponentMenu->Render();
                 // display the selected player deck name too
                 string selectedPlayerDeckName = _("Player Deck: ").c_str() + game->players[0]->deckName;
-                mFont->DrawString( selectedPlayerDeckName.c_str(),  (SCREEN_WIDTH / 4) - (mFont->GetStringWidth(selectedPlayerDeckName.c_str())/2)-3, 32);
+                // To the right of the avatar (where the deck stats sit on the deck picker), not
+                // overlapping the title.
+                mFont->DrawString( selectedPlayerDeckName.c_str(), SCREEN_WIDTH_F * (195.0f / 480.0f), 28);
             }
             else if (deckmenu && !deckmenu->isClosed()) deckmenu->Render();
 

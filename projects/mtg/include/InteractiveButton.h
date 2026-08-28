@@ -9,6 +9,7 @@
 #define wagic_InteractiveButton_h
 
 #include <string>
+#include <vector>
 #include <JLBFont.h>
 #include <JGui.h>
 #include "WResource_Fwd.h"
@@ -50,7 +51,12 @@ public:
     virtual void checkUserClick();
     virtual void Render();
     virtual ostream& toString(ostream& out) const;
-    
+
+    // Right-align a bottom-bar row of buttons: the rightmost button's pill ends at rightEdge, each
+    // preceding button sits 'gap' to its left. Widths are measured (MAIN_FONT @ 1.0, matching
+    // Render) so spacing is uniform regardless of label length. Buttons in visual left-to-right
+    // order; NULLs are skipped.
+    static void layoutRowRight(const std::vector<InteractiveButton*>& btns, float rightEdge, float y, float gap);
 };
 
 #endif

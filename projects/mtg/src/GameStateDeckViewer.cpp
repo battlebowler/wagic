@@ -613,15 +613,24 @@ void GameStateDeckViewer::setButtonState(bool state)
 
 void GameStateDeckViewer::RenderButtons()
 {
-    if(mView->deck() != mySideboard && mView->deck() != myCommandZone && mView->deck() != myDungeonZone)
+    const bool showDeckToggle = (mView->deck() != mySideboard && mView->deck() != myCommandZone && mView->deck() != myDungeonZone);
+
+    // Left group (fixed, left-aligned): View Deck / View SB.
+    if (showDeckToggle)
         toggleDeckButton->Render();
-    if(mView->deck() != myDeck)
+    if (mView->deck() != myDeck)
         sb_cmd_dng_Button->Render();
-    if(mView->deck() != mySideboard && mView->deck() != myCommandZone && mView->deck() != myDungeonZone)
-        filterButton->Render();
-    toggleViewButton->Render();
-    menuButton->Render();
-    statsPrevButton->Render();
+
+    // Right group, uniformly right-aligned with Menu as the rightmost button (a consistent anchor
+    // across screens). Only the visible buttons are laid out, so gaps stay even.
+    std::vector<InteractiveButton*> rightRow;
+    rightRow.push_back(toggleViewButton);                 // Grid
+    if (showDeckToggle) rightRow.push_back(filterButton); // Filter
+    rightRow.push_back(statsPrevButton);                  // Stats
+    rightRow.push_back(menuButton);                       // Menu (rightmost)
+    InteractiveButton::layoutRowRight(rightRow, SCREEN_WIDTH_F - 10.0f, SCREEN_HEIGHT_F - 20.0f, 12.0f);
+    for (size_t i = 0; i < rightRow.size(); ++i)
+        rightRow[i]->Render();
 }
 
 void GameStateDeckViewer::setupView(GameStateDeckViewer::AvailableView view, DeckDataWrapper *deck)
@@ -1733,7 +1742,11 @@ void GameStateDeckViewer::Render()
     
     if (options.keypadActive()) options.keypadRender();
 
-    RenderButtons();
+    // The bottom action buttons (View Deck / Grid / Filter / Stats / Menu) only apply once a deck
+    // is open; on the deck-selection screen their input isn't processed, so don't draw dead
+    // buttons there.
+    if (mStage != STAGE_WELCOME)
+        RenderButtons();
 }
 
 int GameStateDeckViewer::loadDeck(int deckid)
