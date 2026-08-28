@@ -126,7 +126,7 @@ void GuiHandSelf::Repos()
     {
         if (OptionHandDirection::HORIZONTAL == options[Options::HANDDIRECTION].number)
         {
-            float spacing = 30.0f;
+            float spacing = 35.0f;   // widened with kSmallCardArtH (larger cards)
 
             // Shift entire hand left by one card width
             float startX = SCREEN_WIDTH - 30.0f - CardGui::Width;
@@ -144,9 +144,9 @@ void GuiHandSelf::Repos()
         }
         else
         {
-            float dist = 180.0f / cards.size();
-            if (dist > 20)
-                dist = 20.0;
+            float dist = 208.0f / cards.size();   // widened with kSmallCardArtH (larger cards)
+            if (dist > 23)
+                dist = 23.0;
             else
                 y = 40.0;
 
@@ -170,9 +170,9 @@ void GuiHandSelf::Repos()
             // Push rightmost card left by one card width
             float xPos = SCREEN_WIDTH - 30.0f - cardWidth;
 
-            float dist = 240.0f / cards.size();
-            if (dist > 30)
-                dist = 30;
+            float dist = 278.0f / cards.size();   // widened with kSmallCardArtH so the open row
+            if (dist > 35)                         // stays border-to-border at the larger card size
+                dist = 35;
             else
                 xPos = SCREEN_WIDTH - 15.0f - cardWidth;
 
@@ -191,9 +191,9 @@ void GuiHandSelf::Repos()
         }
         else
         {
-            float dist = 224.0f / ((cards.size() + 1) / 2);
-            if (dist > 65)
-                dist = 65;
+            float dist = 259.0f / ((cards.size() + 1) / 2);   // widened with kSmallCardArtH
+            if (dist > 75)
+                dist = 75;
 
             bool flip = false;
             for (vector<CardView*>::iterator it = cards.begin(); it != cards.end(); ++it)

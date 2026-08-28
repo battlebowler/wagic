@@ -199,21 +199,9 @@ void GuiAvatars::Update(float dt)
 
 void GuiAvatars::Render()
 {
-    JRenderer * r = JRenderer::GetInstance();
-    float w = 54;
-    float h = 54;
-    if (opponent == active)
-    {
-        r->FillRect(opponent->actX, opponent->actY, 40 * opponent->actZ, h+25 * opponent->actZ, ARGB(200,0,0,0));
-        r->FillRect(opponent->actX, opponent->actY, w * opponent->actZ, h+25 * opponent->actZ, ARGB(200,0,0,0));
-    }
-    else if (self == active)
-    {
-        r->FillRect(self->actX - w * self->actZ - 4.5f, self->actY - h-28 * self->actZ, 24 * self->actZ + 35, h+28 * self->actZ, ARGB(200,0,0,0));
-        r->FillRect(self->actX - w * self->actZ - 4.5f, self->actY - h * self->actZ, w * self->actZ, h * self->actZ, ARGB(200,0,0,0));
-    }
+    // The semi-transparent black backing (ARGB(200,0,0,0)) that used to sit behind the ACTIVE
+    // player's avatar as a turn indicator has been removed; only the avatars/zones render now.
     GuiLayer::Render();
-
 }
 
 GuiAvatar* GuiAvatars::GetSelf()

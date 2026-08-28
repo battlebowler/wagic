@@ -27,7 +27,18 @@ const float CardGui::BigWidth  = 400.0f;   // conservative, ~half screen width
 const float CardGui::BigHeight = 570.0f;   // ~80% screen height
 
 static float kCardScale = SCREEN_HEIGHT / 272.0f;
-static float kPSPScale  = 16.0f / (SCREEN_HEIGHT / 272.0f);
+
+// On-screen art height (before per-card zoom) of a small in-play / hand / zone card, in kCardScale
+// units. Bumping this enlarges every small card in the duel; the zone layouts widen their step to
+// match (see GuiPlay's kStep / CARD_WIDTH) so cards stay packed border-to-border, and the in-play
+// overlays (border/highlight/masks/shadows) scale via kPSPScale below so the frame keeps tracking
+// the card. Was 38.
+static const float kSmallCardArtH = 44.0f;
+
+// kPSPScale converts the small-card overlay sizes in Render (border/highlight/tap masks/shadows,
+// all tuned for the original 38-unit art) into screen units. Folding in the 38/kSmallCardArtH
+// ratio grows those overlays with the art, so the frame stays aligned as kSmallCardArtH changes.
+static float kPSPScale  = 16.0f / (SCREEN_HEIGHT / 272.0f) * (38.0f / kSmallCardArtH);
 
 const float kWidthScaleFactor = 0.8f * (SCREEN_HEIGHT / 272.0f);
 
@@ -114,7 +125,7 @@ bool CardGui::Contains(float px, float py) const
 {
     if (kCardScale <= 0.0f)
         return false;
-    float h = actZ * 38.0f * kCardScale;
+    float h = actZ * kSmallCardArtH * kCardScale;
     float w = h * (Width / Height);
     if (w <= 0.0f || h <= 0.0f)
         return false;
@@ -234,7 +245,7 @@ void CardGui::Render()
 {
     if (kCardScale == 0.0f) {
         kCardScale = SCREEN_HEIGHT / 272.0f;
-        kPSPScale  = 16.0f / kCardScale;
+        kPSPScale  = 16.0f / kCardScale * (38.0f / kSmallCardArtH);
     }
 
     GameObserver * game = card->getObserver();
@@ -262,7 +273,7 @@ void CardGui::Render()
     else
         quad = AlternateThumbQuad(card);
 
-    float cardScale = quad ? (38 * kCardScale) / quad->mHeight : 1;
+    float cardScale = quad ? (kSmallCardArtH * kCardScale) / quad->mHeight : 1;
     //I want the below for melded cards but I dont know how to adjust everything else
     //to look neat and clean. leaving this here incase someone else wants to pretty up the p/t box
     //and line up the position.
@@ -1244,7 +1255,7 @@ void CardGui::RenderBig(MTGCard* card, const Pos& pos, bool thumb, bool noborder
     // Ensure scale factors are initialized even if Render() hasn't been called yet
     if (kCardScale == 0.0f) {
         kCardScale = SCREEN_HEIGHT / 272.0f;
-        kPSPScale  = 16.0f / kCardScale;
+        kPSPScale  = 16.0f / kCardScale * (38.0f / kSmallCardArtH);
     }
 
     JRenderer * renderer = JRenderer::GetInstance();
