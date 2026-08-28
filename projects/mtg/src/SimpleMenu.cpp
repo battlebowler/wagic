@@ -5,6 +5,7 @@
 #include "JTypes.h"
 #include "GameApp.h"
 #include "Translate.h"
+#include "UITheme.h"
 
 namespace SimpleMenuConst
 {
@@ -39,6 +40,7 @@ SimpleMenu::SimpleMenu(JGE* jge, WResourceManager* resourceManager, int id, JGui
     autoTranslate = true;
     isMultipleChoice = false;
     mInterruptStyle = false;
+    mPanelStyle = true; // shared UITheme glass-panel look by default; in-duel menus opt out
     mUseScroll = true; // touch content-scroll (short menus simply won't overflow)
     mHeight = 2 * SimpleMenuConst::kVerticalMargin;
     mWidth = 0;
@@ -249,6 +251,20 @@ void SimpleMenu::Render()
 
     //renderer->FillRect(mX, mY, mWidth, height - heightPadding, ARGB(180,0,0,0));
     
+    if (mPanelStyle)
+    {
+        // Shared UITheme "glass panel": a drawn rounded panel with a clean title bar. Bounds are
+        // matched to the legacy box fill so the item layout / scroll below is unchanged.
+        float pX = mX - 4.0f;
+        float pY = (mY + adjustme - 2.0f) - 4.0f;
+        float pW = mWidth + 8.0f;
+        float pH = (height - heightPadding) + 8.0f;
+        UITheme::drawPanel(renderer, pX, pY, pW, pH);
+        if (!title.empty())
+            renderer->FillRect(mX + 1.0f, mY + 1.0f + adjustme - 2.0f, mWidth - 2.0f, titleFont->GetHeight(), UITheme::kTitleFill);
+    }
+    else
+    {
     //menu black bg fill
     renderer->FillRect(mX-3, (mY+adjustme-2)-3, mWidth+6, (height - heightPadding)+6, ARGB(225,5,5,5));
     renderer->DrawRect(mX-3, (mY+adjustme-2)-3, mWidth+6, (height - heightPadding)+6, ARGB(255,25,25,25));
@@ -261,6 +277,7 @@ void SimpleMenu::Render()
     {//title border and fill
         renderer->FillRect(mX+1, mY+1+adjustme-2, mWidth-2, titleFont->GetHeight(), ARGB(25,205,0,0));
         renderer->DrawRect(mX+1, mY+1+adjustme-2, mWidth-2, titleFont->GetHeight(), ARGB(255,89,89,89));
+    }
     }
 
     renderer->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA);
@@ -298,6 +315,9 @@ void SimpleMenu::Render()
         // supplies the side description text.
         if (currentMenuItem->hasFocus())
             WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT)->DrawString(currentMenuItem->getDescription().c_str(), mX + mWidth + 10, mY + 15);
+        // Panel style: highlight the focused row so selection reads clearly on touch.
+        if (mPanelStyle && currentMenuItem->hasFocus())
+            renderer->FillRect(mX + 1.0f, currentY, mWidth - 2.0f, SimpleMenuConst::kLineHeight, UITheme::kSelection);
         mFont->SetColor(ARGB(255, 255, 255, 255));
         currentMenuItem->RenderWithOffset(-mScrollPx);
         mFont->SetScale(SCALE_NORMAL);

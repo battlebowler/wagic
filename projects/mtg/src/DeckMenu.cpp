@@ -52,12 +52,14 @@ DeckMenu::DeckMenu(int id, JGuiListener* listener, int fontId, const string _tit
 
     // All positions as fractions of screen dimensions.
     // Original PSP values (for 480x272) in comments.
-    mY = SCREEN_HEIGHT_F * (50.0f / 272.0f);       // was 50
+    // Layout matched to the deck editor (DeckEditorMenu) so the Play deck picker reads 1-to-1 with
+    // the editor: title top-left, avatar + stats to its right, list below, one panel behind it.
+    mY = SCREEN_HEIGHT_F * (70.0f / 272.0f);        // editor value (was 50)
     mWidth = SCREEN_WIDTH_F * (176.0f / 480.0f);    // was 176
-    mX = SCREEN_WIDTH_F * (115.0f / 480.0f);        // was 115
+    mX = SCREEN_WIDTH_F * (123.0f / 480.0f);        // editor value (was 115)
 
-    titleX = SCREEN_WIDTH_F * (110.0f / 480.0f);    // was 110
-    titleY = SCREEN_HEIGHT_F * (15.0f / 272.0f);     // was 15
+    titleX = SCREEN_WIDTH_F / 6.5f;                 // editor value (was 110/480)
+    titleY = SCREEN_HEIGHT_F * (25.0f / 272.0f);     // editor value (was 15)
     titleWidth = SCREEN_WIDTH_F * (180.0f / 480.0f); // was 180
 
     descX = SCREEN_WIDTH_F * (260.0f / 480.0f) + SCREEN_WIDTH_F * DeckMenuConst::kDescriptionHorizontalBoxPadding;
@@ -69,13 +71,13 @@ DeckMenu::DeckMenu(int id, JGuiListener* listener, int fontId, const string _tit
     detailedInfoBoxY = SCREEN_HEIGHT_F * (235.0f / 272.0f);  // was 235
     starsOffsetX = SCREEN_WIDTH_F * (50.0f / 480.0f);        // was 50
 
-    statsX = SCREEN_WIDTH_F * (300.0f / 480.0f);    // was 300
-    statsY = SCREEN_HEIGHT_F * (15.0f / 272.0f);     // was 15
+    statsX = SCREEN_WIDTH_F * (280.0f / 480.0f);    // editor value (was 300)
+    statsY = SCREEN_HEIGHT_F * (12.0f / 272.0f);     // editor value (was 15)
     statsHeight = SCREEN_HEIGHT_F * (50.0f / 272.0f); // was 50
-    statsWidth = SCREEN_WIDTH_F * (227.0f / 480.0f);  // was 227
+    statsWidth = SCREEN_WIDTH_F * (185.0f / 480.0f);  // editor value (was 227)
 
-    avatarX = SCREEN_WIDTH_F * (232.0f / 480.0f);   // was 232
-    avatarY = SCREEN_HEIGHT_F * (11.0f / 272.0f);     // was 11
+    avatarX = SCREEN_WIDTH_F * (222.0f / 480.0f);   // editor value (was 232)
+    avatarY = SCREEN_HEIGHT_F * (8.0f / 272.0f);      // editor value (was 11)
 
     menuInitialized = false;
 
@@ -271,20 +273,10 @@ void DeckMenu::Render()
         menupanel = WResourceManager::Instance()->RetrieveTempQuad("menupanel.jpg");
     menuholder = WResourceManager::Instance()->RetrieveTempQuad("menuholder.png");
 #endif
-    bool inDeckMenu = backgroundName.find("DeckMenuBackdrop") != string::npos;
-    float modAvatarX = 0.f;
-    float modAvatarY = 0.f;
-
-    if(inDeckMenu)
-    {
-        modAvatarX = SCREEN_WIDTH_F * (26.0f / 480.0f);    // was 26
-        modAvatarY = SCREEN_HEIGHT_F * (1.0f / 272.0f);     // was 1
-    }
-    else
-    {
-        modAvatarX = SCREEN_WIDTH_F * (-76.0f / 480.0f);   // was -76
-        modAvatarY = SCREEN_HEIGHT_F * (-1.5f / 272.0f);    // was -1.5
-    }
+    // Avatar/stats use the deck-editor layout in BOTH modes now (title + avatar + stats stacked on
+    // the left, list below), so the Play screen matches the editor 1-to-1.
+    float modAvatarX = SCREEN_WIDTH_F * (-76.0f / 480.0f);
+    float modAvatarY = SCREEN_HEIGHT_F * (-1.5f / 272.0f);
     if (!menuInitialized)
     {
         initMenuItems();
@@ -293,14 +285,21 @@ void DeckMenu::Render()
         menuInitialized = true;
     }
 
-    if (avatarholder.get() && menupanel.get() && inDeckMenu)//bg panel
-        renderer->RenderQuad(menupanel.get(), SCREEN_WIDTH_F * (225.0f / 480.0f), 0, 0 ,SCREEN_WIDTH_F / avatarholder.get()->mWidth, SCREEN_HEIGHT_F / avatarholder.get()->mHeight);
-
     RenderBackground();//background deck menu
-    mScroller->Render();
 
-    if (menuholder.get() && inDeckMenu)//menuholder
-        renderer->RenderQuad(menuholder.get(), 0, 0, 0 ,SCREEN_WIDTH_F / menuholder.get()->mWidth, SCREEN_HEIGHT_F / menuholder.get()->mHeight);
+    // Drawn translucent panels behind the menu content, replacing the old menupanel / menuholder /
+    // avatarholder frame textures (low-res bitmap frames that didn't match). The editor layout
+    // stacks title + stats + list on the left; the Play layout splits them (list left, avatar +
+    // stats top-right), so each gets matching panels sized from the live layout values.
+    {
+        const float ry = SCREEN_HEIGHT_F * (4.0f / 272.0f);
+        // Bottom of the deck-list viewport (all maxItems rows), so the panel always backs the list.
+        const float listBottom = mY + SCREEN_HEIGHT_F * (DeckMenuConst::kVerticalMargin + maxItems * DeckMenuConst::kLineHeight);
+        const float rh = (listBottom + SCREEN_HEIGHT_F * (4.0f / 272.0f)) - ry;
+        renderer->FillRect(SCREEN_WIDTH_F * (6.0f / 480.0f), ry, SCREEN_WIDTH_F * (282.0f / 480.0f), rh, ARGB(195, 14, 16, 22));
+    }
+
+    // Credits / task scroller removed: that info already lives on the task board.
 
     float lineHeight = SCREEN_HEIGHT_F * DeckMenuConst::kLineHeight;
     if (timeOpen < 1) height *= timeOpen > 0 ? timeOpen : -timeOpen;
@@ -354,18 +353,12 @@ void DeckMenu::Render()
                             JQuad * evil = quad.get();
                             evil->SetHFlip(true);
 
-                            if (avatarholder.get() && inDeckMenu)
-                                renderer->RenderQuad(avatarholder.get(), 0, 0, 0 ,SCREEN_WIDTH_F / avatarholder.get()->mWidth, SCREEN_HEIGHT_F / avatarholder.get()->mHeight);
-
                             renderer->RenderQuad(quad.get(), avatarX+modAvatarX, avatarY+modAvatarY, 0, xscale, yscale);
                             renderer->DrawRect(avatarX+modAvatarX, avatarY+modAvatarY, avatarW, avatarH, ARGB(200,3,3,3));
                             evil = NULL;
                         }
                         else
                         {
-
-                            if (avatarholder.get() && inDeckMenu)
-                                renderer->RenderQuad(avatarholder.get(), 0, 0, 0 ,SCREEN_WIDTH_F / avatarholder.get()->mWidth, SCREEN_HEIGHT_F / avatarholder.get()->mHeight);
 
                             renderer->RenderQuad(quad.get(), avatarX+modAvatarX, avatarY+modAvatarY, 0, xscale, yscale);
                             renderer->DrawRect(avatarX+modAvatarX, avatarY+modAvatarY, avatarW, avatarH, ARGB(200,3,3,3));
@@ -385,10 +378,8 @@ void DeckMenu::Render()
                     oss << _("Deck: ") << currentMenuItem->getDeckName() << endl;
                     oss << currentMenuItem->getDeckStatsSummary();
                     descriptionFont->SetColor(ARGB(255,255,255,255));
-                    if(inDeckMenu)
-                        descriptionFont->DrawString(oss.str(), statsX + SCREEN_WIDTH_F * (2.0f / 480.0f), statsY - SCREEN_HEIGHT_F * (2.0f / 272.0f));
-                    else
-                        descriptionFont->DrawString(oss.str(), statsX - SCREEN_WIDTH_F * (86.0f / 480.0f), statsY - SCREEN_HEIGHT_F * (4.0f / 272.0f));
+                    // Editor stats position in both modes (see modAvatarX above), so Play matches.
+                    descriptionFont->DrawString(oss.str(), statsX - SCREEN_WIDTH_F * (86.0f / 480.0f), statsY - SCREEN_HEIGHT_F * (4.0f / 272.0f));
                 }
 
                 // change the font color of the current menu item

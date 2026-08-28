@@ -1668,33 +1668,17 @@ void GameStateDeckViewer::Render()
     WFont * mFont = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
     JRenderer::GetInstance()->ClearScreen(ARGB(0,0,0,0));
 #if !defined (PSP)
-    //Now it's possibile to randomly use up to 10 background images for deck editor background (if random index is 0, it will be rendered the default "bgdeckeditor.jpg" image).
-    JTexture * wpTex = NULL;
-    if(kBgFile == ""){
-        char temp[4096];
-        sprintf(temp, "bgdeckeditor%i.jpg", std::rand() % 10);
-        kBgFile.assign(temp);
-        wpTex = WResourceManager::Instance()->RetrieveTexture(kBgFile);
-        if (wpTex) {
-            JQuadPtr wpQuad = WResourceManager::Instance()->RetrieveTempQuad(kBgFile);
-            if (wpQuad.get())
-                JRenderer::GetInstance()->RenderQuad(wpQuad.get(), 0, 0, 0, SCREEN_WIDTH_F / wpQuad->mWidth, SCREEN_HEIGHT_F / wpQuad->mHeight);
-            else {
-               kBgFile = "bgdeckeditor.jpg"; //Fallback to default background image for deck editor background.
-               wpTex = NULL;
-            }
-        } else
-            kBgFile = "bgdeckeditor.jpg"; //Fallback to default background image for deck editor background.
-    }
-    if(!wpTex)
-        wpTex = WResourceManager::Instance()->RetrieveTexture(kBgFile);
+    // Use the deck-editor selection screen's background (menubgdeckeditor.jpg) here too, so the
+    // card view matches the screen you enter the deck editor from (was a random bgdeckeditor*.jpg).
+    if (kBgFile == "")
+        kBgFile = "menubgdeckeditor.jpg";
+    JTexture * wpTex = WResourceManager::Instance()->RetrieveTexture(kBgFile);
     if (wpTex)
     {
         JQuadPtr wpQuad = WResourceManager::Instance()->RetrieveTempQuad(kBgFile);
-        JRenderer::GetInstance()->RenderQuad(wpQuad.get(), 0, 0, 0, SCREEN_WIDTH_F / wpQuad->mWidth, SCREEN_HEIGHT_F / wpQuad->mHeight);
+        if (wpQuad.get())
+            JRenderer::GetInstance()->RenderQuad(wpQuad.get(), 0, 0, 0, SCREEN_WIDTH_F / wpQuad->mWidth, SCREEN_HEIGHT_F / wpQuad->mHeight);
     }
-    /*if (mView->deck() == myDeck && mStage != STAGE_MENU)
-        renderDeckBackground();*/
 #else
     JTexture * wpTex = WResourceManager::Instance()->RetrieveTexture("pspbgdeckeditor.jpg");
     if (wpTex)

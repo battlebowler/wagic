@@ -166,17 +166,19 @@ void VerticalTextScroller::Render()
     JQuadPtr textscroller;
     JQuadPtr textscrollershadow;
 #if !defined (PSP)
-    textscroller = WResourceManager::Instance()->RetrieveTempQuad("textscroller.png");//new graphics textscroller
-    textscrollershadow = WResourceManager::Instance()->RetrieveTempQuad("textscrollershadow.png");//new graphics textscroller shadow
+    // Drawn translucent panel behind the scrolling credits/task text, replacing the old
+    // textscroller / textscrollershadow frame textures so this box matches the game's other panels.
     if(!mText.empty() && mText.length() > 1)
-        if (textscrollershadow.get())
-            JRenderer::GetInstance()->RenderQuad(textscrollershadow.get(), 0, 0, 0 ,SCREEN_WIDTH_F / textscrollershadow->mWidth, SCREEN_HEIGHT_F / textscrollershadow->mHeight);
+    {
+        JRenderer * r = JRenderer::GetInstance();
+        float px = mX - SCREEN_WIDTH_F  * (8.0f / 480.0f);
+        float py = mMarginY - SCREEN_HEIGHT_F * (4.0f / 272.0f);
+        float pw = mWidth  + SCREEN_WIDTH_F  * (16.0f / 480.0f);
+        float ph = SCREEN_HEIGHT_F - py;
+        r->FillRect(px, py, pw, ph, ARGB(195, 14, 16, 22));
+    }
 
     mFont->DrawString(mText.c_str(), mX, mY);
-
-    if(!mText.empty() && mText.length() > 1)
-        if (textscroller.get())
-            JRenderer::GetInstance()->RenderQuad(textscroller.get(), 0, 0, 0 ,SCREEN_WIDTH_F / textscroller->mWidth, SCREEN_HEIGHT_F / textscroller->mHeight);
 #else
     textscroller = WResourceManager::Instance()->RetrieveTempQuad("psptextscroller.png");//new graphics textscroller
     textscrollershadow = WResourceManager::Instance()->RetrieveTempQuad("psptextscrollershadow.png");//new graphics textscroller shadow

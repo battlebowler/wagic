@@ -45,6 +45,10 @@ public:
     bool isMultipleChoice;
     // When set, the menu draws as a horizontal interrupt-style button bar (see renderInterruptStyle).
     bool mInterruptStyle;
+    // When set (the default), the menu draws in the shared UITheme "glass panel" style — a drawn
+    // rounded panel with a clean title bar and a highlighted focused row — instead of the legacy
+    // double-border black box. Turned OFF for in-duel menus, which keep the old look.
+    bool mPanelStyle;
     SimpleMenu(JGE*, WResourceManager*, int id, JGuiListener* listener, int fontId, float x, float y, const char * _title = "", int _maxItems = 7, bool centerHorizontal = true, bool centerVertical = true);
     virtual ~SimpleMenu();
     virtual void Render();

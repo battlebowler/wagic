@@ -1013,6 +1013,7 @@ void GameStateDuel::Update(float dt)
             if (!menu)
             {
                 menu = NEW SimpleMenu(JGE::GetInstance(), WResourceManager::Instance(), DUEL_MENU_GAME_MENU, this, Fonts::MENU_FONT, SCREEN_WIDTH / 2 - 100, 25);
+                menu->mPanelStyle = false; // in-duel pause menu keeps the legacy look
                 menu->Add(MENUITEM_CANCEL, "Cancel");
                 if(taskList->getState() != TaskList::TASKS_ACTIVE){
                     //almosthumane - mulligan
@@ -1071,6 +1072,7 @@ void GameStateDuel::Update(float dt)
             } else if(menu == NULL)
             {
                 menu = NEW SimpleMenu(JGE::GetInstance(), WResourceManager::Instance(), DUEL_STATE_OPPONENT_WAIT, this, Fonts::MENU_FONT, 150, 60);
+                menu->mPanelStyle = false; // shown in-duel; keep the legacy look
                 if (menu)
                 {
                     menu->Add(MENUITEM_MAIN_MENU, "Back to main menu");
