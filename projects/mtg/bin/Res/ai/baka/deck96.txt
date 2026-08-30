@@ -1,23 +1,22 @@
 #NAME:Corruption
-#DESC:We will ruin you.
-#DESC:We will corrupt you.
-#DESC:We will unmake you.
-#DESC:
-#DESC:And when there's nothing left of you
-#DESC:but a dead and hollow husk
-#DESC:the fairies will dance in celebration
-#DESC:over your remains.
-Bad Moon (RV)                * 4 #
-Nature's Ruin (POR)          * 4 #
-Virtue's Ruin (POR)          * 2 #
-Kokusho, the Evening Star (CHK) * 4 #
+#DESC:'Wholesome meat corrupteth
+#DESC:to little worms'
+#DESC:Francis Bacon
+Bad Moon (RV) * 4 #
+Bitterblossom (MOR) * 4 #
+Consuming Corruption (MH3) * 2 #
+Corrupt (SHM) * 3 #
+Exquisite Blood (AVR) * 2
+Fell (BLB) * 4 #
+Mirkwood Bats (LTR) * 4 #
+Ob Nixilis, the Fallen (ZEN) * 2 #
+Swamp (10E) * 4 #
+Swamp (M10) * 4 #
+Swamp (M11) * 4 #
+Swamp (POR) * 4 #
+Swamp (RV) * 2 #
+Swamp (SHM) * 4 #
+Swamp (ZEN) * 4 #
 Tendrils of Corruption (TSP) * 3 #
-Graveborn Muse (10E)         * 3 #
-Corrupt (SHM)                * 2 #
-Unmake (EVE)                 * 4 #
-Bitterblossom (MOR)          * 4 #
-Vampire Nighthawk (ZEN)      * 4 #
-Swamp (ZEN)                  * 6 #
-Swamp (ZEN)                  * 6 #
-Swamp (ZEN)                  * 8 #
-Swamp (ZEN)                  * 6 #
+Unmake (EVE) * 2 #
+Vampire Nighthawk (ZEN) * 4 #

@@ -1,36 +1,34 @@
 #NAME:Death
-#DESC:Lavishly we're sowing
-#DESC:Death and demise
-#DESC:When the battle is won
-#DESC:we can harvest the corpses.
-Paralyze (RV)                * 2 #
-Will-o'-the-Wisp (RV)        * 2 #
-Spirit of the Night (MIR)    * 1 #
-Plague Spitter (INV)         * 2 #
-Visara the Dreadful (ONS)    * 1 #
-Slith Bloodletter (MRD)      * 2 #
-Seizan, Perverter of Truth (CHK) * 1 #
-Night of Souls' Betrayal (CHK) * 1 #
-Ascendant Evincar (10E)      * 1 #
-Stronghold Overseer (TSP)    * 1 #
-Underworld Dreams (10E)      * 1 #
-Hollowborn Barghest (SHM)    * 1 #
-Polluted Bonds (SHM)         * 2 #
-Midnight Banshee (SHM)       * 1 #
-Creakwood Liege (EVE)        * 1 #
-Soot Imp (EVE)               * 2 #
-Swamp (ALA)                  * 4 #
-Blood Seeker (ZEN)           * 2 #
-Vampire Nighthawk (ZEN)      * 2 #
-Malakir Bloodwitch (ZEN)     * 1 #
-Black Knight (M10)           * 2 #
-Howling Banshee (M10)        * 2 #
-Nightmare (M10)              * 1 #
-Swamp (M10)                  * 4 #
+#DESC:'Death pursues the man even
+#DESC:as he flees from it'
+#DESC:Horace
+#HINT:combo hold(Plague Spitter|myhand)^cast(Plague Spitter|myhand)^restriction{type(Plague Spitter|mybattlefield)~lessthan~1}^totalmananeeded({2}{B})
+#HINT:combo hold(Massacre Wurm|myhand)^cast(Massacre Wurm|myhand)^restriction{type(creature|opponentbattlefield)~morethan~1}^totalmananeeded({3}{B}{B}{B})
+Ascendant Evincar (10E) * 1 #
+Blight Keeper (XLN) * 2 #
+Blood Seeker (ZEN) * 2 #
+Bloodthirsty Conqueror (FDN) * 1 #
+Bump in the Night (ISD) * 2 #
+Court of Ambition (CMR) * 1 #
+Creakwood Liege (EVE) * 1 #
+Geralf's Messenger (DKA) * 2
+Gray Merchant of Asphodel (THS) * 1 #
+Massacre Wurm (MBS) * 1 #
 Ob Nixilis, the Fallen (ZEN) * 2 #
-Giant Scorpion (ZEN)         * 2 #
-Swamp (ZEN)                  * 4 #
-Swamp (ZEN)                  * 4 #
-Swamp (ZEN)                  * 2 #
-Swamp (ZEN)                  * 4 #
-Swamp (ZEN)                  * 4 #
+Plague Spitter (INV) * 2 #
+Polluted Bonds (SHM) * 1 #
+Sanguine Syphoner (FDN) * 2 #
+Soot Imp (EVE) * 2 #
+Swamp (10E) * 4 #
+Swamp (ALA) * 4 #
+Swamp (ISD) * 1 #
+Swamp (M10) * 4 #
+Swamp (MIR) * 4 #
+Swamp (SHM) * 4 #
+Swamp (ZEN) * 4 #
+Stab Wound (RVR) * 2 #
+Tattered Mummy * 2 #
+Underworld Dreams (10E) * 2 #
+Vampire Nighthawk (ZEN) * 2 #
+Vicious Conquistador (XLN) * 3 #
+Within Range (TCD) * 1 #

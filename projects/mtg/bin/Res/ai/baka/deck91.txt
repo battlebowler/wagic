@@ -1,28 +1,23 @@
 #NAME:Mighty Murk
-#DESC:Led by the Murkfiend
-#DESC:creatures of the forest
-#DESC:and the skies and seas
-#DESC:will attack your army.
-#DESC:
-#DESC:Don't underestimate
-#DESC:their potential for growth.
-Assault Zeppelid (DIS)       * 3 #
-Trygon Predator (DIS)        * 4 #
-Simic Sky Swallower (DIS)    * 1 #
-Slippery Bogle (EVE)         * 2 #
-Wistful Selkie (EVE)         * 3 #
-Fable of Wolf and Owl (EVE)  * 3 #
-Murkfiend Liege (EVE)        * 4 #
-Sturdy Hatchling (EVE)       * 4 #
-Jhessian Infiltrator (ALA)   * 4 #
-Winged Coatl (ARB)           * 3 #
-Lorescale Coatl (ARB)        * 3 #
-Vedalken Heretic (ARB)       * 2 #
-Forest (ZEN)                 * 3 #
-Island (ZEN)                 * 3 #
-Forest (ZEN)                 * 3 #
-Forest (ZEN)                 * 3 #
-Forest (ZEN)                 * 3 #
-Island (ZEN)                 * 3 #
-Island (ZEN)                 * 3 #
-Island (ZEN)                 * 3 #
+#DESC:The Murkfiend squats like
+#DESC:a toad in its rank den,
+#DESC:receiving homage from things
+#DESC:that slither and crawl
+Assault Zeppelid (DIS) * 2 #
+Fable of Wolf and Owl (EVE) * 2 #
+Forest (10E) * 4 #
+Forest (ALA) * 4 #
+Forest (ZEN) * 4 #
+Island (10E) * 4 #
+Island (ALA) * 4 #
+Island (ZEN) * 4 #
+Jhessian Infiltrator (ALA) * 4 #
+Lorescale Coatl (ARB) * 3 #
+Murkfiend Liege (EVE) * 4 #
+Simic Sky Swallower (DIS) * 1 #
+Slippery Bogle (EVE) * 4 #
+Sturdy Hatchling (EVE) * 3 #
+Trygon Predator (DIS) * 4 #
+Vedalken Heretic (ARB) * 3 #
+Winged Coatl (ARB) * 3 #
+Wistful Selkie (EVE) * 3 #

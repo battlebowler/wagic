@@ -1,5 +1,16 @@
 #NAME:Relentless Rats
-#DESC:United they stand,
-#DESC:Divided they fall.
-Swamp (10E)                  *24 #
-Relentless Rats (10E)        *36 #
+#DESC:'By gnawing through a dike,
+#DESC:even a rat may drown a nation'
+#DESC:Edmund Burke
+Relentless Rats (10E) * 6 #
+Relentless Rats (5DN) * 6 #
+Relentless Rats (A25) * 6 #
+Relentless Rats (M10) * 6 #
+Relentless Rats (M11) * 6 #
+Relentless Rats (TSR) * 6 #
+Swamp (10E) * 4 #
+Swamp (ALA) * 4 #
+Swamp (HOP) * 4 #
+Swamp (LRW) * 4 #
+Swamp (ME1) * 4 #
+Swamp (SHM) * 4 #

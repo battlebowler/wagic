@@ -1,28 +1,29 @@
-#NAME:Mermadness
-#DESC:The tricksters of the sea
-#DESC:are now conquering all the realms
-#DESC:with their never-ending supply
-#DESC:of fighters and spells.
-Lord of Atlantis (RV)        * 4 #
+#NAME:Merfolk Merchants
+#DESC:The merfolk control the world's
+#DESC:seas and rivers; hence the
+#DESC:commerce and prosperity of all
+#DESC:peoples depends on them.
+#HINT:combo hold(Inundate|myhand)^cast(Inundate|myhand)^restriction{type(creature|opponentbattlefield)~morethan~1}^totalmananeeded({3}{U}{U}{U})
+Back to Basics (USG) * 1 #
+Boomerang (10E) * 2 #
+Coastal Piracy (MRQ) * 1 #
+Coral Merfolk (M10) * 1 #
+Deepchannel Mentor (SHM) * 2 #
+Flow of Ideas (RAV) * 1 #
+Harbinger of the Seas (MH3) * 2 #
+Inundate (EVE) * 1 #
+Island (ALA) * 4 #
+Island (M10) * 4 #
+Island (MIR) * 4 #
+Island (RV) * 4 #
+Island (TMP) * 4 #
+Island (ZEN) * 4 #
+Lord of Atlantis (RV) * 4 #
+Manta Riders (TMP) * 2 #
+Master of the Pearl Trident (M13) * 4 #
 Merfolk of the Pearl Trident (RV) * 2 #
-River Merfolk (FEM)          * 1 #
-Vodalian Soldiers (FEM)      * 2 #
-Sea Scryer (MIR)             * 4 #
-Manta Riders (TMP)           * 2 #
-Back to Basics (USG)         * 1 #
-Coastal Piracy (MRQ)         * 1 #
-Empress Galina (INV)         * 1 #
-Flow of Ideas (RAV)          * 1 #
-Boomerang (10E)              * 2 #
-Deepchannel Mentor (SHM)     * 1 #
-Inundate (EVE)               * 3 #
-Stonybrook Angler (LRW)      * 1 #
-Island (ALA)                 * 4 #
-Island (ALA)                 * 4 #
-Unsummon (CFX)               * 4 #
-Merfolk Sovereign (M10)      * 4 #
-Coral Merfolk (M10)          * 2 #
-Island (ZEN)                 * 4 #
-Island (ZEN)                 * 4 #
-Island (ZEN)                 * 4 #
-Island (ZEN)                 * 4 #
+Merfolk Sovereign (M10) * 3 #
+Mist-Cloaked Herald (RIX) * 3 #
+Sea Scryer (MIR) * 3 #
+Unsummon (CFX) * 3 #
+Vodalian Soldiers (FEM) * 1 #

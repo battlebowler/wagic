@@ -1,21 +1,26 @@
 #NAME:Eviscerator
-#DESC:If you move, you'll hurt yourself.
-#DESC:
-#DESC:Of course, if you don't move
-#DESC:I will hurt you too.
-Ankh of Mishra (RV)          * 4 #
-Black Vise (RV)              * 4 #
-Wheel of Fortune (RV)        * 1 #
-Lotus Petal (TMP)            * 1 #
-Mogg Fanatic (TMP)           * 1 #
-Sudden Impact (TMP)          * 4 #
-Mountain (MRQ)               * 4 #
-Shock (ONS)                  * 4 #
-Lava Spike (CHK)             * 4 #
-Howling Mine (10E)           * 4 #
-Mountain (10E)               * 6 #
-Mountain (10E)               * 6 #
-Mountain (10E)               * 6 #
-Mogg Fanatic (10E)           * 3 #
-Tarfire (LRW)                * 4 #
-Lightning Bolt (M10)         * 4 #
+#DESC:'On the one side the monster
+#DESC:Scylla; on the other the 
+#DESC:whirlpool Charybdis'
+#DESC:Homer
+#HINT:combo hold(Mountain|myhand)^cast(Mountain|myhand)^restriction{type(land[Mountain]|mybattlefield)~lessthan~4}^totalmananeeded({0})
+#HINT:alwaysattackwith(Keldon Marauders)
+#HINT:alwaysattackwith(Orcish Hellraiser)
+Ankh of Mishra (RV) * 4 #
+Black Vise (RV) * 4 #
+Boltwave (FDN) * 4 #
+Howling Mine (10E) * 4 #
+Keldon Marauders (PLC) * 3 #
+Lava Spike (CHK) * 4 #
+Lightning Bolt (M10) * 4 #
+Mountain (10E) * 4 #
+Mountain (LRW) * 4 #
+Mountain (MRQ) * 4 #
+Mountain (RV) * 4 #
+Mountain (TMP) * 4 #
+Mox Ruby (LEA) * 1 #
+Orcish Hellraiser (MH1) * 3 #
+Shock (ONS) * 3 #
+Sudden Impact (TMP) * 2 #
+Tarfire (LRW) * 3 #
+Wheel of Fortune (RV) * 1 #

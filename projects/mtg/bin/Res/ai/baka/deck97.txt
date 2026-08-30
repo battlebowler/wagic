@@ -2,19 +2,22 @@
 #DESC:Notch by notch
 #DESC:I turn the wheel
 #DESC:stretching your bonded limbs.
-#DESC:
-#DESC:There is nothing you can do.
-#DESC:You might as well surrender
-#DESC:right away.
-The Rack (RV)                * 4 #
-Bad Moon (RV)                * 4 #
-Dark Ritual (RV)             * 4 #
-Mind Twist (RV)              * 1 #
-Hymn to Tourach (FEM)        * 4 #
-Death Stroke (STH)           * 4 #
-Mindslicer (ODY)             * 4 #
-Restless Apparition (EVE)    * 4 #
-Vampire Nighthawk (ZEN)      * 3 #
-Sign in Blood (M10)          * 4 #
-Hypnotic Specter (M10)       * 2 #
-Swamp (ZEN)                  *22 #
+#HINT:combo hold(Mind Twist|myhand)^cast(Mind Twist|myhand)~totalmananeeded({4}{B})
+Bad Moon (RV) * 4 #
+Dauthi Slayer (TMP) * 3 #
+Death Stroke (STH) * 4 #
+Hymn to Tourach (FEM) * 4 #
+Hypnotic Specter (M10) * 4 #
+Mind Twist (RV) * 1 #
+Mind Rot (M19) * 2 #
+Mindslicer (ODY) * 2 #
+Swamp (10E) * 4 #
+Swamp (M19) * 4 #
+Swamp (M10) * 3 #
+Swamp (ODY) * 4 #
+Swamp (RV) * 4 #
+Swamp (ZEN) * 4 #
+The Rack (RV) * 4 #
+Unhinge (TOR) * 3 #
+Vampire Nighthawk (ZEN) * 4 #
+Wall of Souls (STH) * 2 #

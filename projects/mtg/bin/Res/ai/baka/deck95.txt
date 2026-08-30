@@ -1,19 +1,23 @@
-#NAME:Enchanted
-#DESC:Beware when any of the fighters
-#DESC:dons the armor
-#DESC:or the mask.
-#DESC:
-#DESC:Outfitted well
-#DESC:they will become invincible.
-Primal Frenzy (ODY)          * 4 #
-Blanchwood Armor (USG)       * 4 #
-Ancestral Mask (MRQ)         * 4 #
-Spidersilk Armor (MRQ)       * 4 #
-Enchantress's Presence (ONS) * 4 #
-Elvish Warrior (ONS)         * 3 #
-Slith Predator (MRD)         * 4 #
-Gaea's Anthem (PLC)          * 4 #
-Troll Ascetic (10E)          * 4 #
-Elvish Warrior (MOR)         * 1 #
-Boggart Ram-Gang (SHM)       * 4 #
-Forest (ZEN)                 *22 #
+#NAME:Enchanted Masquerade
+#DESC:It is said that the ancient
+#DESC:masks retain the magic of
+#DESC:the elders, and that their
+#DESC:deadly powers are discovered
+#DESC:anew by each generation
+Ancestral Mask (MRQ) * 4 #
+Blanchwood Armor (USG) * 4 #
+Boggart Ram-Gang (SHM) * 4 #
+Elvish Warrior (MOR) * 1 #
+Elvish Warrior (ONS) * 3 #
+Enchantress's Presence (ONS) * 3 #
+Forest (10E) * 4 #
+Forest (M10) * 4 #
+Forest (ONS) * 4 #
+Forest (SHM) * 4 #
+Forest (USG) * 2 #
+Forest (ZEN) * 4 #
+Gaea's Anthem (PLC) * 4 #
+Primal Frenzy (ODY) * 4 #
+Slith Predator (MRD) * 4 #
+Spidersilk Armor (MRQ) * 3 #
+Troll Ascetic (10E) * 4 #

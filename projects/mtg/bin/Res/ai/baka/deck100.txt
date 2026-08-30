@@ -1,22 +1,24 @@
-#NAME: Good Knight
-#DESC:Time to sleep.
-#DESC:
-#DESC:Beware! The knights have come!
-#DESC:Inspired by their anthem,
-#DESC:they embarked on a crusade
-#DESC:to defend their honor.
-Crusade (RV)                 * 2 #
-Swords to Plowshares (ICE)   * 3 #
-Leonin Skyhunter (MRD)       * 4 #
-Skyhunter Skirmisher (10E)   * 3 #
-Glorious Anthem (10E)        * 2 #
-Paladin en-Vec (10E)         * 2 #
-Plains (10E)                 *20 #
-Skyhunter Prowler (10E)      * 3 #
-Knight of Meadowgrain (LRW)  * 4 #
-Thistledown Liege (SHM)      * 2 #
-Stillmoon Cavalier (EVE)     * 3 #
-Kinsbaile Cavalier (MOR)     * 2 #
-Wilt-Leaf Cavaliers (SHM)    * 4 #
-White Knight (M10)           * 2 #
-Honor of the Pure (M10)      * 4 #
+#NAME:Righteous Knights
+#DESC:The knights' righteousness
+#DESC:was mostly in their own minds.
+#DESC:To their conquered foes they 
+#DESC:were simply marauders.
+Crusade (RV) * 2 #
+Glorious Anthem (10E) * 4 #
+Honor of the Pure (M10) * 4 #
+Kinsbaile Cavalier (MOR) * 3 #
+Knight of Meadowgrain (LRW) * 4 #
+Leonin Skyhunter (MRD) * 4 #
+Paladin en-Vec (10E) * 2 #
+Plains (10E) * 4 #
+Plains (ICE) * 4 #
+Plains (LRW) * 4 #
+Plains (M10) * 4 #
+Plains (RV) * 1 #
+Plains (SHM) * 4 #
+Skyhunter Prowler (10E) * 3 #
+Skyhunter Skirmisher (10E) * 3 #
+Swords to Plowshares (ICE) * 3 #
+Thistledown Liege (SHM) * 2 #
+White Knight (M10) * 2 #
+Wilt-Leaf Cavaliers (SHM) * 3 #
