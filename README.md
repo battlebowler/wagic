@@ -10,6 +10,7 @@ This repository is a modernized fork of Wagic, the Homebrew, focused exclusively
 - Added foil cards, per-set booster art with historical foil-era rules
 - Trophy Room as a collection browser with set completion progress
 - Many in-game quality-of-life, targeting cancel, untap mana, user stack zones and cards enlarged for touch
+- Data import and export
 
 ---
 
