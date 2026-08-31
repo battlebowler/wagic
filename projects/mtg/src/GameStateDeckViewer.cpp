@@ -25,10 +25,64 @@
 
 #include "CarouselDeckView.h"
 #include "GridDeckView.h"
+#include "UITheme.h"
+#include "InteractiveButton.h"
 
 #define NO_USER_ACTIVITY_HELP_DELAY 10
 
 static std::string kBgFile = "";
+
+// Bottom-right button row for the deck-selection ("Choose Deck To Edit") screen: New Deck |
+// Select Deck | Back, right-aligned on the shared bottom button row (UITheme). Matches the duel
+// deck picker's pill sizing (visible box = stringWidth+7 x fontHeight+6, radius 5).
+static void getDeckEditWelcomeRects(float& nx, float& ny, float& nw, float& nh,
+                                    float& sx, float& sy, float& sw, float& sh,
+                                    float& bx, float& by, float& bw, float& bh)
+{
+    WFont * f = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+    float fh = 16.0f, bsw = 30.0f, ssw = 66.0f, nsw = 60.0f;
+    if (f)
+    {
+        f->SetScale(1.0f);
+        fh  = f->GetHeight();
+        bsw = f->GetStringWidth(_("Back").c_str());
+        ssw = f->GetStringWidth(_("Select Deck").c_str());
+        nsw = f->GetStringWidth(_("New Deck").c_str());
+    }
+    float h   = (fh - 4.0f) + 10.0f;
+    float y   = SCREEN_HEIGHT_F * UITheme::kBottomButtonRowYFrac;
+    float gap = SCREEN_WIDTH_F * (8.0f / 480.0f);
+    bw = (bsw - 3.0f) + 10.0f; sw = (ssw - 3.0f) + 10.0f; nw = (nsw - 3.0f) + 10.0f;
+    bh = sh = nh = h;
+    by = sy = ny = y;
+    bx = SCREEN_WIDTH_F - SCREEN_WIDTH_F * (10.0f / 480.0f) - bw; // Back at far right
+    sx = bx - gap - sw;                                          // Select Deck left of Back
+    nx = sx - gap - nw;                                          // New Deck left of Select Deck
+}
+
+// Single Back pill (far bottom-right, shared button row) for the deck-editor Options menu.
+static void getDeckEditBackRect(float& x, float& y, float& w, float& h)
+{
+    WFont * f = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+    float fh = 16.0f, sw = 30.0f;
+    if (f) { f->SetScale(1.0f); fh = f->GetHeight(); sw = f->GetStringWidth(_("Back").c_str()); }
+    w = (sw - 3.0f) + 10.0f;
+    h = (fh - 4.0f) + 10.0f;
+    x = SCREEN_WIDTH_F - SCREEN_WIDTH_F * (10.0f / 480.0f) - w;
+    y = SCREEN_HEIGHT_F * UITheme::kBottomButtonRowYFrac;
+}
+
+// Draw one red InteractiveButton-style pill with a left-anchored label.
+static void drawDeckEditPill(JRenderer * r, WFont * f, const char * label, float x, float y, float w, float h)
+{
+    float iw = w - 10.0f, ih = h - 10.0f;
+    r->FillRoundRect(x + 1, y + 1, iw, ih, 5.0f, ARGB(220, 5, 5, 5));
+    r->FillRoundRect(x, y, iw, ih, 5.0f, ARGB(255, 140, 23, 23));
+    r->DrawRoundRect(x, y, iw, ih, 5.0f, ARGB(255, 5, 5, 5));
+    f->SetScale(1.0f);
+    f->SetColor(ARGB(255, 255, 255, 255));
+    f->DrawString(label, x + 4.0f, y + 2.0f);
+}
 
 GameStateDeckViewer::GameStateDeckViewer(GameApp* parent) :
     GameState(parent, "deckeditor"), mView(NULL), mCurrentView(CAROUSEL_VIEW)
@@ -59,6 +113,8 @@ GameStateDeckViewer::GameStateDeckViewer(GameApp* parent) :
     filterButton = NEW InteractiveButton(NULL, kFilterButtonId, Fonts::MAIN_FONT, "Filter", SCREEN_WIDTH_F - 146, SCREEN_HEIGHT_F - 20, JGE_BTN_SOUND);
     menuButton = NEW InteractiveButton(NULL, kMenuButtonId, Fonts::MAIN_FONT, "Menu", SCREEN_WIDTH_F - 96, SCREEN_HEIGHT_F - 20, JGE_BTN_MENU);
     statsPrevButton = NEW InteractiveButton(NULL, kPrevStatsButtonId, Fonts::MAIN_FONT, "Stats", SCREEN_WIDTH_F - 46, SCREEN_HEIGHT_F - 20, JGE_BTN_PREV);
+    // Card-view "Back": saves the deck and returns to the main menu in one tap (layout set in RenderButtons).
+    backButton = NEW InteractiveButton(NULL, kMenuButtonId, Fonts::MAIN_FONT, "Back", SCREEN_WIDTH_F - 46, SCREEN_HEIGHT_F - 20, JGE_BTN_NEXT);
     // Hidden buttons (kept for input handling, not rendered)
     sellCardButton = NEW InteractiveButton(NULL, kSellCardActionId, Fonts::MAIN_FONT, "Sell Card", -999, -999, JGE_BTN_SEC);
     toggleUpButton = NEW InteractiveButton(NULL, kToggleUpButton, Fonts::MAIN_FONT, "UP", -999, -999, JGE_BTN_DOWN);
@@ -74,6 +130,7 @@ GameStateDeckViewer::~GameStateDeckViewer()
     SAFE_DELETE(sellCardButton);
     SAFE_DELETE(sb_cmd_dng_Button);
     SAFE_DELETE(statsPrevButton);
+    SAFE_DELETE(backButton);
     SAFE_DELETE(filterButton);
     SAFE_DELETE(toggleViewButton);
     SAFE_DELETE(mView);
@@ -193,12 +250,16 @@ void GameStateDeckViewer::updateDecks()
     vector<DeckMetaData *> playerDeckList = fillDeckMenu(welcome_menu, options.profileFile(), "", NULL, 0, GAME_TYPE_CLASSIC, true); // Show all decks in deck editor menu...
 
     newDeckname = "";
-    welcome_menu->Add(MENU_ITEM_NEW_DECK, "--NEW--");
+    // No "--NEW--" / "Cancel" rows in the list: creating a deck, editing the focused deck, and
+    // backing out are the on-screen New Deck / Select Deck / Back buttons now (STAGE_WELCOME).
+    // Tapping a row only focuses/previews it; Select Deck commits.
+    welcome_menu->mTapSelectsOnly = true;
+    welcome_menu->mTapNeverConfirms = true;
     if (options[Options::CHEATMODE].number && (!myCollection || myCollection->getCount(WSrcDeck::UNFILTERED_MIN_COPIES) < 4))
     {
         welcome_menu->Add(MENU_ITEM_CHEAT_MODE, "--UNLOCK CARDS--");
     }
-    welcome_menu->Add(MENU_ITEM_CANCEL, "Cancel");
+    welcome_menu->focusFirstDeck(); // focus a real deck, not the cheat row
 
     // update the deckmanager with the latest information
     DeckManager::GetInstance()->updateMetaDataList(&playerDeckList, false);
@@ -217,7 +278,7 @@ void GameStateDeckViewer::buildEditorMenu()
     deckMenu->Add(MENU_ITEM_SAVE_AS_AI_DECK, _("Save As AI Deck"), _("All changes are final."));
     deckMenu->Add(MENU_ITEM_MAIN_MENU, _("Quit Editor"), _("No changes. Return to the main menu."));
     deckMenu->Add(MENU_ITEM_TOGGLE_VIEW, _("Toggle View"), _("Toggle view grid/carousel."));
-    deckMenu->Add(MENU_ITEM_EDITOR_CANCEL, _("Cancel"), _("Close menu."));
+    // No "Cancel" row: closing the options menu is the on-screen Back button now (STAGE_MENU).
 }
 
 void GameStateDeckViewer::Start()
@@ -588,6 +649,7 @@ bool GameStateDeckViewer::userPressedButton()
             || (statsPrevButton->ButtonPressed())
             || (filterButton->ButtonPressed())
             || (menuButton->ButtonPressed())
+            || (backButton->ButtonPressed())
             || (toggleViewButton->ButtonPressed())
             || (toggleUpButton->ButtonPressed())
             || (toggleDownButton->ButtonPressed())
@@ -604,6 +666,7 @@ void GameStateDeckViewer::setButtonState(bool state)
     statsPrevButton->setIsSelectionValid(state);
     filterButton->setIsSelectionValid(state);
     menuButton->setIsSelectionValid(state);
+    backButton->setIsSelectionValid(state);
     toggleViewButton->setIsSelectionValid(state);
     toggleUpButton->setIsSelectionValid(state);
     toggleDownButton->setIsSelectionValid(state);
@@ -627,7 +690,8 @@ void GameStateDeckViewer::RenderButtons()
     rightRow.push_back(toggleViewButton);                 // Grid
     if (showDeckToggle) rightRow.push_back(filterButton); // Filter
     rightRow.push_back(statsPrevButton);                  // Stats
-    rightRow.push_back(menuButton);                       // Menu (rightmost)
+    rightRow.push_back(menuButton);                       // Menu
+    rightRow.push_back(backButton);                       // Back (rightmost): save + return home
     InteractiveButton::layoutRowRight(rightRow, SCREEN_WIDTH_F - 10.0f, SCREEN_HEIGHT_F - 20.0f, 12.0f);
     for (size_t i = 0; i < rightRow.size(); ++i)
         rightRow[i]->Render();
@@ -845,7 +909,9 @@ void GameStateDeckViewer::Update(float dt)
             }
             last_user_activity = 0;
             break;
-        case JGE_BTN_NEXT:
+        case JGE_BTN_NEXT: // "Back" button: save the deck and return to the main menu in one tap
+            mEngine->ResetInput(); // clear the tap so it can't propagate into the main menu
+            ButtonPressed(MENU_DECK_BUILDER, MENU_ITEM_SAVE_RETURN_MAIN_MENU);
             break;
         default: // no keypress
             // Do NOT auto-open the stats panel on idle; only the Stats button opens it.
@@ -877,9 +943,35 @@ void GameStateDeckViewer::Update(float dt)
     }
 
     if (mStage == STAGE_WELCOME)
+    {
+        // The bottom-right buttons take the tap first; tapping the list only focuses a row now.
+        int wcx = -1, wcy = -1;
+        if (mEngine->GetLeftClickCoordinates(wcx, wcy))
+        {
+            float nx,ny,nw,nh, sx,sy,sw,sh, bx,by,bw,bh;
+            getDeckEditWelcomeRects(nx,ny,nw,nh, sx,sy,sw,sh, bx,by,bw,bh);
+            // ResetInput clears the tap's queued OK so the action can't re-fire next frame.
+            if (wcx >= bx && wcx <= bx + bw && wcy >= by && wcy <= by + bh)
+            { mEngine->ResetInput(); ButtonPressed(MENU_DECK_SELECTION, MENU_ITEM_CANCEL);  return; }
+            if (wcx >= sx && wcx <= sx + sw && wcy >= sy && wcy <= sy + sh)
+            { mEngine->ResetInput(); welcome_menu->confirmSelection();                      return; }
+            if (wcx >= nx && wcx <= nx + nw && wcy >= ny && wcy <= ny + nh)
+            { mEngine->ResetInput(); ButtonPressed(MENU_DECK_SELECTION, MENU_ITEM_NEW_DECK); return; }
+        }
         welcome_menu->Update(dt);
+    }
     else if (mStage == STAGE_MENU)
+    {
+        // Back button closes the options menu (tapping list rows still runs them directly).
+        int mcx = -1, mcy = -1;
+        if (mEngine->GetLeftClickCoordinates(mcx, mcy))
+        {
+            float bx,by,bw,bh; getDeckEditBackRect(bx,by,bw,bh);
+            if (mcx >= bx && mcx <= bx + bw && mcy >= by && mcy <= by + bh)
+            { mEngine->ResetInput(); ButtonPressed(MENU_DECK_BUILDER, MENU_ITEM_EDITOR_CANCEL); return; }
+        }
         deckMenu->Update(dt);
+    }
     else if (mStage == STAGE_FILTERS)
     {
         JButton key = mEngine->ReadButton();
@@ -1717,6 +1809,14 @@ void GameStateDeckViewer::Render()
     {
         setButtonState(false);
         welcome_menu->Render();
+        // Bottom-right buttons: New Deck | Select Deck | Back (the list no longer carries them).
+        JRenderer * br = JRenderer::GetInstance();
+        WFont * bf = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+        float nx,ny,nw,nh, sx,sy,sw,sh, bx,by,bw,bh;
+        getDeckEditWelcomeRects(nx,ny,nw,nh, sx,sy,sw,sh, bx,by,bw,bh);
+        drawDeckEditPill(br, bf, _("New Deck").c_str(),    nx, ny, nw, nh);
+        drawDeckEditPill(br, bf, _("Select Deck").c_str(), sx, sy, sw, sh);
+        drawDeckEditPill(br, bf, _("Back").c_str(),        bx, by, bw, bh);
     }
     else
     {
@@ -1728,6 +1828,12 @@ void GameStateDeckViewer::Render()
     {
         setButtonState(false);
         deckMenu->Render();
+        // Back closes the options menu (the deck-view action buttons are hidden here).
+        JRenderer * mbr = JRenderer::GetInstance();
+        WFont * mbf = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+        float bx,by,bw,bh;
+        getDeckEditBackRect(bx,by,bw,bh);
+        drawDeckEditPill(mbr, mbf, _("Back").c_str(), bx, by, bw, bh);
     }
 
     if (subMenu) subMenu->Render();
@@ -1742,10 +1848,10 @@ void GameStateDeckViewer::Render()
     
     if (options.keypadActive()) options.keypadRender();
 
-    // The bottom action buttons (View Deck / Grid / Filter / Stats / Menu) only apply once a deck
-    // is open; on the deck-selection screen their input isn't processed, so don't draw dead
-    // buttons there.
-    if (mStage != STAGE_WELCOME)
+    // The bottom action buttons (View Deck / Grid / Filter / Stats / Menu) only apply to the open
+    // card view. They're hidden on the deck-selection screen (STAGE_WELCOME) and the options menu
+    // (STAGE_MENU), which draw their own bottom buttons instead.
+    if (mStage != STAGE_WELCOME && mStage != STAGE_MENU)
         RenderButtons();
 }
 

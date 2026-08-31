@@ -111,10 +111,13 @@ void DeckMenuItem::RenderWithOffset(float yOffset)
     else
         mFont->SetScale(SCALE_NORMAL);
 
-    mFont->DrawString(mText.c_str(), mX, mY + yOffset, JGETEXT_CENTER, offSet, ITEM_PX_WIDTH);
+    int rowAlign = (parent && parent->usesLeftAlignedList()) ? JGETEXT_LEFT : JGETEXT_CENTER;
+    mFont->DrawString(mText.c_str(), mX, mY + yOffset, rowAlign, offSet, ITEM_PX_WIDTH);
     mDisplayInitialized = true;
-    //Render a "new" icon for decks that have never been played yet
-    if (mMetaData && !mMetaData->getGamesPlayed())
+    //Render a "new" icon for decks that have never been played yet (suppressed on the modernized
+    //list-only screens -- deck picker / opponent chooser / deck-editor selection -- where the info
+    //panel already shows "Games Played: 0" and the badge is just noise).
+    if (mMetaData && !mMetaData->getGamesPlayed() && !(parent && parent->usesLeftAlignedList()))
     {
         JTexture * tex = WResourceManager::Instance()->RetrieveTexture("new.png");
         if (tex)

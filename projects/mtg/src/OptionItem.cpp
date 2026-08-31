@@ -233,6 +233,12 @@ void OptionProfile::Render()
     mFont->SetScale(SCALE);
 }
 
+float OptionProfile::getHeight()
+{
+    // Compact: fit the name + ~3 stat lines (getHeight is in pixels: value * SCALE_Y).
+    return 45 * SCALE_Y;
+}
+
 void OptionProfile::Entering(JButton)
 {
     mFocus = true;
@@ -465,7 +471,7 @@ JQuadPtr OptionTheme::getImage()
 
 float OptionTheme::getHeight()
 {
-    return 130 * SCALE_Y;
+    return 100 * SCALE_Y; // compact preview so the User-tab split isn't a tall, mostly-empty box
 }
 
 void OptionTheme::updateValue()
@@ -505,8 +511,9 @@ void OptionTheme::Render()
     JQuadPtr q = getImage();
     if (q)
     {
-        float yscale = 128 * SCALE_Y / q->mHeight;
-        float xscale = 227 * SCALE_X / q->mWidth;
+        // Fit the smaller (compact) theme row; keep the preview's ~16:9 aspect.
+        float yscale = 90 * SCALE_Y / q->mHeight;
+        float xscale = 160 * SCALE_X / q->mWidth;
         renderer->RenderQuad(q.get(), x, y, 0, xscale, yscale);
     }
     mFont->SetColor(getColor(WGuiColor::TEXT_HEADER));

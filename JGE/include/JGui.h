@@ -131,6 +131,10 @@ public:
     // preview it); a second tap on the focused item commits. Default false = one-tap
     // select+activate (the normal behaviour everywhere else).
     bool  mTapSelectsOnly;
+    // When true, a tap NEVER commits — it only moves focus (so a detail panel can preview it);
+    // committing must come from an explicit control (e.g. a "Select" button that calls
+    // confirmSelection()). Default false.
+    bool  mTapNeverConfirms;
     float mScrollPx;
     float mScrollMax;
     float mDragLastY;
@@ -152,6 +156,9 @@ public:
     virtual void Render();
     virtual void Update(float dt);
     virtual bool CheckUserInput(JButton key);
+    // Commit the currently-focused item as if it were activated. For use by external controls
+    // (e.g. a "Select" button) when taps are focus-only (see mTapNeverConfirms).
+    void confirmSelection();
 
     virtual void Add(JGuiObject* ctrl, bool isButton = false);
     virtual void RemoveAt(int i, bool isButton = false);

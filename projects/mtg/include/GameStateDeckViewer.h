@@ -79,7 +79,7 @@ private:
     DeckViewerStages mStage;
     JMusic * bgMusic;
     
-    InteractiveButton *toggleDeckButton, *sb_cmd_dng_Button, *sellCardButton, *statsPrevButton, *filterButton, *menuButton, *toggleViewButton, *toggleUpButton, *toggleDownButton, *toggleLeftButton, *toggleRightButton;
+    InteractiveButton *toggleDeckButton, *sb_cmd_dng_Button, *sellCardButton, *statsPrevButton, *filterButton, *menuButton, *toggleViewButton, *toggleUpButton, *toggleDownButton, *toggleLeftButton, *toggleRightButton, *backButton;
 
     WGuiFilters * filterMenu;
     WSrcDeckViewer * source;

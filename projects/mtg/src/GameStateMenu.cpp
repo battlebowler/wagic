@@ -22,6 +22,7 @@
 #include "ModRules.h"
 #include "Credits.h"
 #include "AIPlayer.h"
+#include "DeckDataWrapper.h"
 
 #ifdef NETWORK_SUPPORT
 #include <JNetwork.h>
@@ -264,8 +265,9 @@ int GameStateMenu::gamePercentComplete() {
     if (mPercentComplete)
         return mPercentComplete;
 
-    int done = 0;
-    int total = 0;
+    // Fractional so a set can contribute a partial score (its collection depth), not just 0/1.
+    float done = 0.0f;
+    float total = 0.0f;
 
     total++;
     if (options[Options::DIFFICULTY_MODE_UNLOCKED].number)
@@ -289,12 +291,38 @@ int GameStateMenu::gamePercentComplete() {
     if (options[Options::COMMANDER_MODE_UNLOCKED].number)
         done++;
 
-    //Unlocked sets
-    total+= setlist.size();
-    for (int i = 0; i < setlist.size(); i++)
+    // Sets: each set is worth 1 point, but scored by COLLECTION DEPTH (cards owned / cards in set)
+    // instead of a binary unlock. Foils count per the Trophy Room rule: for foil-era sets
+    // (year >= 1999) an owned foil is a second copy and the set's target doubles.
     {
-        if (1 == options[Options::optionSet(i)].number)
-            done++;
+        std::map<int, int> ownedPerSet; // setId -> owned copies (incl. foils)
+        PlayerData * pd = NEW PlayerData(MTGCollection());
+        DeckDataWrapper * view = NEW DeckDataWrapper(pd->collection);
+        for (int t = 0; t < view->Size(); t++)
+        {
+            MTGCard * c = view->getCard(t);
+            if (!c) continue;
+            ownedPerSet[c->setId]++;                                   // the regular copy
+            MTGSetInfo * si = setlist.getInfo(c->setId);
+            if (si && si->year >= 1999 && pd->collection->getFoilCount(c->getId()) > 0)
+                ownedPerSet[c->setId]++;                               // plus an owned foil copy
+        }
+        SAFE_DELETE(view);
+        SAFE_DELETE(pd);
+
+        for (int i = 0; i < setlist.size(); i++)
+        {
+            total++;
+            if (1 == options[Options::optionSet(i)].number)
+            {
+                MTGSetInfo * si = setlist.getInfo(i);
+                int setTotal = si ? si->totalCards() : 0;
+                if (si && si->year >= 1999) setTotal *= 2;             // foil-era target doubles
+                std::map<int, int>::iterator it = ownedPerSet.find(i);
+                int have = (it != ownedPerSet.end()) ? it->second : 0;
+                if (setTotal > 0) done += MIN(1.0f, (float) have / (float) setTotal);
+            }
+        }
     }
 
     //unlocked AI decks
@@ -304,7 +332,7 @@ int GameStateMenu::gamePercentComplete() {
     total+= totalAIDecks / 10;
     done+= reallyUnlocked / 10;
 
-    mPercentComplete = 100 * done / total;
+    mPercentComplete = (int) (100.0f * done / total);
     return mPercentComplete;
 }
 

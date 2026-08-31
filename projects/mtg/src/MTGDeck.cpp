@@ -1798,6 +1798,16 @@ int MTGSetInfo::totalCards()
     return counts[MTGSetInfo::TOTAL_CARDS];
 }
 
+// Which sets can contain foil cards. Foils arrived with Urza's Legacy (1999) for mainline sets, so
+// every set from 1999 on can have them. Promo and small sets (< 100 cards) had foils a year earlier,
+// so they qualify from 1998; mainline (full-size) 1998 sets do not. Nothing before 1998.
+bool MTGSetInfo::hasFoils()
+{
+    if (year >= 1999) return true;
+    if (year == 1998) return totalCards() > 0 && totalCards() < 100; // promo/small only, not mainline
+    return false;
+}
+
 string MTGSetInfo::getName()
 {
     if (name.size()) return name; //Pretty name is translated when rendering.

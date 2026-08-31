@@ -123,8 +123,11 @@ GameStateShop::GameStateShop(GameApp* parent) :
     
     // "Show List" button removed: the flat item list is always visible now.
     showCardListButton = NULL;
-    shopMenuButton = NEW InteractiveButton(NULL, kMenuButtonId, Fonts::MAIN_FONT, "Menu", SCREEN_WIDTH_F - 45, SCREEN_HEIGHT_F - 20, JGE_BTN_MENU);
-    // Task-board Back button, styled identically to New Cards/Menu, placed to their left.
+    // Context "Back": in the grid it exits to the main menu; with a pack open it returns to the grid.
+    shopMenuButton = NEW InteractiveButton(NULL, kMenuButtonId, Fonts::MAIN_FONT, "Back", SCREEN_WIDTH_F - 45, SCREEN_HEIGHT_F - 20, JGE_BTN_MENU);
+    // Tasks button opens the task board (was buried in the old Menu popup); layout set in renderButtons.
+    tasksButton = NEW InteractiveButton(NULL, kMenuButtonId, Fonts::MAIN_FONT, "Tasks", SCREEN_WIDTH_F - 200, SCREEN_HEIGHT_F - 20, JGE_BTN_NEXT);
+    // Task-board's own Back button (shown only inside the task board), placed to their left.
     taskBackButton = NEW InteractiveButton(NULL, kMenuButtonId, Fonts::MAIN_FONT, "Back", SCREEN_WIDTH_F - 150, SCREEN_HEIGHT_F - 20, JGE_BTN_SEC);
     disablePurchase = false;
     clearInput = false;
@@ -136,6 +139,7 @@ GameStateShop::~GameStateShop()
     SAFE_DELETE( showCardListButton );
     SAFE_DELETE( shopMenuButton );
     SAFE_DELETE( taskBackButton );
+    SAFE_DELETE( tasksButton );
     End();
     // The persistent shop stock kept across visits (see Start/End) is freed on shutdown.
     SAFE_DELETE( srcCards );
@@ -361,15 +365,31 @@ static float agePriceMultiplier(int year)
     return mult;
 }
 
-// Small sets (e.g. Expeditions/Masterpieces at ~25-45 cards) are almost all rares/mythics,
-// so a pack of one is worth far more than a pack of a full ~250-card set. Scale the booster
-// price up as the set gets smaller. setSize <= 0 (unknown / mixed pack) gets no premium.
+// "Small" sets = fewer than this many cards (e.g. Masterpieces/Expeditions/promo sets, ~25-90).
+// They're almost all rares/mythics, so per user request they are made both very RARE in the shop
+// (see shopSetWeight) and very EXPENSIVE (below). Tune these three constants to taste.
+static const int   kSmallSetThreshold     = 100;
+static const int   kSmallSetRarityDivisor = 15;    // small sets appear ~this many times rarer in packs
+static const float kSmallSetPriceMax      = 6.0f;  // price premium cap for the tiniest sets
+
+// "Tiny" sets (< this many cards) are promo/curated products (From the Vault, Welcome Decks, etc.).
+// A normal 15-card booster of them would just hand you the whole set or duplicates, so instead a
+// "pack" from a tiny set is a single random card drawn from it (a premium blind pull).
+static const int kTinyPackThreshold = 15;
+static bool isTinyPackSet(MTGSetInfo * si)
+{
+    return si && si->totalCards() > 0 && si->totalCards() < kTinyPackThreshold;
+}
+
+// Price premium for small sets: only sets under kSmallSetThreshold cards, ramping up sharply as the
+// set shrinks (every set under the threshold gets at least 1.5x, the tiniest up to kSmallSetPriceMax).
+// setSize <= 0 (unknown / mixed pack) or >= threshold gets no premium. Stacks with agePriceMultiplier.
 static float smallSetPriceMultiplier(int setSize)
 {
-    if (setSize <= 0) return 1.0f;
-    float mult = 1.0f + 0.011f * (float) (180 - setSize);
-    if (mult < 1.0f) mult = 1.0f;
-    if (mult > 3.0f) mult = 3.0f;
+    if (setSize <= 0 || setSize >= kSmallSetThreshold) return 1.0f;
+    float mult = 1.5f + 0.05f * (float) (kSmallSetThreshold - setSize);
+    if (mult < 1.5f) mult = 1.5f;
+    if (mult > kSmallSetPriceMax) mult = kSmallSetPriceMax;
     return mult;
 }
 
@@ -407,9 +427,11 @@ void GameStateShop::purchaseCard(int controlId)
     int base = pricelist->getPurchasePrice(c->getMTGId());
     base = base + (rnd * base) / 100;
     pricelist->setPrice(c->getMTGId(), base);
-    //Re-apply the age premium for display (the foil copy, if any, was already consumed above).
+    //Re-apply the age + small-set premiums for display (the foil copy, if any, was consumed above).
     MTGSetInfo * psi = setlist.getInfo(c->setId);
-    mPrices[controlId] = (int) (pricelist->getPurchasePrice(c->getMTGId()) * agePriceMultiplier(psi ? psi->year : 0)); //Prices go up immediately.
+    mPrices[controlId] = (int) (pricelist->getPurchasePrice(c->getMTGId())
+                                * agePriceMultiplier(psi ? psi->year : 0)
+                                * smallSetPriceMultiplier(psi ? psi->totalCards() : 0)); //Prices go up immediately.
     mInventory[controlId]--;
     updateCounts();
     mTouched = true;
@@ -458,13 +480,14 @@ void GameStateShop::purchaseBooster(int controlId)
     // When pulled, one random card in the pack becomes foil (shown shiny) and is recorded
     // in the collection.
     {
-        const int kFoilFromYear = 1999;      // foils debuted ~Urza's Legacy / early 7ED era
         int yr = mBooster[controlId].getSetYear();
-        // Foil-era packs yield a foil ~15% of the time; older foil-era sets (pre-2004) are
+        int bsn = setlist.findSet(mBooster[controlId].getSetId());
+        MTGSetInfo * bsi = (bsn >= 0) ? setlist.getInfo(bsn) : NULL;
+        // Foil-capable packs yield a foil ~15% of the time; older foil-era sets (pre-2004) are
         // rarer at ~7%, matching e.g. 7ED's notoriously tough foils.
         int foilChance = 15;
         if (yr && yr < 2004) foilChance = 7;
-        if (!thisPack.empty() && yr >= kFoilFromYear && (rand() % 100) < foilChance)
+        if (!thisPack.empty() && bsi && bsi->hasFoils() && (rand() % 100) < foilChance)
         {
             int idx = rand() % (int) thisPack.size();
             MTGCardInstance * fc = thisPack[idx];
@@ -567,9 +590,15 @@ void GameStateShop::load()
         int bsetNum = setlist.findSet(mBooster[i].getSetId());
         MTGSetInfo * bsi = (bsetNum >= 0) ? setlist.getInfo(bsetNum) : NULL;
         int bsetSize = bsi ? bsi->totalCards() : 0;
-        mPrices[i] = (int) (pricelist->getOtherPrice(mBooster[i].basePrice())
-                            * agePriceMultiplier(mBooster[i].getSetYear())
-                            * smallSetPriceMultiplier(bsetSize));
+        if (isTinyPackSet(bsi))
+            // Tiny sets are a single-card pack, so price them as one premium pull (~half a booster),
+            // not a full 15-card booster inflated by the small-set premium.
+            mPrices[i] = (int) (pricelist->getOtherPrice(mBooster[i].basePrice()) * 0.5f
+                                * agePriceMultiplier(mBooster[i].getSetYear()));
+        else
+            mPrices[i] = (int) (pricelist->getOtherPrice(mBooster[i].basePrice())
+                                * agePriceMultiplier(mBooster[i].getSetYear())
+                                * smallSetPriceMultiplier(bsetSize));
         mBoosterArt[i] = chooseBoosterArtVariant(mBooster[i].getSetId());
     }
     for (int i = BOOSTER_SLOTS; i < SHOP_ITEMS; i++)
@@ -583,14 +612,15 @@ void GameStateShop::load()
             mFoilSingle[i] = false;
             continue;
         }
-        // Foils in singles: rarer than in packs. Only foil-era sets, ~4% per restock.
+        // Foils in singles: rarer than in packs. Only foil-capable sets, ~4% per restock.
         mFoilSingle[i] = false;
         MTGSetInfo * si = setlist.getInfo(c->setId);
         int yr = si ? si->year : 0;
-        if (yr >= 1999 && (rand() % 100) < 4)
+        if (si && si->hasFoils() && (rand() % 100) < 4)
             mFoilSingle[i] = true;
-        // Older sets cost more; foils cost a lot more (both stack on the base price).
-        mPrices[i] = (int) (purchasePrice(i - BOOSTER_SLOTS) * agePriceMultiplier(yr));
+        // Older sets cost more, small sets cost a lot more, foils cost a lot more (all stack).
+        mPrices[i] = (int) (purchasePrice(i - BOOSTER_SLOTS) * agePriceMultiplier(yr)
+                            * smallSetPriceMultiplier(si ? si->totalCards() : 0));
         if (mFoilSingle[i]) mPrices[i] *= kFoilPriceMult;
         mCounts[i] = myCollection->countByName(c);
         switch (c->getRarity())
@@ -797,20 +827,25 @@ void GameStateShop::Update(float dt)
         {
             if (boosterDisplay)
             {
-                deleteDisplay();
+                deleteDisplay(); // a pack is open: Back returns to the shop grid
                 return;
             }
-            mStage = STAGE_SHOP_MENU;
+            // In the grid: Back leaves the shop for the main menu (End() saves collection + credits).
+            // Clear the tap first (keyBuffer + holds + click) so it doesn't propagate into the main
+            // menu and trip whatever button sits under the finger (e.g. Trophy Room).
+            mEngine->ResetInput();
+            mParent->DoTransition(TRANSITION_FADE, GAME_STATE_MENU);
             return;
         }
         else if (btn == JGE_BTN_CTRL)
             beginFilters();
-        else if (btn == JGE_BTN_NEXT)
+        else if (btn == JGE_BTN_NEXT && !boosterDisplay) // "Tasks" button (or key): open the task board
         {
             mStage = STAGE_SHOP_TASKS;
             if (!taskList)
                 taskList = NEW TaskList();
             taskList->Start();
+            return;
         }
         else if (boosterDisplay)
         {
@@ -893,9 +928,9 @@ void GameStateShop::Update(float dt)
 
             // Bottom toolbar buttons (New Cards / Show List / Menu) get first crack at a tap.
 #if defined (IOS) || defined (ANDROID)
-            if ((cycleCardsButton->ButtonPressed() || shopMenuButton->ButtonPressed()))
+            if ((cycleCardsButton->ButtonPressed() || tasksButton->ButtonPressed() || shopMenuButton->ButtonPressed()))
 #else
-            if ( (btn == JGE_BTN_OK) && (cycleCardsButton->ButtonPressed() || shopMenuButton->ButtonPressed()))
+            if ( (btn == JGE_BTN_OK) && (cycleCardsButton->ButtonPressed() || tasksButton->ButtonPressed() || shopMenuButton->ButtonPressed()))
 #endif
             {
                 disablePurchase = true;
@@ -980,14 +1015,16 @@ void GameStateShop::enableButtons()
 {
     cycleCardsButton->setIsSelectionValid(true);
     shopMenuButton->setIsSelectionValid(true);
+    tasksButton->setIsSelectionValid(true);
 }
 
 void GameStateShop::renderButtons()
 {
-    // Same uniform right-aligned bottom row as the deck editor: Menu rightmost, even gaps.
+    // Same uniform right-aligned bottom row as the deck editor: Back rightmost, even gaps.
     std::vector<InteractiveButton*> row;
     row.push_back(cycleCardsButton);  // New Cards
-    row.push_back(shopMenuButton);    // Menu (rightmost)
+    row.push_back(tasksButton);       // Tasks (task board)
+    row.push_back(shopMenuButton);    // Back (rightmost)
     InteractiveButton::layoutRowRight(row, SCREEN_WIDTH_F - 10.0f, SCREEN_HEIGHT_F - 20.0f, 12.0f);
     for (size_t i = 0; i < row.size(); ++i)
         row[i]->Render();
@@ -1004,28 +1041,13 @@ void GameStateShop::Render()
 
 #if defined (PSP)
     JQuadPtr mBg = WResourceManager::Instance()->RetrieveTempQuad("pspshop.jpg", TEXTURE_SUB_5551);
-    if (mBg.get())
-        r->RenderQuad(mBg.get(), 0, 0, 0, SCREEN_WIDTH_F / mBg->mWidth, SCREEN_HEIGHT_F / mBg->mHeight);
-
-    JQuadPtr quad = WResourceManager::Instance()->RetrieveTempQuad("pspshop_light.jpg", TEXTURE_SUB_5551);
 #else
     JQuadPtr mBg = WResourceManager::Instance()->RetrieveTempQuad("shop.jpg", TEXTURE_SUB_5551);
+#endif
     if (mBg.get())
         r->RenderQuad(mBg.get(), 0, 0, 0, SCREEN_WIDTH_F / mBg->mWidth, SCREEN_HEIGHT_F / mBg->mHeight);
 
-    JQuadPtr quad = WResourceManager::Instance()->RetrieveTempQuad("shop_light.jpg", TEXTURE_SUB_5551);
-#endif
-
-    if (quad.get())
-    {
-        r->EnableTextureFilter(false);
-        r->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE);
-        quad->SetColor(ARGB(lightAlpha,255,255,255));
-        quad->SetHotSpot(0,quad->mHeight);
-        r->RenderQuad(quad.get(), 0, SCREEN_HEIGHT, 0, 255.f / quad->mWidth, 272.f / quad->mHeight);
-        r->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA);
-        r->EnableTextureFilter(true);
-    }
+    // (Removed the flickering "shop_light" candle-glow overlay per user request.)
 
     // Flat vertical shop: a clean list of everything for sale (booster packs, then
     // cards), with the selected item previewed on the right. Replaces the old tabletop
@@ -1157,14 +1179,22 @@ void GameStateShop::Render()
     if (mStage == STAGE_SHOP_TASKS && taskList)
     {
         taskList->Render();
-        // On-screen Back button (same style as New Cards/Menu, to their left).
+        // Only Back shows here — right-aligned to the exact spot the grid's Back button occupies,
+        // so it doesn't jump when you enter/leave the task board.
         if (taskBackButton)
+        {
+            std::vector<InteractiveButton*> backRow;
+            backRow.push_back(taskBackButton);
+            InteractiveButton::layoutRowRight(backRow, SCREEN_WIDTH_F - 10.0f, SCREEN_HEIGHT_F - 20.0f, 12.0f);
             taskBackButton->Render();
+        }
     }
     if (menu)
         menu->Render();
     
-    if ((!filterMenu || (filterMenu && filterMenu->isFinished()))&&!boosterDisplay)
+    // In the task board only its own Back button shows; the grid toolbar (New Cards / Tasks / Back)
+    // is hidden so it can't overlap or be mistaken for the board's exit.
+    if ((!filterMenu || (filterMenu && filterMenu->isFinished())) && !boosterDisplay && mStage != STAGE_SHOP_TASKS)
         renderButtons();
 }
 
@@ -1239,6 +1269,7 @@ void GameStateShop::ButtonPressed(int controllerId, int controlId)
         if (taskList)
             taskList->save();
         mStage = STAGE_SHOP_SHOP;
+        mEngine->ResetInput(); // don't let the menu tap propagate into the main menu
         mParent->DoTransition(TRANSITION_FADE, GAME_STATE_MENU);
         save();
         GameStateMenu::genNbCardsStr();
@@ -1312,9 +1343,11 @@ string ShopBooster::getName()
     if (altSet == mainSet)
         altSet = NULL;
     if (altSet)
-        sprintf(buffer, _("%s & %s (15 Cards)").c_str(), mainSet->id.c_str(), altSet->id.c_str());
+        sprintf(buffer, _("%s & %s (15 Cards)").c_str(), mainSet->getName().c_str(), altSet->getName().c_str());
+    else if (isTinyPackSet(mainSet))
+        sprintf(buffer, _("%s Pack (1 Card)").c_str(), mainSet->getName().c_str());
     else if (mainSet)
-        sprintf(buffer, _("%s Booster (15 Cards)").c_str(), mainSet->id.c_str());
+        sprintf(buffer, _("%s Booster (15 Cards)").c_str(), mainSet->getName().c_str());
     return buffer;
 }
 
@@ -1352,12 +1385,21 @@ void ShopBooster::randomCustom(MTGPacks * packlist)
     if (!pack)
         randomStandard();
 }
-// Weight an unlocked set by release year so newer sets are more common and older sets rarer
-// (a shop "find"). Unknown-year sets get a light weight. Kept in sync between the two passes
-// in randomStandard().
-static int shopSetWeight(int year)
+// Weight an unlocked set for the shop's random booster pick. Newer sets are more common and older
+// sets rarer (a shop "find"); SMALL sets (< kSmallSetThreshold cards) are made very rare by dividing
+// their weight down hard (a sliver of a chance remains). Unknown sets get a light weight. Kept in
+// sync between the two passes in randomStandard().
+static int shopSetWeight(MTGSetInfo * si)
 {
-    return (year > 1990) ? (year - 1990) : 5;
+    if (!si) return 5;
+    int w = (si->year > 1990) ? (si->year - 1990) : 5;
+    int size = si->totalCards();
+    if (size > 0 && size < kSmallSetThreshold)
+    {
+        w /= kSmallSetRarityDivisor;
+        if (w < 1) w = 1; // never fully exclude, just make it a rare find
+    }
+    return w;
 }
 
 void ShopBooster::randomStandard()
@@ -1374,7 +1416,7 @@ void ShopBooster::randomStandard()
     {
         if (!options[Options::optionSet(i)].number) continue; // locked set
         MTGSetInfo * si = setlist.getInfo(i);
-        if (si) total += shopSetWeight(si->year);
+        if (si) total += shopSetWeight(si);
     }
     if (total > 0)
     {
@@ -1384,7 +1426,7 @@ void ShopBooster::randomStandard()
             if (!options[Options::optionSet(i)].number) continue;
             MTGSetInfo * si = setlist.getInfo(i);
             if (!si) continue;
-            int w = shopSetWeight(si->year);
+            int w = shopSetWeight(si);
             if (r < w) { mainSet = si; break; }
             r -= w;
         }
@@ -1402,6 +1444,19 @@ int ShopBooster::maxInventory()
 }
 void ShopBooster::addToDeck(MTGDeck * d, WSrcCards *)
 {
+    // Tiny/promo sets are sold as a single random card, not a full booster (see isTinyPackSet).
+    if (isTinyPackSet(mainSet))
+    {
+        char pbuf[128];
+        sprintf(pbuf, "set:%s;", mainSet->id.c_str());
+        WSrcCards * p = MTGPack::getPool(pbuf);
+        if (p)
+        {
+            p->addRandomCards(d, 1);
+            SAFE_DELETE(p);
+        }
+        return;
+    }
     if (!pack)
     { //A combination booster.
         MTGPack * mP = MTGPacks::getDefault();

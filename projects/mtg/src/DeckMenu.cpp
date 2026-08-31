@@ -11,6 +11,8 @@
 #include "TextScroller.h"
 #include "Tasks.h"
 #include "UITheme.h"
+#include "DeckStats.h"
+#include "utils.h"
 
 #include <iomanip>
 
@@ -80,6 +82,22 @@ DeckMenu::DeckMenu(int id, JGuiListener* listener, int fontId, const string _tit
     avatarX = SCREEN_WIDTH_F * (222.0f / 480.0f);   // editor value (was 232)
     avatarY = SCREEN_HEIGHT_F * (8.0f / 272.0f);      // editor value (was 11)
 
+    // The Play "Choose a Deck" picker AND the "Choose Opponent" chooser use the split list-only
+    // layout: a narrow list on the left with the title centered over it, and an always-on info
+    // panel on the right (drawn in Render) that previews the focused row -- avatar + stats for a
+    // deck, or the item's description for an action/mode row. The deck editor (DeckEditorMenu)
+    // overrides this to false and keeps the legacy single-panel layout.
+    mListOnlyLayout = true;
+    mDrawInfoPanel = true; // subclasses may set false to draw their own info-panel content
+    if (mListOnlyLayout)
+    {
+        titleX = SCREEN_WIDTH_F * (116.0f / 480.0f); // centered over the narrow list panel [10..216]
+        titleY = SCREEN_HEIGHT_F * (24.0f / 272.0f);
+        // Left-align the list: anchor the rows near the panel's left edge (rows draw left-aligned
+        // from here; the fixed tap region [22..212]/480 still covers them).
+        mX = SCREEN_WIDTH_F * (28.0f / 480.0f);
+    }
+
     menuInitialized = false;
 
     float scrollerWidth = SCREEN_WIDTH_F * (200.0f / 480.0f);   // was 200
@@ -125,7 +143,10 @@ DeckMenu::DeckMenu(int id, JGuiListener* listener, int fontId, const string _tit
 #else
     dismissButton = NEW InteractiveButton( this, DeckMenuConst::kDetailedInfoButtonId, Fonts::MAIN_FONT, detailedInfoString, boxStartX + SCREEN_WIDTH_F * (30.0f / 480.0f), detailedInfoBoxY + SCREEN_HEIGHT_F * (4.5f / 272.0f), JGE_BTN_CANCEL);
 #endif
-    JGuiController::Add(dismissButton, true);
+    // The list-only Play picker has no Info popup button (its info panel is always shown), so the
+    // button is created but not registered — it is never rendered or hit-tested there.
+    if (!mListOnlyLayout)
+        JGuiController::Add(dismissButton, true);
 
     updateScroller();
 }
@@ -197,6 +218,52 @@ DeckMetaData * DeckMenu::getSelectedDeck()
 void DeckMenu::enableDisplayDetailsOverride()
 {
     mAlwaysShowDetailsButton = true;
+}
+
+void DeckMenu::focusFirstDeck()
+{
+    // The first-added row gets focus by default (DeckMenuItem's mCount==0). When that row is an
+    // action ("Random", "New Deck...", "Create your Deck!") it has no metadata, so the info panel
+    // is blank and Select Deck fires the wrong action. Move focus to the first real deck instead.
+    int target = -1;
+    for (int i = 0; i < mCount; i++)
+    {
+        DeckMenuItem* it = static_cast<DeckMenuItem*>(mObjects[i]);
+        if (it && it->getMetaData()) { target = i; break; }
+    }
+    if (target < 0 || target == mCurr) return;
+    if (mCurr >= 0 && mCurr < mCount && mObjects[mCurr] != NULL)
+        mObjects[mCurr]->Leaving(JGE_BTN_DOWN);
+    mCurr = target;
+    mObjects[mCurr]->Entering();
+}
+
+string DeckMenu::buildDeckStatsText(DeckMetaData* deck)
+{
+    if (!deck) return "";
+    ostringstream oss;
+    // Play record (difficulty / win% / games) followed by the deck composition.
+    oss << deck->getStatsSummary();
+
+    StatsWrapper* s = DeckManager::GetInstance()->getExtendedDeckStats(deck, MTGCollection(), isOpponent);
+    if (s)
+    {
+        // Player decks don't cache their colour index until played/saved, so the info-panel mana
+        // symbols were blank on the deck-selection screens. We've already analysed the deck here, so
+        // populate the colour index now — getColorIndex() (used to draw the symbols) then works.
+        if (deck->getColorIndex().size() < 6)
+            deck->setColorIndex(s->getManaColorIndex());
+
+        int lands = 0;
+        for (int c = Constants::MTG_COLOR_ARTIFACT; c < Constants::MTG_COLOR_WASTE; ++c)
+            lands += s->countLandsPerColor[c] + s->countBasicLandsPerColor[c];
+
+        oss << _("Cards: ") << s->cardCount << "   " << _("Lands: ") << lands << endl
+            << _("Creatures: ") << s->countCreatures << "   " << _("Ench.: ") << s->countEnchantments << endl
+            << _("Instants: ") << s->countInstants << "   " << _("Sorc.: ") << s->countSorceries << endl
+            << _("Avg cost: ") << setprecision(2) << s->avgManaCost;
+    }
+    return oss.str();
 }
 
 bool DeckMenu::showDetailsScreen()
@@ -297,7 +364,17 @@ void DeckMenu::Render()
         // Bottom of the deck-list viewport (all maxItems rows), so the panel always backs the list.
         const float listBottom = mY + SCREEN_HEIGHT_F * (DeckMenuConst::kVerticalMargin + maxItems * DeckMenuConst::kLineHeight);
         const float rh = (listBottom + SCREEN_HEIGHT_F * (4.0f / 272.0f)) - ry;
-        UITheme::drawPanel(renderer, SCREEN_WIDTH_F * (6.0f / 480.0f), ry, SCREEN_WIDTH_F * (282.0f / 480.0f), rh, ARGB(195, 14, 16, 22));
+        if (mListOnlyLayout)
+        {
+            // Left: narrow panel holding just the deck list (the list touch-region is fixed at
+            // x=[22..212]/480, so [10..216] backs it). Right: wide always-on info panel.
+            UITheme::drawPanel(renderer, SCREEN_WIDTH_F * (10.0f / 480.0f), ry, SCREEN_WIDTH_F * (206.0f / 480.0f), rh, ARGB(195, 14, 16, 22));
+            UITheme::drawPanel(renderer, SCREEN_WIDTH_F * (224.0f / 480.0f), ry, SCREEN_WIDTH_F * (246.0f / 480.0f), rh, ARGB(195, 14, 16, 22));
+        }
+        else
+        {
+            UITheme::drawPanel(renderer, SCREEN_WIDTH_F * (6.0f / 480.0f), ry, SCREEN_WIDTH_F * (282.0f / 480.0f), rh, ARGB(195, 14, 16, 22));
+        }
     }
 
     // Credits / task scroller removed: that info already lives on the task board.
@@ -305,6 +382,7 @@ void DeckMenu::Render()
     float lineHeight = SCREEN_HEIGHT_F * DeckMenuConst::kLineHeight;
     if (timeOpen < 1) height *= timeOpen > 0 ? timeOpen : -timeOpen;
 
+    DeckMenuItem* focusedItem = NULL; // the focused deck, for the list-only info panel (drawn below)
     for (int i = 0; i < mCount; i++)
     {
         DeckMenuItem *currentMenuItem = static_cast<DeckMenuItem*> (mObjects[i]);
@@ -326,6 +404,12 @@ void DeckMenu::Render()
             if (currentMenuItem->hasFocus())
             {
                 mSelectedDeck = metaData;
+                focusedItem = currentMenuItem;
+                // Legacy single-panel layout (opponent chooser / deck editor): avatar, stats and the
+                // Info button are drawn here beside the list. The Play picker draws its always-on
+                // info panel after the loop instead (see below), so skip all of this there.
+                if (!mListOnlyLayout)
+                {
                 WFont *descriptionFont = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
 
                 // display the "more info" button if special condition is met
@@ -345,25 +429,15 @@ void DeckMenu::Render()
                     JQuadPtr quad = WResourceManager::Instance()->RetrieveTempQuad(currentAvatarImageName, TEXTURE_SUB_AVATAR);
                     if(quad.get())
                     {
-                        float avatarW = SCREEN_WIDTH_F * (37.0f / 480.0f);   // was 37
-                        float avatarH = SCREEN_HEIGHT_F * (50.0f / 272.0f);   // was 50
-                        float xscale = avatarW / quad->mWidth;
-                        float yscale = avatarH / quad->mHeight;
+                        float avatarW = SCREEN_WIDTH_F * (37.0f / 480.0f);
+                        float avatarH = SCREEN_HEIGHT_F * (50.0f / 272.0f);
+                        // Uniform scale so the avatar keeps its aspect (no 16:9 horizontal stretch).
+                        float aScale = (avatarW / quad->mWidth < avatarH / quad->mHeight) ? avatarW / quad->mWidth : avatarH / quad->mHeight;
+                        float aw = quad->mWidth * aScale, ah = quad->mHeight * aScale;
                         if (currentMenuItem->getText() == "Evil Twin")
-                        {
-                            JQuad * evil = quad.get();
-                            evil->SetHFlip(true);
-
-                            renderer->RenderQuad(quad.get(), avatarX+modAvatarX, avatarY+modAvatarY, 0, xscale, yscale);
-                            renderer->DrawRect(avatarX+modAvatarX, avatarY+modAvatarY, avatarW, avatarH, ARGB(200,3,3,3));
-                            evil = NULL;
-                        }
-                        else
-                        {
-
-                            renderer->RenderQuad(quad.get(), avatarX+modAvatarX, avatarY+modAvatarY, 0, xscale, yscale);
-                            renderer->DrawRect(avatarX+modAvatarX, avatarY+modAvatarY, avatarW, avatarH, ARGB(200,3,3,3));
-                        }
+                            quad.get()->SetHFlip(true);
+                        renderer->RenderQuad(quad.get(), avatarX+modAvatarX, avatarY+modAvatarY, 0, aScale, aScale);
+                        renderer->DrawRect(avatarX+modAvatarX, avatarY+modAvatarY, aw, ah, ARGB(200,3,3,3));
                     }
                 }
 
@@ -386,6 +460,7 @@ void DeckMenu::Render()
                     // Editor stats position in both modes (see modAvatarX above), so Play matches.
                     descriptionFont->DrawString(oss.str(), statsX - SCREEN_WIDTH_F * (86.0f / 480.0f), statsY - SCREEN_HEIGHT_F * (4.0f / 272.0f));
                 }
+                } // end !mListOnlyLayout (legacy beside-the-list rendering)
 
                 // change the font color of the current menu item
                 mFont->SetColor(ARGB(255,255,255,255));
@@ -393,6 +468,76 @@ void DeckMenu::Render()
             else // reset the font color to be slightly muted
                 mFont->SetColor(ARGB(150,255,255,255));
             currentMenuItem->RenderWithOffset(-mScrollPx);
+        }
+    }
+
+    // Always-on info panel (Choose a Deck / Choose Opponent): previews the focused row in the
+    // right-hand panel. A deck row (has metadata) shows avatar + name + stats + colours; an
+    // action/mode row (no metadata: "Random", "KO Tournament", ...) shows its name + description.
+    if (mListOnlyLayout && mDrawInfoPanel && focusedItem)
+    {
+        WFont* infoFont = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+        const float ipX = SCREEN_WIDTH_F * (224.0f / 480.0f);
+        const float ipY = SCREEN_HEIGHT_F * (4.0f / 272.0f);
+        const float panelBottom = mY + SCREEN_HEIGHT_F * (DeckMenuConst::kVerticalMargin + maxItems * DeckMenuConst::kLineHeight) + SCREEN_HEIGHT_F * (4.0f / 272.0f);
+        const float panelRight = SCREEN_WIDTH_F * ((224.0f + 246.0f) / 480.0f);
+        const float textX = ipX + SCREEN_WIDTH_F * (12.0f / 480.0f);
+        const float contentW = panelRight - textX - SCREEN_WIDTH_F * (10.0f / 480.0f);
+        // On the opponent chooser the duel screen draws a "Player Deck: <name>" header at the top of
+        // this panel, so push the previewed content down to clear it.
+        const float headerH = isOpponent ? SCREEN_HEIGHT_F * (22.0f / 272.0f) : 0.0f;
+        infoFont->SetColor(ARGB(255, 240, 240, 245));
+
+        DeckMetaData* fmd = focusedItem->getMetaData();
+        if (fmd)
+        {
+            if (!fmd->mStatsLoaded) fmd->LoadStats();
+
+            const float avW = SCREEN_WIDTH_F * (37.0f / 480.0f);
+            const float avH = SCREEN_HEIGHT_F * (50.0f / 272.0f);
+            const float avX = textX;
+            const float avY = ipY + SCREEN_HEIGHT_F * (12.0f / 272.0f) + headerH;
+
+            // Avatar (top-left), deck name beside it, full stats below, colour symbols at bottom.
+            string avatarImg = focusedItem->getImageFilename();
+            if (avatarImg.size() > 0)
+            {
+                JQuadPtr quad = WResourceManager::Instance()->RetrieveTempQuad(avatarImg, TEXTURE_SUB_AVATAR);
+                if (quad.get())
+                {
+                    // Uniform scale keeps the avatar's native aspect (no 16:9 horizontal stretch).
+                    float as = (avW / quad->mWidth < avH / quad->mHeight) ? avW / quad->mWidth : avH / quad->mHeight;
+                    float aw = quad->mWidth * as, ah = quad->mHeight * as;
+                    renderer->RenderQuad(quad.get(), avX, avY, 0, as, as);
+                    renderer->DrawRect(avX, avY, aw, ah, ARGB(200, 3, 3, 3));
+                }
+            }
+            infoFont->DrawString(focusedItem->getDeckName().c_str(), avX + avW + SCREEN_WIDTH_F * (8.0f / 480.0f), avY + SCREEN_HEIGHT_F * (6.0f / 272.0f));
+            string statsText = wordWrap(buildDeckStatsText(fmd), contentW, infoFont->mFontID);
+            infoFont->DrawString(statsText.c_str(), avX, avY + avH + SCREEN_HEIGHT_F * (8.0f / 272.0f));
+
+            string colors = fmd->getColorIndex();
+            if (colors.size() >= 6)
+            {
+                float ix = textX;
+                float iy = panelBottom - SCREEN_HEIGHT_F * (20.0f / 272.0f);
+                for (int c = Constants::MTG_COLOR_ARTIFACT; c < Constants::MTG_COLOR_WASTE; ++c)
+                {
+                    if (c < (int) manaIcons.size() && colors.at(c) == '1' && manaIcons[c].get())
+                    {
+                        renderer->RenderQuad(manaIcons[c].get(), ix, iy, 0, 0.6f, 0.6f);
+                        ix += SCREEN_WIDTH_F * (22.0f / 480.0f);
+                    }
+                }
+            }
+        }
+        else
+        {
+            // Action / mode row: show its name (bold-ish header) and its description.
+            float ty = ipY + SCREEN_HEIGHT_F * (12.0f / 272.0f) + headerH;
+            infoFont->DrawString(focusedItem->getText().c_str(), textX, ty);
+            string desc = wordWrap(_(focusedItem->getDescription()), contentW, infoFont->mFontID);
+            infoFont->DrawString(desc.c_str(), textX, ty + SCREEN_HEIGHT_F * (18.0f / 272.0f));
         }
     }
 
@@ -404,10 +549,11 @@ void DeckMenu::Render()
         mScrollMax = mCount * lineHeight - viewportH; // recompute here so the arrows are right on frame 1
         if (mScrollMax < 0.0f) mScrollMax = 0.0f;
         clampScroll();
-        renderScrollArrows(SCREEN_WIDTH_F * (216.0f / 480.0f), listTop + 3.0f, listTop + viewportH - 3.0f, selectionT);
+        // Keep the arrows INSIDE the list panel (its right edge is 216/480) with padding, matching
+        // SimpleMenu's convention: 10px in from the right edge, 9px in from the top/bottom.
+        renderScrollArrows(SCREEN_WIDTH_F * (216.0f / 480.0f) - 10.0f, listTop + 9.0f, listTop + viewportH - 9.0f, selectionT);
     }
-    //psp
-    RenderDeckManaColors();
+    // (Bottom mana-symbol strip removed: deck colours now live in the Info panel.)
 
     if (!title.empty())
     {

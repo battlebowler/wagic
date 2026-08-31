@@ -12,6 +12,7 @@
 #include "DeckDataWrapper.h"
 #include "Credits.h"
 #include "WResourceManager.h"
+#include "utils.h"
 #include "WFont.h"
 #include "CardGui.h"
 #include "GridDeckView.h"
@@ -155,7 +156,7 @@ GameStateAwards::GameStateAwards(GameApp* parent) :
     GameState(parent, "trophies"),
     listview(NULL), detailview(NULL), setSrc(NULL), menu(NULL),
     showMenu(false), saveMe(false), mState(STATE_LISTVIEW), mDetailItem(0),
-    mTab(TAB_CARDS), mDetailSel(0), mScrollPx(0.0f), mDragLastY(-9999.0f)
+    mTab(TAB_CARDS), mDetailSel(0), mAchvFocus(0), mAchvDescScroll(0.0f), mScrollPx(0.0f), mDragLastY(-9999.0f)
 {
 
 }
@@ -317,7 +318,7 @@ void GameStateAwards::renderCollectionList()
     const float listW = kListW(), top = kListTop(), bottom = kListBot();
 
     // Solid backdrop so the busy trophy-room art doesn't bleed through the gaps between rows.
-    r->FillRect(0, top - 2, SCREEN_WIDTH_F, bottom - top + 4, ARGB(238, 12, 14, 18));
+    r->FillRect(0, top - 2, SCREEN_WIDTH_F, bottom - top + 4, ARGB(150, 12, 14, 18));
 
     int n = (int) mUnlockedSets.size();
     float maxScrollPx = n * kRowH - (bottom - top);
@@ -369,7 +370,7 @@ void GameStateAwards::renderStats()
     const float listW = kListW(), top = kListTop(), bottom = kListBot();
 
     // Solid backdrop so the busy trophy-room art doesn't bleed through the gaps between rows.
-    r->FillRect(0, top - 2, SCREEN_WIDTH_F, bottom - top + 4, ARGB(238, 12, 14, 18));
+    r->FillRect(0, top - 2, SCREEN_WIDTH_F, bottom - top + 4, ARGB(150, 12, 14, 18));
 
     int n = (int) mStats.size();
     float maxScrollPx = n * kRowH - (bottom - top);
@@ -418,21 +419,60 @@ int GameStateAwards::collectionRowAtPoint(int cx, int cy)
 void GameStateAwards::buildAchievements()
 {
     mAchv.clear();
+    mAchvEarned.clear();
+    mAchvImage.clear();
+
+    bool diff = options[Options::DIFFICULTY_MODE_UNLOCKED].number != 0;
     mAchv.push_back(std::make_pair(std::string("Difficulty Modes"),
-        std::string(options[Options::DIFFICULTY_MODE_UNLOCKED].number ? "Unlocked" : "Reach a 66% victory ratio")));
+        std::string(diff ? "Unlocked" : "Reach a 66% victory ratio")));
+    mAchvEarned.push_back(diff);
+    mAchvImage.push_back("");
+
     for (std::map<std::string, Unlockable *>::iterator it = Unlockable::unlockables.begin();
          it != Unlockable::unlockables.end(); ++it)
     {
         Unlockable * award = it->second;
         if (award)
+        {
             mAchv.push_back(std::make_pair(award->getValue("name"), award->getValue("trophyroom_text")));
+            mAchvEarned.push_back(award->isUnlocked());
+            // Per-award trophy art follows the "trophy_unlocked_<id>" convention (e.g. trophy_unlocked_TPR).
+            std::string id = award->getValue("id");
+            mAchvImage.push_back(id.empty() ? std::string("") : ("trophy_unlocked_" + id + ".png"));
+        }
     }
+
+    bool twin = options[Options::EVILTWIN_MODE_UNLOCKED].number != 0;
     mAchv.push_back(std::make_pair(std::string("Evil Twin Mode"),
-        std::string(options[Options::EVILTWIN_MODE_UNLOCKED].number ? "Unlocked" : "Win with the same army size")));
+        std::string(twin ? "Unlocked" : "Win with the same army size")));
+    mAchvEarned.push_back(twin);
+    mAchvImage.push_back("eviltwin_unlocked.png");
+
+    bool rnd = options[Options::RANDOMDECK_MODE_UNLOCKED].number != 0;
     mAchv.push_back(std::make_pair(std::string("Random Deck Mode"),
-        std::string(options[Options::RANDOMDECK_MODE_UNLOCKED].number ? "Unlocked" : "Win against a higher difficulty")));
+        std::string(rnd ? "Unlocked" : "Win against a higher difficulty")));
+    mAchvEarned.push_back(rnd);
+    mAchvImage.push_back("randomdeck_unlocked.png");
+
+    bool coll = options[Options::AWARD_COLLECTOR].number != 0;
     mAchv.push_back(std::make_pair(std::string("Valuable Collection"),
-        std::string(options[Options::AWARD_COLLECTOR].number ? "Achieved" : "Own a collection worth over 10,000c")));
+        std::string(coll ? "Achieved" : "Own a collection worth over 10,000c")));
+    mAchvEarned.push_back(coll);
+    mAchvImage.push_back("");
+
+    // A trophy for every set (dark until you've unlocked it). Generated from the live set list so new
+    // sets always appear; art follows the "trophy_unlocked_<setcode>" convention (e.g. trophy_unlocked_TPR).
+    for (int si = 0; si < setlist.size(); si++)
+    {
+        MTGSetInfo * info = setlist.getInfo(si);
+        if (!info) continue;
+        bool setEarned = options[Options::optionSet(si)].number != 0;
+        char sd[192];
+        sprintf(sd, "%s (%d) - %s", info->id.c_str(), info->year, setEarned ? "unlocked" : "locked");
+        mAchv.push_back(std::make_pair(info->getName(), std::string(sd)));
+        mAchvEarned.push_back(setEarned);
+        mAchvImage.push_back("trophy_unlocked_" + info->id + ".png");
+    }
 }
 
 // Trophies tab: achievement rows (name + status/goal), same look/scroll as Sets & Stats.
@@ -442,11 +482,19 @@ void GameStateAwards::renderAchievements()
     WFont * f = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
     f->SetScale(1.0f);
     float fh = f->GetHeight();
-    const float listW = kListW(), top = kListTop(), bottom = kListBot();
+    const float top = kListTop(), bottom = kListBot();
+    // Preview (image + name + description) on the LEFT; the trophy list on the RIGHT.
+    const float pvW = SCREEN_WIDTH_F * 0.40f;       // left preview-panel width
+    const float listX = pvW + 8.0f;                 // list starts just right of the preview
+    const float listW = SCREEN_WIDTH_F - listX - 8.0f;
 
-    r->FillRect(0, top - 2, SCREEN_WIDTH_F, bottom - top + 4, ARGB(238, 12, 14, 18));
+    r->FillRect(0, top - 2, SCREEN_WIDTH_F, bottom - top + 4, ARGB(150, 12, 14, 18));
 
     int n = (int) mAchv.size();
+    if (mAchvFocus >= n) mAchvFocus = n - 1;
+    if (mAchvFocus < 0) mAchvFocus = 0;
+
+    // ---- trophy list (right): names only, dimmed until earned, blue fill on the focused row ----
     float maxScrollPx = n * kRowH - (bottom - top);
     if (maxScrollPx < 0.0f) maxScrollPx = 0.0f;
     if (mScrollPx > maxScrollPx) mScrollPx = maxScrollPx;
@@ -462,15 +510,74 @@ void GameStateAwards::renderAchievements()
         float ry = top - pixOff + vis * kRowH;
         if (ry >= bottom) break;
 
+        bool earned = (i < (int) mAchvEarned.size()) ? mAchvEarned[i] : true;
+        bool focused = (i == mAchvFocus);
+
         float barH = kRowH - 4.0f;
-        r->FillRect(kListX, ry, listW, barH, ARGB(205, 18, 22, 28));
-        r->DrawRect(kListX, ry, listW, barH, ARGB(120, 130, 130, 130));
+        r->FillRect(listX, ry, listW, barH,
+            focused ? ARGB(210, 40, 52, 70) : (earned ? ARGB(205, 18, 22, 28) : ARGB(150, 14, 16, 22)));
+        r->DrawRect(listX, ry, listW, barH, earned ? ARGB(120, 130, 130, 130) : ARGB(90, 70, 74, 84));
 
         float ty = ry + (barH - fh) * 0.5f;
-        f->SetColor(ARGB(255, 235, 235, 235));
-        f->DrawString(mAchv[i].first, kListX + 5, ty);
-        f->SetColor(ARGB(255, 150, 210, 255));
-        f->DrawString(mAchv[i].second, kListX + listW - 5, ty, JGETEXT_RIGHT);
+        f->SetColor(earned ? ARGB(255, 235, 235, 235) : ARGB(255, 104, 108, 116));
+        f->DrawString(mAchv[i].first, listX + 5, ty);
+    }
+
+    // ---- preview (left): NAME + DESCRIPTION on top, trophy IMAGE below them ----
+    const float px0 = 8.0f, pw = pvW - 12.0f;
+    if (mAchvFocus >= 0 && mAchvFocus < n)
+    {
+        float y = top + 4.0f;
+
+        // Name.
+        f->SetColor(ARGB(255, 235, 235, 245));
+        f->DrawString(mAchv[mAchvFocus].first, px0, y);
+        y += fh + 4.0f;
+
+        // Description: word-wrapped in a band that grows to its content up to ~40% of the panel, and
+        // auto-scrolls if it's longer than that, so a long goal/flavour line stays readable.
+        std::string wrapped = wordWrap(mAchv[mAchvFocus].second, pw, f->mFontID);
+        std::vector<std::string> lines;
+        for (size_t p = 0; ; )
+        {
+            size_t q = wrapped.find('\n', p);
+            lines.push_back(wrapped.substr(p, (q == std::string::npos) ? std::string::npos : q - p));
+            if (q == std::string::npos) break;
+            p = q + 1;
+        }
+        const float lineH = fh + 2.0f;
+        const float contentH = lines.size() * lineH;
+        const float descMax = (bottom - top) * 0.40f;
+        const float descH = (contentH < descMax) ? contentH : descMax;
+        const float descTop = y, descBottom = y + descH;
+        float off = (contentH > descH) ? fmodf(mAchvDescScroll, contentH + lineH * 3.0f) : 0.0f;
+        f->SetColor(ARGB(255, 198, 204, 216));
+        for (size_t li = 0; li < lines.size(); li++)
+        {
+            float ly = descTop + (float) li * lineH - off;
+            if (ly >= descTop - 0.5f && ly + lineH <= descBottom + 0.5f)
+                f->DrawString(lines[li], px0, ly);
+        }
+        y = descBottom + 6.0f;
+
+        // Trophy image, below the text (dimmed with an overlay if not earned yet).
+        if (mAchvFocus < (int) mAchvImage.size() && !mAchvImage[mAchvFocus].empty())
+        {
+            JQuadPtr tq = WResourceManager::Instance()->RetrieveTempQuad(mAchvImage[mAchvFocus], TEXTURE_SUB_EXACT);
+            if (tq.get() && tq->mWidth > 0 && tq->mHeight > 0)
+            {
+                float availH = (bottom - 4.0f) - y;
+                if (availH > 8.0f)
+                {
+                    float s = (pw / tq->mWidth < availH / tq->mHeight) ? pw / tq->mWidth : availH / tq->mHeight;
+                    float iw = tq->mWidth * s, ih = tq->mHeight * s;
+                    float ix = px0 + (pw - iw) * 0.5f;
+                    r->RenderQuad(tq.get(), ix, y, 0, s, s);
+                    bool fEarned = (mAchvFocus < (int) mAchvEarned.size()) ? mAchvEarned[mAchvFocus] : true;
+                    if (!fEarned) r->FillRect(ix, y, iw, ih, ARGB(155, 8, 8, 12));
+                }
+            }
+        }
     }
 }
 
@@ -489,7 +596,7 @@ void GameStateAwards::renderSetDetail()
     const float listX = SCREEN_WIDTH_F * kDetailListX;
     const float listW = SCREEN_WIDTH_F - listX - 8.0f;
 
-    r->FillRect(0, top - 2, SCREEN_WIDTH_F, bottom - top + 4, ARGB(238, 12, 14, 18));
+    r->FillRect(0, top - 2, SCREEN_WIDTH_F, bottom - top + 4, ARGB(150, 12, 14, 18));
 
     int n = (int) mDetailRows.size();
     float maxScrollPx = n * kRowH - (bottom - top);
@@ -640,6 +747,7 @@ void GameStateAwards::Render()
 
 void GameStateAwards::Update(float dt)
 {
+    mAchvDescScroll += dt * 18.0f; // slow auto-scroll for a long focused trophy description
     if (mEngine->GetButtonClick(JGE_BTN_CANCEL))
         options[Options::DISABLECARDS].number = !options[Options::DISABLECARDS].number;
 
@@ -687,6 +795,31 @@ void GameStateAwards::Update(float dt)
                     {
                         mEngine->ResetInput();
                         mDetailSel = row;
+                    }
+                }
+                else if (mTab == TAB_TROPHIES && cx > SCREEN_WIDTH_F * 0.40f)
+                {
+                    // Tap a trophy row (on the right) -> focus it. (collectionRowAtPoint clamps to the
+                    // unlocked-SET count, which is wrong here, so map the tap against the trophy list.)
+                    int row = -1;
+                    const float atop = kListTop();
+                    if (cy >= atop)
+                    {
+                        int firstRow = (int) (mScrollPx / kRowH);
+                        float pixOff = mScrollPx - firstRow * kRowH;
+                        int vis = (int) ((cy - (atop - pixOff)) / kRowH);
+                        float ry = atop - pixOff + vis * kRowH;
+                        if (cy <= ry + (kRowH - 4.0f))
+                        {
+                            int i = firstRow + vis;
+                            if (i >= 0 && i < (int) mAchv.size()) row = i;
+                        }
+                    }
+                    if (row >= 0)
+                    {
+                        mEngine->ResetInput();
+                        if (row != mAchvFocus) mAchvDescScroll = 0.0f; // restart the description scroll
+                        mAchvFocus = row;
                     }
                 }
             }
@@ -765,9 +898,8 @@ void GameStateAwards::buildSetCompletion()
     mSetOwned.assign(mUnlockedSets.size(), 0);
     mSetTotal.assign(mUnlockedSets.size(), 0);
 
-    // Foils count toward 100% for sets that can have them (foil era, ~1999+): each card then
+    // Foils count toward 100% for sets that can have them (see MTGSetInfo::hasFoils): each card then
     // counts twice — the regular copy and the foil copy — so the target doubles for those sets.
-    const int kFoilFromYear = 1999;
     std::vector<bool> setHasFoils(mUnlockedSets.size(), false);
 
     // Denominator: distinct cards in each set (as present in the game data). setId -> row.
@@ -776,7 +908,7 @@ void GameStateAwards::buildSetCompletion()
     {
         MTGSetInfo * si = setlist.getInfo(mUnlockedSets[i]);
         int total = si ? si->totalCards() : 0;
-        bool foilEra = si && si->year >= kFoilFromYear;
+        bool foilEra = si && si->hasFoils();
         setHasFoils[i] = foilEra;
         mSetTotal[i] = foilEra ? total * 2 : total;
         setIndex[mUnlockedSets[i]] = (int) i;
@@ -823,7 +955,7 @@ bool GameStateAwards::enterSet(int setid)
     mDetailRows.clear();
     mDetailCards.clear();
     mDetailFoil.clear();
-    const bool foilEra = si->year >= 1999;   // only these sets can have foils
+    const bool foilEra = si->hasFoils();   // sets that can have foils (1999+, or 1998 promo/small)
     for (int t = 0; t < src->Size(); t++)
     {
         MTGCard * c = src->getCard(t);

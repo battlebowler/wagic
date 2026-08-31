@@ -29,6 +29,14 @@ namespace UITheme
     const float kRadius       = 5.0f;   // panel / button corner radius
     const float kTouchRowMin  = 22.0f;  // minimum comfortable row height for a finger target
 
+    // --- Layout ---------------------------------------------------------------------------------
+    // Bottom-of-screen button row. This is the Y of the TOP of the pill (both the deck-setup rects
+    // and InteractiveButton::Render draw the pill with its top at getY()), as a fraction of screen
+    // height. Shared so every screen's bottom buttons (Back / Select Deck / Menu / New Cards / ...)
+    // sit on one line, clear of the panel above and the screen edge below.
+    //   Use as:  y = SCREEN_HEIGHT_F * UITheme::kBottomButtonRowYFrac;
+    const float kBottomButtonRowYFrac = 246.0f / 272.0f;
+
     // Draw a filled, subtly bordered panel whose VISUAL bounds are exactly [x, x+w] x [y, y+h].
     // (FillRoundRect / DrawRoundRect expand by the radius on each side, so inset w/h by 2*radius to
     // land on the requested bounds.)

@@ -35,6 +35,10 @@ private:
     std::vector<int> mSetTotal;        // distinct cards in each set  (parallel to mUnlockedSets)
     std::vector<std::pair<std::string, std::string> > mStats; // Stats tab: (label, value) rows
     std::vector<std::pair<std::string, std::string> > mAchv;  // Trophies tab: (name, description)
+    std::vector<bool> mAchvEarned;                            // parallel to mAchv: is each trophy earned?
+    std::vector<std::string> mAchvImage;                      // parallel to mAchv: trophy image filename ("" = none)
+    int mAchvFocus;                                           // Trophies tab: which trophy's image is previewed
+    float mAchvDescScroll;                                    // auto-scroll offset for a long focused description
     std::vector<std::pair<std::string, bool> > mDetailRows;   // set detail: (card name, owned?)
     std::vector<MTGCard*> mDetailCards;                        // parallel card ptrs (for preview)
     std::vector<bool> mDetailFoil;                             // parallel: owned as foil?

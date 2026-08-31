@@ -20,6 +20,10 @@ android {
 
     defaultConfig {
         applicationId "net.wagic.app"
+        // Personal fork identity: installs as net.wagic.app.battlebowler (distinct from stock Wagic,
+        // so both can coexist). The code namespace stays net.wagic.app (JNI/R unaffected); only the
+        // installed package id + its /Android/data/<pkg>/ storage change.
+        applicationIdSuffix ".battlebowler"
         minSdk 21
         targetSdk 34
         versionCode 240

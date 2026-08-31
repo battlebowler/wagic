@@ -79,6 +79,7 @@ JGuiController::JGuiController(JGE* jge, int id, JGuiListener* listener) :
 
     mUseScroll = false;
     mTapSelectsOnly = false;
+    mTapNeverConfirms = false;
     mScrollPx = 0.0f;
     mScrollMax = 0.0f;
     mDragLastY = -9999.0f;
@@ -248,7 +249,7 @@ bool JGuiController::CheckUserInput(JButton key)
                     // Activate the tapped item. With mTapSelectsOnly, a tap on a not-yet-
                     // focused item only selects it (letting a detail panel preview it); a
                     // second tap on the now-focused item commits.
-                    if ((!mTapSelectsOnly || wasFocused) && mObjects[mCurr] != NULL && mObjects[mCurr]->ButtonPressed())
+                    if (!mTapNeverConfirms && (!mTapSelectsOnly || wasFocused) && mObjects[mCurr] != NULL && mObjects[mCurr]->ButtonPressed())
                     {
                         if (mListener != NULL)
                             mListener->ButtonPressed(mId, mObjects[mCurr]->GetId());
@@ -324,6 +325,19 @@ bool JGuiController::CheckUserInput(JButton key)
     // Taps (click coordinates) are handled up-front at the top of this function as a
     // one-tap select+activate, so there is no separate "closest object" handling here.
     return false;
+}
+
+void JGuiController::confirmSelection()
+{
+    // Fire the focused item's action directly. Unlike a tap, this is an explicit "commit the
+    // current selection" request (from a Select button), so it does NOT gate on ButtonPressed()
+    // / mIsValidSelection (which validates that a tap actually landed on the item, and is often
+    // stale here) — the focused item is by definition the intended one.
+    if (!mObjects.empty() && mCurr >= 0 && mCurr < (int) mObjects.size() && mObjects[mCurr] != NULL
+        && mListener != NULL)
+    {
+        mListener->ButtonPressed(mId, mObjects[mCurr]->GetId());
+    }
 }
 
 void JGuiController::Update(float dt)

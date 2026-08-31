@@ -29,40 +29,18 @@ DeckEditorMenu::DeckEditorMenu(int id, JGuiListener* listener, int fontId, const
     mShowDetailsScreen = false;
     deckTitle = selectedDeck ? selectedDeck->parent->meta_name : "";
 
-    // All positions as fractions of screen dimensions.
-    // Original PSP values (for 480x272) in comments.
-    mX = SCREEN_WIDTH_F * (123.0f / 480.0f);        // was 123
-    mY = SCREEN_HEIGHT_F * (70.0f / 272.0f);         // was 70
-    starsOffsetX = SCREEN_WIDTH_F * (50.0f / 480.0f); // was 50
+    // Both variants use DeckMenu's clean list-only layout (narrow left list + right info panel,
+    // left-aligned rows, title centered over the list). The selection variant (no selected deck)
+    // uses DeckMenu's generic info panel to preview the focused deck; the deck-builder variant (a
+    // deck IS selected) suppresses it and draws the edited deck's avatar + "Deck: <name>" + stats
+    // itself (see Render). So we keep DeckMenu's list-only positions and don't override them here.
+    mListOnlyLayout = true;
+    mDrawInfoPanel = (selectedDeck == NULL);
 
-    if(selectedDeck)
-    {
-#if defined PSP
-        titleX = (SCREEN_WIDTH_F/2.f) + SCREEN_WIDTH_F * (10.0f / 480.0f);
-#else
-        titleX = (SCREEN_WIDTH_F/2.f);
-#endif
-        titleY = SCREEN_HEIGHT_F * (13.0f / 272.0f);  // was 13
-    }
-    else
-    {
-        titleX = SCREEN_WIDTH_F/6.5f;
-        titleY = SCREEN_HEIGHT_F * (25.0f / 272.0f);  // was 25
-    }
-    titleWidth = SCREEN_WIDTH_F * (180.0f / 480.0f);  // was 180
-
-    descX = SCREEN_WIDTH_F * (275.0f / 480.0f);       // was 275
-    descY = SCREEN_HEIGHT_F * (80.0f / 272.0f);        // was 80
-    descHeight = SCREEN_HEIGHT_F * (154.0f / 272.0f);   // was 154
-    descWidth = SCREEN_WIDTH_F * (175.0f / 480.0f);    // was 175
-
-    statsHeight = SCREEN_HEIGHT_F * (50.0f / 272.0f);   // was 50
-    statsWidth = SCREEN_WIDTH_F * (185.0f / 480.0f);    // was 185
-    statsX = SCREEN_WIDTH_F * (280.0f / 480.0f);        // was 280
-    statsY = SCREEN_HEIGHT_F * (12.0f / 272.0f);         // was 12
-
-    avatarX = SCREEN_WIDTH_F * (222.0f / 480.0f);       // was 222
-    avatarY = SCREEN_HEIGHT_F * (8.0f / 272.0f);          // was 8
+    // Deck-stats text position for the deck-builder variant: inside the right info panel, below the
+    // avatar (the list, title and panel frames come from DeckMenu's list-only positions).
+    descX = SCREEN_WIDTH_F * (236.0f / 480.0f);
+    descY = SCREEN_HEIGHT_F * (45.0f / 272.0f);
 
     float scrollerWidth = SCREEN_WIDTH_F * (80.0f / 480.0f);  // was 80
     float scrollerX = SCREEN_WIDTH_F * (40.0f / 480.0f);       // was 40
@@ -78,40 +56,36 @@ void DeckEditorMenu::Render()
     JRenderer *r = JRenderer::GetInstance();
     r->FillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, ARGB(200,0,0,0));
 
-    DeckMenu::Render();
-    if (deckTitle.size() > 0)
-    {
-        float modt = (float)deckTitle.size()/2;
-        WFont *mainFont = WResourceManager::Instance()->GetWFont(Fonts::OPTION_FONT);
-        DWORD currentColor = mainFont->GetColor();
-        mainFont->SetColor(ARGB(255,255,255,255));
-#if defined PSP
-        mainFont->DrawString(deckTitle.c_str(), (SCREEN_WIDTH_F / 2)-modt + SCREEN_WIDTH_F * (10.0f / 480.0f), (statsHeight / 2) + SCREEN_HEIGHT_F * (4.0f / 272.0f), JGETEXT_CENTER);
-#else
-        mainFont->DrawString(deckTitle.c_str(), (SCREEN_WIDTH_F / 2)-modt, (statsHeight / 2) + SCREEN_HEIGHT_F * (4.0f / 272.0f), JGETEXT_CENTER);
-#endif
-        mainFont->SetColor(currentColor);
-    }
+    DeckMenu::Render(); // frames + left-aligned list + centered title (generic info panel shown for
+                        // the selection variant, suppressed for the deck-builder variant below)
 
+    // Deck-builder variant: draw the edited deck's avatar + "Deck: <name>" + stats INSIDE the right
+    // info panel (its frame is drawn by DeckMenu's list-only layout), matching the other screens.
     if (stw && selectedDeck)
     {
-        // Right panel behind the deck stats, matching the left options panel. It's drawn on top of
-        // the focused item's description (redundant beside the full deck summary), then headed with
-        // the deck name and the stats.
-        JRenderer * rr = JRenderer::GetInstance();
-        float rpX = descX - SCREEN_WIDTH_F * (6.0f / 480.0f);
-        float rpY = descY - SCREEN_HEIGHT_F * (16.0f / 272.0f);
-        float rpW = descWidth + SCREEN_WIDTH_F * (22.0f / 480.0f);
-        float rpH = descHeight + SCREEN_HEIGHT_F * (16.0f / 272.0f);
-        UITheme::drawPanel(rr, rpX, rpY, rpW, rpH, ARGB(195, 14, 16, 22));
+        const float ipX = SCREEN_WIDTH_F * (224.0f / 480.0f);
+        const float ipY = SCREEN_HEIGHT_F * (4.0f / 272.0f);
+        const float avW = SCREEN_WIDTH_F * (37.0f / 480.0f);
+        const float avH = SCREEN_HEIGHT_F * (50.0f / 272.0f);
+        const float avX = ipX + SCREEN_WIDTH_F * (12.0f / 480.0f);
+        const float avY = ipY + SCREEN_HEIGHT_F * (12.0f / 272.0f);
+
+        // Player decks all use the generic "avatar.jpg" portrait (see DeckMetaData::LoadDeck).
+        JQuadPtr quad = WResourceManager::Instance()->RetrieveTempQuad("avatar.jpg", TEXTURE_SUB_AVATAR);
+        if (quad.get())
+        {
+            // Uniform scale keeps the avatar's native aspect (no 16:9 horizontal stretch).
+            float as = (avW / quad->mWidth < avH / quad->mHeight) ? avW / quad->mWidth : avH / quad->mHeight;
+            r->RenderQuad(quad.get(), avX, avY, 0, as, as);
+            r->DrawRect(avX, avY, quad->mWidth * as, quad->mHeight * as, ARGB(200, 3, 3, 3));
+        }
 
         WFont * hf = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
         hf->SetColor(ARGB(255, 240, 240, 245));
-        hf->DrawString((_("Deck: ") + deckTitle).c_str(), rpX + SCREEN_WIDTH_F * (10.0f / 480.0f), rpY + SCREEN_HEIGHT_F * (4.0f / 272.0f));
+        hf->DrawString((_("Deck: ") + deckTitle).c_str(), avX + avW + SCREEN_WIDTH_F * (8.0f / 480.0f), avY + SCREEN_HEIGHT_F * (6.0f / 272.0f));
 
         drawDeckStatistics();
     }
-
 }
 
 void DeckEditorMenu::drawDeckStatistics()

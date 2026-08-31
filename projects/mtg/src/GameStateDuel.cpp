@@ -15,6 +15,7 @@
 #include "Rules.h"
 #include "ModRules.h"
 #include "GameApp.h"
+#include "UITheme.h"
 
 #ifdef TESTSUITE
 #include "TestSuiteAI.h"
@@ -243,8 +244,10 @@ void GameStateDuel::Start()
 
             deckmenu = NEW DeckMenu(DUEL_MENU_CHOOSE_DECK, this, Fonts::OPTION_FONT, "Choose a Deck",
                 GameStateDuel::selectedPlayerDeckId, true, false);
-            // Tap a deck to select it and preview its details; tap it again to play.
+            // Tap a deck only to focus/preview it; committing is via the on-screen "Select Deck"
+            // button (confirmSelection()), never by tapping the list.
             deckmenu->mTapSelectsOnly = true;
+            deckmenu->mTapNeverConfirms = true;
             deckmenu->enableDisplayDetailsOverride();
             DeckManager *deckManager = DeckManager::GetInstance();
             vector<DeckMetaData *> playerDeckList = BuildDeckList(options.profileFile(), "", NULL, 0, mParent->gameType);
@@ -269,25 +272,17 @@ void GameStateDuel::Start()
     {
         if (decksneeded)
         {
-            if (gModRules.general.hasDeckEditor())
-            {
-                //translate deck creating desc
-                Translator * t = Translator::GetInstance();
-                string desc =  _("Highly recommended to get the full Wagic experience!").c_str();
-                map<string, string>::iterator it = t->deckValues.find(_("Create your Deck!").c_str());
-                if (it != t->deckValues.end())
-                    desc = it->second;
-
-                deckmenu->Add(MENUITEM_NEW_DECK, _("Create your Deck!").c_str(), desc);
-            }
+            // (No "Create your Deck!" list entry: the picker holds only playable decks now. Deck
+            // creation lives in the Deck Editor, reached from the main menu.)
             premadeDeck = true;
             fillDeckMenu(deckmenu, _("player/premade").c_str(), "", NULL, 0, mParent->gameType);
         }
-        else if (gModRules.general.hasDeckEditor())
-        {
-            deckmenu->Add(MENUITEM_NEW_DECK, _("New Deck...").c_str(), _("Create a new deck to play with.").c_str());
-        }
-        deckmenu->Add(MENUITEM_CANCEL, _("Main Menu").c_str(), _("Return to Main Menu").c_str());
+        // (No "New Deck..." or "Main Menu" list items either — the list is decks only. Backing out
+        // is the on-screen Back button; creating a deck is done in the Deck Editor.)
+
+        // Focus a real deck (not a leading action row), so the info panel and Select Deck operate
+        // on an actual deck.
+        deckmenu->focusFirstDeck();
     }
     else if(createDeckMenu && (mParent->players[0] == PLAYER_TYPE_CPU && mParent->players[1] == PLAYER_TYPE_CPU))
     {
@@ -395,6 +390,10 @@ void GameStateDuel::ConstructOpponentMenu()
     {
         opponentMenu = NEW DeckMenu(DUEL_MENU_CHOOSE_OPPONENT, this, Fonts::OPTION_FONT, "Choose Opponent",
             GameStateDuel::selectedAIDeckId, true, true);
+        // Tap a row only to focus/preview it; committing is via the on-screen "Select Opponent"
+        // button (confirmSelection()), matching the deck picker.
+        opponentMenu->mTapSelectsOnly = true;
+        opponentMenu->mTapNeverConfirms = true;
 
         int nbUnlockedDecks = options[Options::CHEATMODEAIDECK].number ? 1000 : options[Options::AIDECKS_UNLOCKED].number;
         if ((mParent->gameType == GAME_TYPE_COMMANDER || mParent->gameType == GAME_TYPE_CLASSIC || mParent->gameType == GAME_TYPE_DEMO) && mParent->players[1] == PLAYER_TYPE_CPU)
@@ -502,30 +501,46 @@ void GameStateDuel::ThreadProc(void* inParam)
 }
 #endif //AI_CHANGE_TESTING
 
-// On-screen Back button rect for the deck/opponent chooser screens. Per user preference
-// (back-button-uniformity) Back now lives on the RIGHT, just left of the "info" button and on
-// the same bottom row, instead of the old bottom-left corner. Sized to match the standard red
-// InteractiveButton (the "info" button): text-fitted, with FillRoundRect/DrawRoundRect adding
-// 2*radius per axis, so the VISIBLE box (hit-test + render) = (sw-3+10) x (fh-4+10), radius 5.
+// On-screen Back button rect for the deck/opponent chooser screens. The Info popup button is gone
+// (the deck picker's info panel is always shown), so Back now takes Info's old spot in the far
+// bottom-right corner, with "Select Deck" sitting immediately to its left. Sized to match the
+// standard red InteractiveButton: text-fitted, with FillRoundRect/DrawRoundRect adding 2*radius
+// per axis, so the VISIBLE box (hit-test + render) = (sw-3+10) x (fh-4+10), radius 5.
 static void getDuelSetupBackRect(float& x, float& y, float& w, float& h)
 {
     WFont * f = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
-    float sw = 30.0f, swInfo = 24.0f, fh = 16.0f;
+    float sw = 30.0f, fh = 16.0f;
     if (f)
     {
         f->SetScale(1.0f);
         sw = f->GetStringWidth(_("Back").c_str());
-        swInfo = f->GetStringWidth(_("Info").c_str());
         fh = f->GetHeight();
     }
     w = (sw - 3.0f) + 10.0f;   // visible width  = stringWidth + 7
     h = (fh - 4.0f) + 10.0f;   // visible height = fontHeight  + 6
-    // Sit immediately left of the "info" button and aligned to the same pill-top, so Back and
-    // info read as a matched pair. Info geometry replicated from DeckMenu (InteractiveButton):
-    // getX = SCREEN_WIDTH_F*(450/480) - infoWidth/2, pill top = SCREEN_HEIGHT_F*(239.5/272).
-    float infoPillLeft = SCREEN_WIDTH_F * (450.0f / 480.0f) - swInfo * 0.5f - 4.0f;
-    x = infoPillLeft - 8.0f - w;
-    y = SCREEN_HEIGHT_F * (239.5f / 272.0f);
+    x = SCREEN_WIDTH_F - SCREEN_WIDTH_F * (10.0f / 480.0f) - w; // far bottom-right (Info's old spot)
+    y = SCREEN_HEIGHT_F * UITheme::kBottomButtonRowYFrac;       // shared bottom button row
+}
+
+// On-screen "Select" button (deck chooser => "Select Deck", opponent chooser => "Select Opponent"):
+// confirms the focused row without tapping the list. Sits immediately left of Back (bottom-right),
+// sized to the given label like the standard red InteractiveButton.
+static void getDuelSetupSelectRect(const char* label, float& x, float& y, float& w, float& h)
+{
+    WFont * f = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+    float sw = 66.0f, fh = 16.0f;
+    if (f)
+    {
+        f->SetScale(1.0f);
+        sw = f->GetStringWidth(label);
+        fh = f->GetHeight();
+    }
+    w = (sw - 3.0f) + 10.0f;
+    h = (fh - 4.0f) + 10.0f;
+    float bx, by, bw, bh;
+    getDuelSetupBackRect(bx, by, bw, bh);
+    x = bx - SCREEN_WIDTH_F * (8.0f / 480.0f) - w; // immediately left of Back
+    y = SCREEN_HEIGHT_F * UITheme::kBottomButtonRowYFrac; // shared bottom button row
 }
 
 void GameStateDuel::Update(float dt)
@@ -541,13 +556,38 @@ void GameStateDuel::Update(float dt)
         if (mEngine->GetLeftClickCoordinates(cx, cy) &&
             cx >= bx && cx <= bx + bw && cy >= by && cy <= by + bh)
         {
-            mEngine->LeftClickedProcessed();
+            // ResetInput clears the tap's queued JGE_BTN_OK too, so it can't re-fire next frame.
+            mEngine->ResetInput();
             // Both chooser screens back out to the Main Menu. (Opponent -> Deck looped,
             // because the player's deck is already loaded and the deck screen re-advances.)
             if (opponentMenu) opponentMenu->Close();
             if (deckmenu) deckmenu->Close();
             setGamePhase(DUEL_STATE_BACK_TO_MAIN_MENU);
             return;
+        }
+
+        // "Select" button: confirm the focused row without hunting the list. Deck picker =>
+        // "Select Deck", opponent chooser => "Select Opponent" (the two menus are exclusive).
+        {
+            DeckMenu* activeMenu = (deckmenu && !deckmenu->isClosed()) ? deckmenu
+                                 : ((opponentMenu && !opponentMenu->isClosed()) ? opponentMenu : NULL);
+            if (activeMenu)
+            {
+                string selLabel = (activeMenu == deckmenu) ? _("Select Deck") : _("Select Opponent");
+                float sx, sy, sw2, sh;
+                getDuelSetupSelectRect(selLabel.c_str(), sx, sy, sw2, sh);
+                int scx = -1, scy = -1;
+                if (mEngine->GetLeftClickCoordinates(scx, scy) &&
+                    scx >= sx && scx <= sx + sw2 && scy >= sy && scy <= sy + sh)
+                {
+                    // ResetInput (not just LeftClickedProcessed): a tap also queues a JGE_BTN_OK, and
+                    // if we leave it in the buffer the menu's own Update fires the selection a SECOND
+                    // time next frame. Clear the whole input state so only this one confirm happens.
+                    mEngine->ResetInput();
+                    activeMenu->confirmSelection();
+                    return;
+                }
+            }
         }
     }
     switch (mGamePhase)
@@ -818,6 +858,7 @@ void GameStateDuel::Update(float dt)
     case DUEL_STATE_END_OF_TOURNAMENT:
         if ( (JGE_BTN_OK == mEngine->ReadButton()) || (mParent->players[0] ==  PLAYER_TYPE_CPU && mParent->players[1] ==  PLAYER_TYPE_CPU) )
         {
+            mEngine->ResetInput(); // don't let the dismiss tap bleed onto the main menu
             setGamePhase(DUEL_STATE_BACK_TO_MAIN_MENU);
         }
 
@@ -1130,7 +1171,15 @@ void GameStateDuel::Update(float dt)
 
         break;
     default:
-        if (JGE_BTN_OK == mEngine->ReadButton()) mParent->SetNextState(GAME_STATE_MENU);
+        // End-of-game / result screens: a tap here dismisses to the main menu. ReadButton eats the
+        // tap's OK, but the tap ALSO queued a click coordinate; without clearing it the very next
+        // frame the main menu processes that click and activates whatever sits under it (the Home
+        // screen's Exit button). ResetInput drops the whole pending tap so nothing bleeds through.
+        if (JGE_BTN_OK == mEngine->ReadButton())
+        {
+            mEngine->ResetInput();
+            mParent->SetNextState(GAME_STATE_MENU);
+        }
     }
     if(taskList && taskList->getState() == TaskList::TASKS_IN)
         taskList->Update(dt);
@@ -1303,13 +1352,34 @@ void GameStateDuel::Render()
             if (opponentMenu && !opponentMenu->isClosed())
             {
                 opponentMenu->Render();
-                // display the selected player deck name too
+                // "Player Deck: <name>" as the header at the top of the right info panel (the
+                // opponent chooser leaves 22/272 of headroom there for exactly this; see DeckMenu).
                 string selectedPlayerDeckName = _("Player Deck: ").c_str() + game->players[0]->deckName;
-                // To the right of the avatar (where the deck stats sit on the deck picker), not
-                // overlapping the title.
-                mFont->DrawString( selectedPlayerDeckName.c_str(), SCREEN_WIDTH_F * (195.0f / 480.0f), 28);
+                mFont->SetColor(ARGB(255, 240, 240, 245));
+                mFont->DrawString( selectedPlayerDeckName.c_str(), SCREEN_WIDTH_F * (236.0f / 480.0f), SCREEN_HEIGHT_F * (8.0f / 272.0f));
             }
             else if (deckmenu && !deckmenu->isClosed()) deckmenu->Render();
+
+            // On-screen "Select" button (bottom-right, left of Back): "Select Deck" on the deck
+            // picker, "Select Opponent" on the opponent chooser.
+            {
+                DeckMenu* activeMenu = (deckmenu && !deckmenu->isClosed()) ? deckmenu
+                                     : ((opponentMenu && !opponentMenu->isClosed()) ? opponentMenu : NULL);
+                if (activeMenu && (!popupScreen || popupScreen->isClosed()) && (!menu || menu->isClosed()))
+                {
+                    string selLabel = (activeMenu == deckmenu) ? _("Select Deck") : _("Select Opponent");
+                    JRenderer * sr = JRenderer::GetInstance();
+                    float sx, sy, sw2, sh;
+                    getDuelSetupSelectRect(selLabel.c_str(), sx, sy, sw2, sh);
+                    float iw = sw2 - 10.0f, ih = sh - 10.0f;
+                    sr->FillRoundRect(sx + 1, sy + 1, iw, ih, 5.0f, ARGB(220, 5, 5, 5));
+                    sr->FillRoundRect(sx, sy, iw, ih, 5.0f, ARGB(255, 140, 23, 23));
+                    sr->DrawRoundRect(sx, sy, iw, ih, 5.0f, ARGB(255, 5, 5, 5));
+                    mFont->SetScale(1.0f);
+                    mFont->SetColor(ARGB(255, 255, 255, 255));
+                    mFont->DrawString(selLabel.c_str(), sx + 4.0f, sy + 2.0f);
+                }
+            }
 
             // On-screen Back button (bottom-left) on the deck/opponent chooser screens.
             if (((deckmenu && !deckmenu->isClosed()) || (opponentMenu && !opponentMenu->isClosed()))

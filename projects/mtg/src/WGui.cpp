@@ -26,14 +26,25 @@ PIXEL_TYPE WGuiBase::getColor(int type)
         // Trophy-Room dark palette: dark blue-grey rows, near-white labels, warm focus.
         switch (type)
         {
+        // Aligned with the app's UITheme design tokens so the Options screen matches the deck/
+        // shop/opponent screens: near-white labels (no gold accent), the same blue selection
+        // highlight, and the dark "glass" panel fill for rows.
         case WGuiColor::SCROLLBUTTON: return ARGB(220, 180, 190, 205);
         case WGuiColor::SCROLLBAR:    return ARGB(120, 40, 46, 56);
-        case WGuiColor::TEXT_BODY:    return ARGB(255, 232, 236, 244);
-        case WGuiColor::BACK_HEADER:  return ARGB(235, 30, 36, 46);
+        case WGuiColor::TEXT_BODY:    return ARGB(255, 240, 240, 245);  // kTextPrimary
+        case WGuiColor::BACK_HEADER:  return ARGB(255, 30, 34, 44);     // kTitleFill
+        // The tab BAR keeps its selected-tab highlight (this is separate from the per-row
+        // highlight, which is intentionally flat): the active tab gets the blue fill + white label.
+        case WGuiColor::BACK_TAB:
+            return hasFocus() ? ARGB(230, 52, 70, 104) : ARGB(210, 22, 25, 32);
+        case WGuiColor::TEXT_TAB:
+            return hasFocus() ? ARGB(255, 255, 255, 255) : ARGB(255, 198, 204, 214);
         default:
-            if (type < WGuiColor::BACK) // text colours
-                return hasFocus() ? ARGB(255, 255, 232, 150) : ARGB(255, 232, 236, 244);
-            return hasFocus() ? ARGB(240, 36, 50, 68) : ARGB(220, 20, 24, 30); // row backgrounds
+            if (type < WGuiColor::BACK) // labels: uniform near-white, no per-row focus emphasis
+                return ARGB(255, 236, 240, 246);
+            // row backgrounds: uniform dark panel fill — no per-row focus highlight on the Options
+            // settings tabs (the User tab is the custom Profiles manager and draws its own rows).
+            return ARGB(224, 16, 18, 24);
         }
     }
     switch (type)
@@ -713,7 +724,10 @@ bool WGuiButton::CheckUserInput(JButton key)
 
 PIXEL_TYPE WGuiButton::getColor(int type)
 {
-    if (type == WGuiColor::BACK && hasFocus()) return it->getColor(WGuiColor::BACK_HEADER);
+    // In the Options dark palette, don't give focused buttons a lighter fill (no focus highlight,
+    // to match the flat non-highlighted settings rows). Other contexts keep the focus highlight.
+    extern bool gWGuiDarkList;
+    if (!gWGuiDarkList && type == WGuiColor::BACK && hasFocus()) return it->getColor(WGuiColor::BACK_HEADER);
     return it->getColor(type);
 }
 ;

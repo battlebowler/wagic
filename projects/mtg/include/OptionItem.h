@@ -228,6 +228,7 @@ public:
     virtual void Entering(JButton key);
     virtual void Reload();
     virtual void Render();
+    virtual float getHeight(); // compact: fit the avatar + name + a few stat lines
     virtual void initSelections();
     virtual void confirmChange(bool confirmed);
     virtual void updateValue();

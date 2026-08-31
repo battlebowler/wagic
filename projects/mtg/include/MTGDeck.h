@@ -33,6 +33,7 @@ public:
     void count(MTGCard * c);
 
     int totalCards();
+    bool hasFoils(); // can cards in this set be foil? (foil era: 1999+, or 1998 for promo/small sets)
     string getName();
     string getOrderIndex();
     string getDate();
