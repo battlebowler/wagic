@@ -1,33 +1,15 @@
-# Wagic (Android Fork)
+# Wagic (battlebowler mod)
 
-This repository is a modernized fork of Wagic, the Homebrew, focused exclusively on Android development.
+This repository is a modernized fork of Wagic, the Homebrew, focused exclusively on a touch-first Wagic experience for Android. This mod has the following features:
 
----
-
-## Overview
-
-The original Wagic project supports multiple legacy platforms and build systems. This fork is intended to streamline the build pipeline for Android development and migrate the build system to Android Studio/Gradle.
-
----
-
-## Goals
-
-- Deprecate non-Android platforms (PSP, iOS, desktop, legacy ports)
-- Replace legacy build systems with a modern Gradle-based pipeline
-- Simplify project structure for easier development and debugging
-- Remove/replace outdated dependencies where possible
-- Keep the game and card logic up-to-date with main Wagic repo
-
----
-
-## Vision
-
-This fork aims to transform Wagic into a clean, maintainable, and extensible Android codebase.
-
-The long-term goal:
-- Easier feature development
-- Improved performance and stability
-- Integration into automated build pipelines
+- Touch-first UI with more predictable touch behavior
+- 16:9 rendering for all of Wagic and it's assets
+- Per-profile themes and a dedicated profile manager
+- Reworked shop economy with set rarity and pricing by age/size, single-card promo packs
+- Booster pack art variants in the shop
+- Added foil cards, per-set booster art with historical foil-era rules
+- Trophy Room as a collection browser with set completion progress
+- Many in-game quality-of-life, targeting cancel, untap mana, user stack zones and cards enlarged for touch
 
 ---
 
@@ -44,4 +26,4 @@ The long-term goal:
 1. Open the Android subproject in Android Studio (wagic\projects\mtg\Android)
 2. Allow Gradle to sync  
 3. Select a device or emulator  
-4. Run the `Wagic` module
+4. Run the `Wagic` module (debug or release)
