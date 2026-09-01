@@ -90,7 +90,7 @@ void GuiAvatars::Activate(PlayGuiObject* c)
     else if ((selfGraveyard == c) || (selfExile == c) || (selfCommandZone == c) || (selfSideboard == c) || (selfLibrary == c) || (self == c))
     {
         selfLibrary->alpha = selfGraveyard->alpha = selfExile->alpha = selfCommandZone->alpha = selfSideboard->alpha = 230.0f;
-        self->zoom = 1.0f;
+        self->zoom = 1.2f; // match the opponent avatar's active size
         active = self;
     }
     if (opponent != c && self != c)
@@ -127,7 +127,7 @@ void GuiAvatars::Deactivate(PlayGuiObject* c)
         selfLibrary->alpha = selfGraveyard->alpha = selfExile->alpha = selfCommandZone->alpha = selfSideboard->alpha = 0.0f;
         selfLibrary->mHasFocus = selfGraveyard->mHasFocus = selfExile->mHasFocus =
             selfCommandZone->mHasFocus = selfSideboard->mHasFocus = self->mHasFocus = false;
-        self->zoom = 0.5f;
+        self->zoom = 0.9f; // never shrink the player avatar; keep it the same size as the opponent
         active = NULL;
     }
 }

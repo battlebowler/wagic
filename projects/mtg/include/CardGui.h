@@ -36,7 +36,7 @@ protected:
     static void RenderBig(MTGCard * card, const Pos& pos, bool thumb = false, bool noborder = false, bool gdv = false, bool foil = false);
 
     static void RenderCountersBig(MTGCard * card, const Pos& pos, int drawMode = DrawMode::kNormal);
-    static void AlternateRender(MTGCard * card, const Pos& pos);
+    static void AlternateRender(MTGCard * card, const Pos& pos, bool foil = false);
     static void TinyCropRender(MTGCard * card, const Pos& pos, JQuad * quad, bool foil = false);
     static string FormattedData (string data, string replace, string value);
     static bool FilterCard (MTGCard * card,string filter);

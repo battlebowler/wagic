@@ -142,6 +142,8 @@ GameState(parent, "duel")
 
     cnogmenu = NULL;
     tournament = new Tournament();
+    tournamentSelection = false;
+    mTournamentMsgTimer = 0.0f;
     premadeDeck = false;
     game = NULL;
     deckmenu = NULL;
@@ -416,7 +418,11 @@ void GameStateDuel::ConstructOpponentMenu()
             }
             else
             {
-                opponentMenu->Add(MENUITEM_START_TOURNAMENT,"Begin Tournament",(std::string("Stop selection and start.")+tournament->exportTournamentDescription()).c_str());
+                // "Begin Tournament" is NOT a list row here: on the touch UI it lives as its own
+                // bottom-row button (see Render/Update). As a list row it stole focus and a stray
+                // "Add Opponent" tap fired it with too few decks, silently re-showing the same
+                // screen (the "infinite loop"). Every remaining row here is an add-opponents action,
+                // so the primary button reads "Add Opponent" and can never trap.
                 if (tournament->getTournamentMode()==TOURNAMENTMODES_KO || tournament->getTournamentMode()==TOURNAMENTMODES_DOUBLEKO)
                 {
                     opponentMenu->Add(MENUITEM_FILL_NEXT_STAGE_HARD,"Fill stage (Not easy)",_("Fill next stage with random hard or normal opponents. 1 opponent -> 1 stage, 3 opponents -> 2 stages, 7 opponents -> 3 stages, 15 opponents -> 4 stages, 31 opponents -> 5 stages, 63 opponents -> 6 stages, 127 opponents -> 7 stages, 255 opponents -> 8 stages.").c_str());
@@ -543,6 +549,27 @@ static void getDuelSetupSelectRect(const char* label, float& x, float& y, float&
     y = SCREEN_HEIGHT_F * UITheme::kBottomButtonRowYFrac; // shared bottom button row
 }
 
+// On-screen "Begin (N)" button, shown only during tournament opponent-selection. Sits immediately
+// left of the "Add Opponent" button (which itself sits left of Back). Tapping it starts the
+// tournament (or flashes a hint if too few opponents have been added).
+static void getDuelSetupBeginRect(const char* beginLabel, const char* selectLabel, float& x, float& y, float& w, float& h)
+{
+    WFont * f = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+    float sw = 60.0f, fh = 16.0f;
+    if (f)
+    {
+        f->SetScale(1.0f);
+        sw = f->GetStringWidth(beginLabel);
+        fh = f->GetHeight();
+    }
+    w = (sw - 3.0f) + 10.0f;
+    h = (fh - 4.0f) + 10.0f;
+    float ax, ay, aw, ah;
+    getDuelSetupSelectRect(selectLabel, ax, ay, aw, ah);
+    x = ax - SCREEN_WIDTH_F * (8.0f / 480.0f) - w; // immediately left of "Add Opponent"
+    y = SCREEN_HEIGHT_F * UITheme::kBottomButtonRowYFrac;
+}
+
 void GameStateDuel::Update(float dt)
 {
     // On-screen Back button on the deck/opponent chooser (touch): step back one screen
@@ -566,14 +593,41 @@ void GameStateDuel::Update(float dt)
             return;
         }
 
+        // "Begin (N)" button: only during tournament opponent-selection. Its own button (not a list
+        // row) so a stray confirm can never fire it. Starts the tournament when enough opponents are
+        // added; otherwise flashes a hint instead of silently re-showing the same screen.
+        if (opponentMenu && !opponentMenu->isClosed() && tournamentSelection)
+        {
+            int opponentsAdded = (int)tournament->getNumberofTournamentDecks() - 1; // [0] is the player
+            if (opponentsAdded < 0) opponentsAdded = 0;
+            char beginLbl[32];
+            sprintf(beginLbl, "%s (%d)", _("Begin").c_str(), opponentsAdded);
+            float gx, gy, gw, gh;
+            getDuelSetupBeginRect(beginLbl, _("Add Opponent").c_str(), gx, gy, gw, gh);
+            int gcx = -1, gcy = -1;
+            if (mEngine->GetLeftClickCoordinates(gcx, gcy) &&
+                gcx >= gx && gcx <= gx + gw && gcy >= gy && gcy <= gy + gh)
+            {
+                mEngine->ResetInput();
+                if (tournament->getNumberofTournamentDecks() > 2)
+                    ButtonPressed(DUEL_MENU_CHOOSE_OPPONENT, MENUITEM_START_TOURNAMENT);
+                else
+                    mTournamentMsgTimer = 2.5f; // "add at least 2 opponents" hint
+                return;
+            }
+        }
+
         // "Select" button: confirm the focused row without hunting the list. Deck picker =>
-        // "Select Deck", opponent chooser => "Select Opponent" (the two menus are exclusive).
+        // "Select Deck", opponent chooser => "Select Opponent" (or "Add Opponent" while building a
+        // tournament roster, where every list row is an add-opponents action). The two menus are
+        // exclusive.
         {
             DeckMenu* activeMenu = (deckmenu && !deckmenu->isClosed()) ? deckmenu
                                  : ((opponentMenu && !opponentMenu->isClosed()) ? opponentMenu : NULL);
             if (activeMenu)
             {
-                string selLabel = (activeMenu == deckmenu) ? _("Select Deck") : _("Select Opponent");
+                string selLabel = (activeMenu == deckmenu) ? _("Select Deck")
+                                : (tournamentSelection ? _("Add Opponent") : _("Select Opponent"));
                 float sx, sy, sw2, sh;
                 getDuelSetupSelectRect(selLabel.c_str(), sx, sy, sw2, sh);
                 int scx = -1, scy = -1;
@@ -590,6 +644,7 @@ void GameStateDuel::Update(float dt)
             }
         }
     }
+    if (mTournamentMsgTimer > 0.0f) mTournamentMsgTimer -= dt;
     switch (mGamePhase)
     {
     case DUEL_STATE_ERROR_NO_DECK:
@@ -1361,13 +1416,16 @@ void GameStateDuel::Render()
             else if (deckmenu && !deckmenu->isClosed()) deckmenu->Render();
 
             // On-screen "Select" button (bottom-right, left of Back): "Select Deck" on the deck
-            // picker, "Select Opponent" on the opponent chooser.
+            // picker, "Select Opponent" on the opponent chooser ("Add Opponent" when building a
+            // tournament roster).
             {
                 DeckMenu* activeMenu = (deckmenu && !deckmenu->isClosed()) ? deckmenu
                                      : ((opponentMenu && !opponentMenu->isClosed()) ? opponentMenu : NULL);
                 if (activeMenu && (!popupScreen || popupScreen->isClosed()) && (!menu || menu->isClosed()))
                 {
-                    string selLabel = (activeMenu == deckmenu) ? _("Select Deck") : _("Select Opponent");
+                    bool tourneyPick = (activeMenu == opponentMenu) && tournamentSelection;
+                    string selLabel = (activeMenu == deckmenu) ? _("Select Deck")
+                                    : (tourneyPick ? _("Add Opponent") : _("Select Opponent"));
                     JRenderer * sr = JRenderer::GetInstance();
                     float sx, sy, sw2, sh;
                     getDuelSetupSelectRect(selLabel.c_str(), sx, sy, sw2, sh);
@@ -1378,6 +1436,42 @@ void GameStateDuel::Render()
                     mFont->SetScale(1.0f);
                     mFont->SetColor(ARGB(255, 255, 255, 255));
                     mFont->DrawString(selLabel.c_str(), sx + 4.0f, sy + 2.0f);
+
+                    // Tournament roster: dedicated "Begin (N)" button + a status/instruction line.
+                    if (tourneyPick)
+                    {
+                        int opponentsAdded = (int)tournament->getNumberofTournamentDecks() - 1; // [0] = player
+                        if (opponentsAdded < 0) opponentsAdded = 0;
+                        bool ready = tournament->getNumberofTournamentDecks() > 2; // player + >=2 opponents
+                        char beginLbl[32];
+                        sprintf(beginLbl, "%s (%d)", _("Begin").c_str(), opponentsAdded);
+                        float gx, gy, gw, gh;
+                        getDuelSetupBeginRect(beginLbl, selLabel.c_str(), gx, gy, gw, gh);
+                        float giw = gw - 10.0f, gih = gh - 10.0f;
+                        // Green when ready to start, muted grey-green when more opponents are needed.
+                        PIXEL_TYPE beginFill = ready ? ARGB(255, 30, 120, 44) : ARGB(255, 60, 70, 60);
+                        sr->FillRoundRect(gx + 1, gy + 1, giw, gih, 5.0f, ARGB(220, 5, 5, 5));
+                        sr->FillRoundRect(gx, gy, giw, gih, 5.0f, beginFill);
+                        sr->DrawRoundRect(gx, gy, giw, gih, 5.0f, ARGB(255, 5, 5, 5));
+                        mFont->SetScale(1.0f);
+                        mFont->SetColor(ready ? ARGB(255, 255, 255, 255) : ARGB(255, 180, 180, 180));
+                        mFont->DrawString(beginLbl, gx + 4.0f, gy + 2.0f);
+
+                        // Instruction / feedback line just above the button row.
+                        string hint;
+                        if (mTournamentMsgTimer > 0.0f)
+                        {
+                            mFont->SetColor(ARGB(255, 255, 120, 120));
+                            hint = _("Add at least 2 opponents, then Begin.");
+                        }
+                        else
+                        {
+                            mFont->SetColor(ARGB(255, 230, 230, 235));
+                            hint = ready ? _("Tap Begin to start, or add more opponents.")
+                                         : _("Add opponents to the tournament, then Begin.");
+                        }
+                        mFont->DrawString(hint.c_str(), 6.0f, gy - mFont->GetHeight() - 2.0f);
+                    }
                 }
             }
 

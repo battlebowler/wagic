@@ -257,66 +257,33 @@ void GuiGameZone::Render()
         quad->SetColor(ARGB((int)(actA),255,240,255));
     }
     
-    //overlay — the zone icons never change, so retrieve each ONCE and cache it. Previously
-    // every zone re-fetched all six icons EVERY frame (60 lookups/frame across the rail),
-    // which was a big chunk of the duel render cost (GuiAvatars ~30ms/frame).
-    static JQuadPtr s_iconcard, s_iconhand, s_iconlibrary, s_iconexile, s_iconcommandzone, s_iconsideboard;
-    if (!s_iconcard)        s_iconcard        = WResourceManager::Instance()->RetrieveTempQuad("iconcard.png");
-    if (!s_iconhand)        s_iconhand        = WResourceManager::Instance()->RetrieveTempQuad("iconhand.png");
-    if (!s_iconlibrary)     s_iconlibrary     = WResourceManager::Instance()->RetrieveTempQuad("iconlibrary.png");
-    if (!s_iconexile)       s_iconexile       = WResourceManager::Instance()->RetrieveTempQuad("iconexile.png");
-    if (!s_iconcommandzone) s_iconcommandzone = WResourceManager::Instance()->RetrieveTempQuad("iconcommandzone.png");
-    if (!s_iconsideboard)   s_iconsideboard   = WResourceManager::Instance()->RetrieveTempQuad("iconsideboard.png");
-    JQuadPtr iconcard = s_iconcard, iconhand = s_iconhand, iconlibrary = s_iconlibrary;
-    JQuadPtr iconexile = s_iconexile, iconcommandzone = s_iconcommandzone, iconsideboard = s_iconsideboard;
-
-    if(iconlibrary && type == GUI_LIBRARY)
+    // Zone icon. Fetched once per zone INSTANCE and cached in mIcon (see the header note): a
+    // function-local `static` here survived across games, so after swiping back to the menu it kept
+    // pointing at the previous game's freed/reused texture — the stale white box / "weird card image"
+    // on the very next game. Instances are recreated per game, so mIcon is naturally fresh. Retry
+    // while the texture is still absent (art may not be uploaded yet at game start).
+    if (!mIcon || !mIcon->mTex)
     {
-        scale2 = defaultHeight / iconlibrary->mHeight;
-        modx = -0.f;
-        mody = -2.f;
-        iconlibrary->SetColor(ARGB((int)(actA),255,255,255));
-        quad = iconlibrary;
+        const char* iconFile = NULL;
+        switch (type)
+        {
+            case GUI_LIBRARY:      iconFile = "iconlibrary.png";     break;
+            case GUI_OPPONENTHAND: iconFile = "iconhand.png";        break;
+            case GUI_GRAVEYARD:    iconFile = "iconcard.png";        break;
+            case GUI_EXILE:        iconFile = "iconexile.png";       break;
+            case GUI_COMMANDZONE:  iconFile = "iconcommandzone.png"; break;
+            case GUI_SIDEBOARD:    iconFile = "iconsideboard.png";   break;
+            default: break;
+        }
+        if (iconFile) mIcon = WResourceManager::Instance()->RetrieveTempQuad(iconFile);
     }
-    if(iconhand && type == GUI_OPPONENTHAND)
+    if (mIcon && mIcon->mTex)
     {
-        scale2 = defaultHeight / iconhand->mHeight;
+        scale2 = defaultHeight / mIcon->mHeight;
         modx = -0.f;
         mody = -2.f;
-        iconhand->SetColor(ARGB((int)(actA),255,255,255));
-        quad = iconhand;       
-    }
-    if(iconcard && type == GUI_GRAVEYARD)
-    {
-        scale2 = defaultHeight / iconcard->mHeight;
-        modx = -0.f;
-        mody = -2.f;
-        iconcard->SetColor(ARGB((int)(actA),255,255,255));
-        quad = iconcard;
-    }
-    if(iconexile && type == GUI_EXILE)
-    {
-        scale2 = defaultHeight / iconexile->mHeight;
-        modx = -0.f;
-        mody = -2.f;
-        iconexile->SetColor(ARGB((int)(actA),255,255,255));
-        quad = iconexile;
-    }
-    if(iconcommandzone && type == GUI_COMMANDZONE)
-    {
-        scale2 = defaultHeight / iconcommandzone->mHeight;
-        modx = -0.f;
-        mody = -2.f;
-        iconcommandzone->SetColor(ARGB((int)(actA),255,255,255));
-        quad = iconcommandzone;
-    }
-    if(iconsideboard && type == GUI_SIDEBOARD)
-    {
-        scale2 = defaultHeight / iconsideboard->mHeight;
-        modx = -0.f;
-        mody = -2.f;
-        iconsideboard->SetColor(ARGB((int)(actA),255,255,255));
-        quad = iconsideboard;
+        mIcon->SetColor(ARGB((int)(actA),255,255,255));
+        quad = mIcon;
     }
 
     if(type == GUI_LIBRARY && zone->nb_cards && !showCards)
@@ -367,9 +334,12 @@ void GuiGameZone::Render()
         height = bh;
     }
 
-    //render small card quad — but only a REAL zone icon or top-card, never the generic
-    // card-back fallback (which would fill the button white).
-    if(quad && quad.get() != genericQuad.get())
+    //render small card quad — but only a REAL, TEXTURED zone icon or top-card. Skip it when the
+    // quad is the generic card-back fallback OR its texture hasn't loaded (a missing icon in a
+    // custom core pack, or art not yet uploaded at game/rematch start). A textureless quad renders
+    // as a solid white box, often with stale garbage pixels — the "white stack with a weird card
+    // image inside". Better to show just the grey button until a real texture is available.
+    if(quad && quad->mTex && quad.get() != genericQuad.get())
     {
         JRenderer::GetInstance()->RenderQuad(quad.get(), actX+modx, actY+mody, 0.0, scale2 * actZ, scale2 * actZ);
     }

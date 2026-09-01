@@ -112,7 +112,7 @@ bool CardGui::UsesWhiteBorder(MTGCard * card)
     string sn = setlist[card->setId].c_str();
     bool oldWhite = (sn=="2ED"||sn=="RV"||sn=="4ED"||sn=="5ED"||sn=="6ED"||sn=="7ED"||sn=="8ED"||
                      sn=="9ED"||sn=="S00"||sn=="S99"||sn=="PTK"||sn=="BTD"||sn=="ATH"||sn=="BRB"||
-                     sn=="CHR"||sn=="DM");
+                     sn=="CHR"||sn=="DM"||sn=="PSAL");
     return oldWhite && !options[Options::BLKBORDER].number;
 }
 
@@ -273,6 +273,20 @@ void CardGui::Render()
     else
         quad = AlternateThumbQuad(card);
 
+    // Face-down morph: show the single morph.jpg as the card image, never the real card underneath
+    // (the engine sets name="Morph"/isMorphed but keeps the real mtgid, so RetrieveCard would leak
+    // the real art). Substituting the quad HERE means the normal scale + border path below frames it
+    // correctly and identically everywhere; no separate overlay/scale math needed.
+    if (card && (card->isMorphed || card->morphed || card->name == "Morph"))
+    {
+        JQuadPtr mq = game ? game->getResourceManager()->RetrieveTempQuad("morph.jpg")
+                           : WResourceManager::Instance()->RetrieveTempQuad("morph.jpg");
+        // Center the hotspot: RetrieveTempQuad returns a top-left-anchored quad, but cards are drawn
+        // centered on (actX,actY). Without this the morph art draws offset down-right of the centered
+        // border, leaving the backing exposed as a dark box up-left of it.
+        if (mq && mq->mTex) { mq->SetHotSpot(mq->mTex->mWidth / 2.0f, mq->mTex->mHeight / 2.0f); quad = mq; alternate = false; }
+    }
+
     float cardScale = quad ? (kSmallCardArtH * kCardScale) / quad->mHeight : 1;
     //I want the below for melded cards but I dont know how to adjust everything else
     //to look neat and clean. leaving this here incase someone else wants to pretty up the p/t box
@@ -371,11 +385,10 @@ void CardGui::Render()
         {
             if(game)
             {
-                if(card->has(Constants::PAYZERO) ||
-                    ((card->has(Constants::CANPLAYFROMGRAVEYARD) || card->has(Constants::TEMPFLASHBACK) || card->getManaCost()->getFlashback() || card->getManaCost()->getRetrace()) && game->isInGrave(card)) ||
-                    (((card->has(Constants::FORETELL) && card->foretellTurn > -1 && game->turn > card->foretellTurn) || card->has(Constants::CANPLAYFROMEXILE)) && game->isInExile(card)))
-                    fakeborder->SetColor(ARGB((int)(actA),7,235,7)); //green border
-                else if(card->isCommander)
+                // (Removed the green "castable from graveyard/exile" affordance border — flashback,
+                // retrace, foretell, play-from-exile, pay-zero — per the no-targeting-highlights pass.
+                // These cards now just show their normal white/black border.)
+                if(card->isCommander)
                     fakeborder->SetColor(ARGB((int)(actA),255,255,255)); //white border for commanders
                 else
                 {
@@ -385,14 +398,26 @@ void CardGui::Render()
                                         cardsetname == "8ED" || cardsetname == "9ED" || cardsetname == "S00" ||
                                         cardsetname == "S99" || cardsetname == "PTK" || cardsetname == "BTD" ||
                                         cardsetname == "ATH" || cardsetname == "BRB" || cardsetname == "CHR" ||
-                                        cardsetname == "DM") && !options[Options::BLKBORDER].number;
+                                        cardsetname == "DM"  || cardsetname == "PSAL") && !options[Options::BLKBORDER].number;
                     fakeborder->SetColor(whiteBorder ? ARGB((int)(actA),248,248,255) : ARGB((int)(actA),15,15,15));
                 }
             }
             else
                 fakeborder->SetColor(ARGB((int)(actA),15,15,15));
 
-            renderer->RenderQuad(fakeborder.get(), actX, actY, actT, (29 * actZ + 1) / kPSPScale, 42 * actZ / kPSPScale);
+            // Size the border to the ACTUAL card art plus a uniform margin, instead of the old fixed
+            // 29x42 aspect (which left the top/bottom margin ~2x the left/right one — unnoticeable
+            // when the border sprite was soft and small, but an obvious lopsided fuzzy frame once
+            // in-play cards were enlarged, kSmallCardArtH 38 -> 44). Rendered with NEAREST filtering
+            // so the edge is crisp rather than the soft fringe the stretched sprite otherwise shows;
+            // restored to LINEAR right after so the card art below stays smoothly filtered. actT still
+            // rotates the quad, so tapped cards keep a correctly-rotated border.
+            float bMargin = 1.3f * kCardScale * actZ;
+            float bW = scale * quad->mWidth  + 2.0f * bMargin;
+            float bH = scale * quad->mHeight + 2.0f * bMargin;
+            renderer->EnableTextureFilter(false);
+            renderer->RenderQuad(fakeborder.get(), actX, actY, actT, bW / fakeborder->mWidth, bH / fakeborder->mHeight);
+            renderer->EnableTextureFilter(true);
         }
         //draw border for highlighting
         if (game)
@@ -469,6 +494,10 @@ void CardGui::Render()
         if (CardView* cv = dynamic_cast<CardView*>(this))
             if (cv->owner == CardView::handZone && !mHasFocus)
                 showName = false;
+        // Face-down morphs are the morph image, not a floating name. (Normally morph.jpg is the quad
+        // so this whole alternate branch is skipped; this only matters if morph.jpg failed to load.)
+        if (card->name == "Morph" || card->isMorphed || card->morphed)
+            showName = false;
 
         if (showName)
         {
@@ -497,16 +526,8 @@ void CardGui::Render()
         }
 
     }
-    JQuadPtr mor;
-    if((card->isMorphed||(card->name == "Morph" && card->isACopier)) && !alternate)
-    {
-        mor = card->getObserver()->getResourceManager()->RetrieveTempQuad("morph.jpg");
-        if (mor &&  mor->mTex) {
-            mor->SetHotSpot(static_cast<float> (mor->mTex->mWidth / 2), static_cast<float> (mor->mTex->mHeight / 2));
-            mor->SetColor(ARGB(255,255,255,255));
-            renderer->RenderQuad(mor.get(), actX, actY, actT,scale, scale);
-        }
-    }
+    // (Morph art is now the card image itself — substituted into `quad` above — so there is no
+    // separate morph overlay here anymore.)
 
     //draw line
     if (game)
@@ -779,7 +800,7 @@ JQuadPtr CardGui::AlternateThumbQuad(MTGCard * card)
     return q;
 }
 
-void CardGui::AlternateRender(MTGCard * card, const Pos& pos)
+void CardGui::AlternateRender(MTGCard * card, const Pos& pos, bool foil)
 {
     // Draw the "unknown" card model
     JRenderer * renderer = JRenderer::GetInstance();
@@ -824,6 +845,15 @@ void CardGui::AlternateRender(MTGCard * card, const Pos& pos)
         //end
         renderer->RenderQuad(q.get(), x, pos.actY, pos.actT, scale, scale);
     }
+
+    // Foil sheen for a foil card that has no art image: shimmer the frame so it still reads as foil.
+    // (The art path applies the sheen over the picture; this is the text-fallback equivalent, drawn
+    // under the rules text so the text stays legible.)
+    if (foil)
+        renderFoilSheen(renderer, pos.actX, pos.actY,
+                        0.5f * pos.actZ * kAltCardWidth / kFoilOverlayScale,
+                        0.5f * pos.actZ * kAltCardHeight / kFoilOverlayScale,
+                        pos.actT, pos.actA / 255.0f);
 
     vector<ModRulesRenderCardGuiItem *>Carditems = gModRules.cardgui.renderbig;
 
@@ -1289,6 +1319,16 @@ void CardGui::RenderBig(MTGCard* card, const Pos& pos, bool thumb, bool noborder
         quad = thumb ? WResourceManager::Instance()->RetrieveCardToken(tcard, RETRIEVE_THUMB, 1, abs(kcard->copiedID))
                      : WResourceManager::Instance()->RetrieveCardToken(tcard, RETRIEVE_NORMAL, 1, abs(kcard->copiedID));
     }
+    // Face-down morph: show morph.jpg as the card image (never the real card underneath) and let the
+    // normal path below handle scale + border, so the big preview matches the in-play card. Mirrors
+    // the substitution in Render().
+    if (kcard && (kcard->isMorphed || kcard->morphed || kcard->name == "Morph") && game)
+    {
+        JQuadPtr mq = game->getResourceManager()->RetrieveTempQuad("morph.jpg");
+        // Center the hotspot (RetrieveTempQuad is top-left-anchored) so the art lines up with the
+        // centered border instead of drawing offset — see the matching note in Render().
+        if (mq && mq->mTex) { mq->SetHotSpot(mq->mTex->mWidth / 2.0f, mq->mTex->mHeight / 2.0f); quad = mq; }
+    }
     if (quad.get() && myA)
     {
         if (quad->mHeight < quad->mWidth)
@@ -1394,9 +1434,10 @@ void CardGui::RenderBig(MTGCard* card, const Pos& pos, bool thumb, bool noborder
 
     //DebugTrace("Unable to fetch image: " << card->getImageName());
 
-    // If we come here, we do not have the picture.
+    // If we come here, we do not have the picture. (Face-down morphs are handled above by
+    // substituting morph.jpg into `quad`, so they take the normal image path, not this fallback.)
     if(myA)
-        AlternateRender(card, pos);
+        AlternateRender(card, pos, foil);
 }
 
 string CardGui::FormattedData(string data, string replace, string value)

@@ -626,15 +626,19 @@ void Credits::Render()
 
     float y = 130;
 
+    // Left inset so the results clear a front-camera hole-punch on the left edge (landscape).
+    // The primary result message is centered; the detail lines are inset to match.
+    const float lx = SCREEN_WIDTH_F * (30.0f / 480.0f);
+
     if (showMsg == 1)
         y = 50;
     vector<CreditBonus *>::iterator it;
     for (it = bonus.begin(); it < bonus.end(); ++it)
     {
-        (*it)->Render(10, y, f3);
+        (*it)->Render(lx, y, f3);
         y += 12;
     }
-    f2->DrawString(buffer, 10, y);
+    f2->DrawString(buffer, SCREEN_WIDTH_F / 2, y, JGETEXT_CENTER);
     y += 15;
 
     //!!
@@ -642,12 +646,12 @@ void Credits::Render()
     if (mMatch){
         if (mGamesPlayed>0){
             sprintf(buffer, _("Games Won: %i of %i (%i %%)").c_str(), mGamesWon,mGamesPlayed, (int)(mGamesWon*100/mGamesPlayed));
-            f->DrawString(buffer, 10, y);
+            f->DrawString(buffer, lx, y);
             y += 10;
         }
         if (value>0 && mGamesPlayed>0){
             sprintf(buffer, _("Credits per game: %i").c_str(), (int) (value / mGamesPlayed));
-            f->DrawString(buffer, 10, y);
+            f->DrawString(buffer, lx, y);
             y += 10;
         }
         showMsg = 0;
@@ -655,17 +659,17 @@ void Credits::Render()
     } else if (mTournament){
         if (mGamesPlayed>0){
             sprintf(buffer, _("Games Won: %i of %i (%i %%)").c_str(),mGamesWon, mGamesPlayed,(int)(mGamesWon*100/mGamesPlayed));
-            f->DrawString(buffer, 10, y);
+            f->DrawString(buffer, lx, y);
             y += 10;
         }
         if (mMatchesPlayed>0){
             sprintf(buffer, _("Matches Won: %i of %i (%i %%)").c_str(),mMatchesWon, mMatchesPlayed,(int)(mMatchesWon*100/mMatchesPlayed));
-            f->DrawString(buffer, 10, y);
+            f->DrawString(buffer, lx, y);
             y += 10;
         }
         if (value>0 && mGamesPlayed>0){
             sprintf(buffer, _("Credits per game: %i").c_str(), (int) (value / mGamesPlayed));
-            f->DrawString(buffer, 10, y);
+            f->DrawString(buffer, lx, y);
             y += 10;
         }
         showMsg = 0;
@@ -673,19 +677,19 @@ void Credits::Render()
     else  if (observer->didWin(p1) && this->gameLength != 0)
     {
         sprintf(buffer, _("Game length: %i turns (%i seconds)").c_str(), observer->turn, this->gameLength);
-        f->DrawString(buffer, 10, y);
+        f->DrawString(buffer, lx, y);
         y += 10;
         sprintf(buffer, _("Credits per minute: %i").c_str(), (int) (60 * value / this->gameLength));
-        f->DrawString(buffer, 10, y);
+        f->DrawString(buffer, lx, y);
         y += 10;
         showMsg = 0;
     }
 
     if (showMsg == 1)
     {
-        f2->DrawString(_("There's more!").c_str(), 10, y + 15);
-        f->DrawString(_("Mods, additional cards, updates and more at:").c_str(), 10, y + 30);
-        f2->DrawString("Discord and GitHub: Wagic game", 10, y + 42);
+        f2->DrawString(_("There's more!").c_str(), lx, y + 15);
+        f->DrawString(_("Mods, additional cards, updates and more at:").c_str(), lx, y + 30);
+        f2->DrawString("Discord and GitHub: Wagic game", lx, y + 42);
     }
 
 }

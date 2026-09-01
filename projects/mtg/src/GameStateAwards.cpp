@@ -156,7 +156,7 @@ GameStateAwards::GameStateAwards(GameApp* parent) :
     GameState(parent, "trophies"),
     listview(NULL), detailview(NULL), setSrc(NULL), menu(NULL),
     showMenu(false), saveMe(false), mState(STATE_LISTVIEW), mDetailItem(0),
-    mTab(TAB_CARDS), mDetailSel(0), mAchvFocus(0), mAchvDescScroll(0.0f), mScrollPx(0.0f), mDragLastY(-9999.0f)
+    mTab(TAB_CARDS), mDetailSel(0), mAchvFocus(0), mAchvDescScroll(0.0f), mFoilMode(false), mScrollPx(0.0f), mDragLastY(-9999.0f)
 {
 
 }
@@ -259,6 +259,11 @@ void GameStateAwards::renderTabBar()
     const char * labels[3] = { "Sets", "Trophies", "Stats" };
     for (int i = 0; i < 3; i++)
         drawTabButton(tabX(i), kTabY, kTabVisW, kTabVisH, labels[i], mTab == i);
+
+    // Foil filter toggle (only while viewing a set's card list): flips the list to show foil
+    // ownership so you can see which foils you own vs are still missing.
+    if (mTab == TAB_CARDS && mState == STATE_DETAILS)
+        drawTabButton(SCREEN_WIDTH_F - kTabVisW - 12.0f, kTabY, kTabVisW, kTabVisH, "Foil", mFoilMode);
 }
 
 // Returns true if a tap on the tab bar was consumed.
@@ -268,6 +273,17 @@ bool GameStateAwards::handleTopBarTap(int cx, int cy)
     // registers instead of falling through to the content underneath.
     if (cy < 0 || cy > kTabY + kTabVisH + 4)
         return false;
+
+    // Foil filter toggle (only while viewing a set's card list).
+    if (mTab == TAB_CARDS && mState == STATE_DETAILS)
+    {
+        float fx = SCREEN_WIDTH_F - kTabVisW - 12.0f;
+        if (cx >= fx && cx <= fx + kTabVisW)
+        {
+            mFoilMode = !mFoilMode;
+            return true;
+        }
+    }
 
     for (int i = 0; i < 3; i++)
     {
@@ -615,17 +631,18 @@ void GameStateAwards::renderSetDetail()
         if (ry >= bottom) break;
 
         float barH = kRowH - 4.0f;
-        bool owned = mDetailRows[i].second;
-        bool foil = (i < (int) mDetailFoil.size()) && mDetailFoil[i];
+        bool ownedRegular = mDetailRows[i].second;
+        bool ownedFoil = (i < (int) mDetailFoil.size()) && mDetailFoil[i];
+        // In Foil mode the list is coloured by FOIL ownership (own the foil = bright, missing = grey);
+        // otherwise by regular ownership with a gold "(foil)" tag marking an owned foil copy.
+        bool owned = mFoilMode ? ownedFoil : ownedRegular;
         bool sel = (i == mDetailSel);
         r->FillRect(listX, ry, listW, barH, ARGB(205, sel ? 40 : 18, sel ? 52 : 22, sel ? 70 : 28));
         r->DrawRect(listX, ry, listW, barH, ARGB(120, 130, 130, 130));
         float ty = ry + (barH - fh) * 0.5f;
-        // Name coloured by REGULAR ownership (white = own the normal copy, grey = missing), so
-        // the normal copy still reads as owned; a gold "(foil)" tag then marks the owned foil copy.
-        f->SetColor(owned ? ARGB(255, 240, 240, 240) : ARGB(255, 96, 96, 96));
+        f->SetColor(owned ? (mFoilMode ? ARGB(255, 255, 226, 140) : ARGB(255, 240, 240, 240)) : ARGB(255, 96, 96, 96));
         f->DrawString(mDetailRows[i].first, listX + 5, ty);
-        if (foil)
+        if (!mFoilMode && ownedFoil)
         {
             float nameW = f->GetStringWidth(mDetailRows[i].first.c_str());
             f->SetColor(ARGB(255, 255, 210, 90));
@@ -656,7 +673,8 @@ void GameStateAwards::renderSetDetail()
         float actZ = cardH / (250.0f * kcs);                // RenderBig card height = actZ*250*kCardScale
 
         Pos pos(pcx, pcy, actZ, 0.0f, 255.0f);
-        bool isFoil = (mDetailSel < (int) mDetailFoil.size()) && mDetailFoil[mDetailSel];
+        // In Foil mode always preview the card as a foil (so you can see the foil you're missing).
+        bool isFoil = mFoilMode || ((mDetailSel < (int) mDetailFoil.size()) && mDetailFoil[mDetailSel]);
         // Force the in-game card border on for the preview regardless of the player's SHOWBORDER
         // setting, then restore it. DrawCard(kNormal) is the public path into RenderBig, which now
         // draws the universal card frame (rounded outer corners, squared interior, white/black by

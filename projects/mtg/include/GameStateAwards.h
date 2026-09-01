@@ -39,6 +39,7 @@ private:
     std::vector<std::string> mAchvImage;                      // parallel to mAchv: trophy image filename ("" = none)
     int mAchvFocus;                                           // Trophies tab: which trophy's image is previewed
     float mAchvDescScroll;                                    // auto-scroll offset for a long focused description
+    bool mFoilMode;                                           // Sets tab: show foil ownership (owned foil vs missing)
     std::vector<std::pair<std::string, bool> > mDetailRows;   // set detail: (card name, owned?)
     std::vector<MTGCard*> mDetailCards;                        // parallel card ptrs (for preview)
     std::vector<bool> mDetailFoil;                             // parallel: owned as foil?

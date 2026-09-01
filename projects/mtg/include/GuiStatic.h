@@ -52,6 +52,10 @@ public:
     MTGGameZone * zone;
     CardDisplay * cd;
     int showCards;
+    // This zone's icon, fetched once per INSTANCE (not a function-local static — those survive across
+    // games and end up pointing at freed/reused textures after you return to the menu, which is the
+    // stale white-box on the next game). Instances are recreated per game, so this stays fresh.
+    JQuadPtr mIcon;
     virtual void Render();
     virtual bool Contains(float px, float py) const;
     virtual bool CheckUserInput(JButton key);

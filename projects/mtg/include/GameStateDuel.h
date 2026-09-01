@@ -197,6 +197,7 @@ private:
      void setAISpeed();
      Tournament* tournament;
      bool tournamentSelection;
+     float mTournamentMsgTimer;   // >0 while a transient "need more opponents" hint is shown
 /////// End Tournament Mod ///////////
 
     bool premadeDeck;
