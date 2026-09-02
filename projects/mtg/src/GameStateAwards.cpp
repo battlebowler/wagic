@@ -452,9 +452,7 @@ void GameStateAwards::buildAchievements()
         {
             mAchv.push_back(std::make_pair(award->getValue("name"), award->getValue("trophyroom_text")));
             mAchvEarned.push_back(award->isUnlocked());
-            // Per-award trophy art follows the "trophy_unlocked_<id>" convention (e.g. trophy_unlocked_TPR).
-            std::string id = award->getValue("id");
-            mAchvImage.push_back(id.empty() ? std::string("") : ("trophy_unlocked_" + id + ".png"));
+            mAchvImage.push_back(award->getValue("unlock_img"));
         }
     }
 
@@ -463,6 +461,12 @@ void GameStateAwards::buildAchievements()
         std::string(twin ? "Unlocked" : "Win with the same army size")));
     mAchvEarned.push_back(twin);
     mAchvImage.push_back("eviltwin_unlocked.png");
+
+    bool commander = options[Options::COMMANDER_MODE_UNLOCKED].number != 0;
+    mAchv.push_back(std::make_pair(std::string("Commander Mode"),
+        std::string(commander ? "Unlocked" : "Unlock Commander Mode")));
+    mAchvEarned.push_back(commander);
+    mAchvImage.push_back("commander_unlocked.png");
 
     bool rnd = options[Options::RANDOMDECK_MODE_UNLOCKED].number != 0;
     mAchv.push_back(std::make_pair(std::string("Random Deck Mode"),
