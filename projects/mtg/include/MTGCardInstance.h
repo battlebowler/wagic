@@ -115,6 +115,10 @@ public:
     bool isBestowed;
     bool isFacedown;
     int chooseacolor;
+    bool chooseacolorTransient; // true when chooseacolor was set to PRODUCE mana (per-tap, e.g. a
+                                // filter/enchanted land): the color marker dot should clear once that
+                                // mana is gone (pool empties). Left false for permanent color choices
+                                // ("as this enters, choose a color") which must keep chooseacolor.
     string chooseasubtype;
     string chooseaname;
     int coinSide;//1 = tails

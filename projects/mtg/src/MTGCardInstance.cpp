@@ -274,6 +274,7 @@ void MTGCardInstance::initMTGCI()
     dredge = 0;
     zpos = 0;
     chooseacolor = -1;
+    chooseacolorTransient = false;
     chooseasubtype = "";
     chooseaname = "";
     coinSide = -1;

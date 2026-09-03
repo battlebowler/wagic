@@ -3486,8 +3486,19 @@ GenericChooseTypeColorName::~GenericChooseTypeColorName()
 }
 int AASetColorChosen::resolve()
 {
-    MTGCardInstance * _target =  (MTGCardInstance *)target; 
+    MTGCardInstance * _target =  (MTGCardInstance *)target;
     _target->chooseacolor = color;
+    // Flag this as a TRANSIENT color choice (per-tap mana production) so the color-marker dot clears
+    // once that mana leaves the pool (see AARemoveMana). This is true only when the altered ability is
+    // a plain "add{chosencolor}" mana producer — e.g. "{T}:add{chosencolor}". It must stay FALSE for
+    // lasting color characteristics ("chooseacolor transforms((...)) forever", "teach(...)"), which
+    // keep chooseacolor for their whole life — even though those can embed add{chosencolor} inside a
+    // transforms/newability block, hence the explicit exclusions.
+    _target->chooseacolorTransient =
+        (abilityToAlter.find("add{chosencolor}") != string::npos
+         && abilityToAlter.find("transforms") == string::npos
+         && abilityToAlter.find("teach") == string::npos
+         && abilityToAlter.find("forever") == string::npos);
 
     if(abilityToAlter.size())
     {
@@ -6915,6 +6926,24 @@ int AARemoveMana::resolve()
                 }
                 else
                     manaPool->Empty();
+
+                // The pool just fully emptied at a phase/step boundary, so any per-tap "chosen color
+                // for mana" is now spent/gone. Clear that transient marker (and its dot) on this
+                // player's permanents. Permanent color choices are never flagged transient, so they
+                // keep their chooseacolor untouched. (Skipped on the doesntEmpty early-returns above,
+                // where mana is deliberately preserved.)
+                if (player->game && player->game->battlefield)
+                {
+                    for (int ci = 0; ci < player->game->battlefield->nb_cards; ci++)
+                    {
+                        MTGCardInstance * bc = player->game->battlefield->cards[ci];
+                        if (bc && bc->chooseacolorTransient)
+                        {
+                            bc->chooseacolor = -1;
+                            bc->chooseacolorTransient = false;
+                        }
+                    }
+                }
             }
         }
         else //remove a "standard" mana Description
