@@ -1148,7 +1148,7 @@ void GameStateShop::Render()
             float y = shopRowY(i);
             bool seld = (i == sel);
             r->FillRect(kShopListX, y, listW, kShopRowH - 2.0f,
-                        seld ? ARGB(215, 70, 55, 25) : ARGB(150, 18, 18, 18));
+                        seld ? ARGB(235, 60, 46, 18) : ARGB(225, 10, 10, 12));
             if (seld)
                 r->DrawRect(kShopListX, y, listW, kShopRowH - 2.0f, ARGB(230, 225, 190, 90));
             mFont->SetColor(seld ? ARGB(255, 255, 240, 150) : ARGB(255, 225, 225, 225));

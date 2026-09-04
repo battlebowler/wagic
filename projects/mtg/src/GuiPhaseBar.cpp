@@ -140,11 +140,21 @@ void GuiPhaseBar::Render()
     phaseNameToTranslate = _(phaseNameToTranslate);
     sprintf(buf, _("(%s%s) %s").c_str(), currentP.c_str(), interrupt.c_str(),phaseNameToTranslate.c_str());
 #if !defined (PSP)
-    if(phaseinfo.get())
+    // Phase banner: a drawn rounded rect sized to the text (top-right), replacing the fakebar.png
+    // texture. It auto-fits the phase string as it changes, and extends past the right edge so only
+    // the LEFT corners read as rounded (matching the old pill that was flush to the screen edge).
+    (void) phaseinfo;
     {
-        float testW = ((font->GetStringWidth(buf))*2) - SCREEN_WIDTH_F;
-        phaseinfo->SetHotSpot(testW + 105.f, 0);
-        JRenderer::GetInstance()->RenderQuad(phaseinfo.get(),0,0,0,SCREEN_WIDTH_F / phaseinfo->mWidth, SCREEN_HEIGHT_F / phaseinfo->mHeight);
+        float tw = font->GetStringWidth(buf);
+        float fh = font->GetHeight();
+        const float rad = 5.0f;
+        const float ry = 2.0f;                            // nudge down so the top stays on-screen
+        float bx = SCREEN_WIDTH_F - 15.0f - tw - 9.0f;   // left edge, padded off the text
+        float visW = (SCREEN_WIDTH_F + 8.0f) - bx;        // run past the right edge
+        float visH = fh + 2.0f;                           // thin: just wraps the text
+        JRenderer * rr = JRenderer::GetInstance();
+        rr->FillRoundRect(bx, ry, visW - 2.0f * rad, visH - 2.0f * rad, rad, ARGB(235, 16, 16, 20));
+        rr->DrawRoundRect(bx, ry, visW - 2.0f * rad, visH - 2.0f * rad, rad, ARGB(255, 176, 148, 84));
     }
 #endif
     font->DrawString(buf, SCREEN_WIDTH - 15, 2, JGETEXT_RIGHT);

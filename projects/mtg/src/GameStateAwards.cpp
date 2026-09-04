@@ -592,9 +592,14 @@ void GameStateAwards::renderAchievements()
                     float s = (pw / tq->mWidth < availH / tq->mHeight) ? pw / tq->mWidth : availH / tq->mHeight;
                     float iw = tq->mWidth * s, ih = tq->mHeight * s;
                     float ix = px0 + (pw - iw) * 0.5f;
+                    // Framed backing square BEHIND the trophy — drawn for locked AND unlocked. The
+                    // trophy art has transparent padding, so without this an unlocked trophy read as
+                    // unframed and sat "lower" than a locked one (whose dim overlay filled the whole
+                    // square). Now both share the same framed footprint.
+                    r->FillRect(ix, y, iw, ih, ARGB(150, 12, 14, 20));
                     r->RenderQuad(tq.get(), ix, y, 0, s, s);
                     bool fEarned = (mAchvFocus < (int) mAchvEarned.size()) ? mAchvEarned[mAchvFocus] : true;
-                    if (!fEarned) r->FillRect(ix, y, iw, ih, ARGB(155, 8, 8, 12));
+                    if (!fEarned) r->FillRect(ix, y, iw, ih, ARGB(155, 8, 8, 12)); // dim overlay when locked
                 }
             }
         }

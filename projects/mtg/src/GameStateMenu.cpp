@@ -15,6 +15,7 @@
 #include "Translate.h"
 #include "DeckStats.h"
 #include "PlayerData.h"
+#include "Tasks.h"
 #include "utils.h"
 #include "WFont.h"
 #include <JLogger.h>
@@ -224,38 +225,19 @@ void GameStateMenu::genNbCardsStr()
 void GameStateMenu::fillScroller()
 {
     scroller->Reset();
-    char buff2[512];
 
-    if (!options[Options::DIFFICULTY_MODE_UNLOCKED].number)
-        scroller->Add(_("Unlock the difficult mode for more challenging duels!"));
-
-    for (map<string, Unlockable *>::iterator it = Unlockable::unlockables.begin(); it !=  Unlockable::unlockables.end(); ++it) {
-        Unlockable * award = it->second;
-        if (!award->isUnlocked())
-        {
-            if (award->getValue("teaser").size())
-                scroller->Add(_(award->getValue("teaser")));
-        }
-    }
-
-    if (!options[Options::RANDOMDECK_MODE_UNLOCKED].number)
-        scroller->Add(_("You haven't unlocked the random deck mode yet"));
-    if (!options[Options::EVILTWIN_MODE_UNLOCKED].number)
-        scroller->Add(_("You haven't unlocked the evil twin mode yet"));
-    if (!options[Options::COMMANDER_MODE_UNLOCKED].number)
-        scroller->Add(_("You haven't unlocked the commander format yet"));
-
-    //Unlocked sets
-    int nbunlocked = 0;
-    for (int i = 0; i < setlist.size(); i++)
+    // Home-screen ticker now shows the player's active task-board tasks (was: unlock teasers / set
+    // counts). TaskList() with no filename loads the current profile's tasks.dat.
+    TaskList tl;
+    int added = 0;
+    for (vector<Task*>::iterator it = tl.tasks.begin(); it != tl.tasks.end(); ++it)
     {
-        if (1 == options[Options::optionSet(i)].number)
-            nbunlocked++;
+        if (!*it) continue;
+        string d = (*it)->getShortDesc();
+        if (d.size()) { scroller->Add(d); added++; }
     }
-    sprintf(buff2, _("You have unlocked %i expansions out of %i").c_str(), nbunlocked, setlist.size());
-    scroller->Add(buff2);
-
-    scroller->Add(_("More cards and mods at http://wololo.net/wagic"));
+    if (added == 0)
+        scroller->Add(_("No active tasks currently."));
 
     scrollerSet = 1;
     scroller->setRandom();

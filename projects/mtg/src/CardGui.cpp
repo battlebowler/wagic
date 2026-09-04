@@ -33,7 +33,9 @@ static float kCardScale = SCREEN_HEIGHT / 272.0f;
 // match (see GuiPlay's kStep / CARD_WIDTH) so cards stay packed border-to-border, and the in-play
 // overlays (border/highlight/masks/shadows) scale via kPSPScale below so the frame keeps tracking
 // the card. Was 38.
-static const float kSmallCardArtH = 44.0f;
+static const float kSmallCardArtH = 50.0f; // Was 38, then 44, briefly 54 (too crowded). If you change
+                                           // this, scale GuiPlay's kStep proportionally
+                                           // (kStep ~= 0.77 * kSmallCardArtH) so rows stay border-to-border.
 
 // kPSPScale converts the small-card overlay sizes in Render (border/highlight/tap masks/shadows,
 // all tuned for the original 38-unit art) into screen units. Folding in the 38/kSmallCardArtH

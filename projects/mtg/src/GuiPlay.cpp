@@ -66,7 +66,7 @@ void GuiPlay::HorzStack::Enstack(CardView* card)
     // re-space (shift) the whole row, which looked jittery/uneven. The step stays tight no
     // matter the count (this is why playing your last card no longer spreads the row out).
     // Only when the row would ACTUALLY overflow the play area do we compress evenly to fit.
-    const float kStep = 34.0f;   // scaled with kSmallCardArtH so the row stays border-to-border
+    const float kStep = 39.0f;   // ~0.77 * kSmallCardArtH (50): keep in sync so rows stay border-to-border
     float avail = SCREEN_WIDTH * 0.82f - baseX; // room from the row's base to the right-edge UI
     if (avail < kStep) avail = kStep;
     if (total <= 1 || (float) total * kStep <= avail)

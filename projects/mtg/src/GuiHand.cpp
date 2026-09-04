@@ -126,7 +126,7 @@ void GuiHandSelf::Repos()
     {
         if (OptionHandDirection::HORIZONTAL == options[Options::HANDDIRECTION].number)
         {
-            float spacing = 35.0f;   // widened with kSmallCardArtH (larger cards)
+            float spacing = 40.0f;   // widened with kSmallCardArtH (larger cards, 50)
 
             // Shift entire hand left by one card width
             float startX = SCREEN_WIDTH - 30.0f - CardGui::Width;
@@ -144,9 +144,9 @@ void GuiHandSelf::Repos()
         }
         else
         {
-            float dist = 208.0f / cards.size();   // widened with kSmallCardArtH (larger cards)
-            if (dist > 23)
-                dist = 23.0;
+            float dist = 236.0f / cards.size();   // widened with kSmallCardArtH (larger cards, 50)
+            if (dist > 26)
+                dist = 26.0;
             else
                 y = 40.0;
 
@@ -170,14 +170,16 @@ void GuiHandSelf::Repos()
             // Push rightmost card left by one card width
             float xPos = SCREEN_WIDTH - 30.0f - cardWidth;
 
-            float dist = 278.0f / cards.size();   // widened with kSmallCardArtH so the open row
-            if (dist > 35)                         // stays border-to-border at the larger card size
-                dist = 35;
+            float dist = 316.0f / cards.size();   // widened with kSmallCardArtH so the open row
+            if (dist > 40)                         // stays border-to-border at the larger card size (50)
+                dist = 40;
             else
                 xPos = SCREEN_WIDTH - 15.0f - cardWidth;
 
-            // Push hand up by HALF card height
-            float yPos = SCREEN_HEIGHT - 30.0f - (cardHeight * 0.5f);
+            // Baseline hand position near the bottom. A FOCUSED card is lifted separately in
+            // GuiHandSelf::Update (so it clears the bottom edge without leaving a big gap under the
+            // rest of the hand).
+            float yPos = SCREEN_HEIGHT - 34.0f - (cardHeight * 0.5f);
 
             for (vector<CardView*>::reverse_iterator it = cards.rbegin(); it != cards.rend(); ++it)
             {
@@ -191,9 +193,9 @@ void GuiHandSelf::Repos()
         }
         else
         {
-            float dist = 259.0f / ((cards.size() + 1) / 2);   // widened with kSmallCardArtH
-            if (dist > 75)
-                dist = 75;
+            float dist = 294.0f / ((cards.size() + 1) / 2);   // widened with kSmallCardArtH (50)
+            if (dist > 85)
+                dist = 85;
 
             bool flip = false;
             for (vector<CardView*>::iterator it = cards.begin(); it != cards.end(); ++it)
@@ -249,6 +251,16 @@ void GuiHandSelf::Update(float dt)
 {
     backpos.Update(dt);
     GuiHand::Update(dt);
+    // Lift the focused (enlarged) card so its zoomed body + P/T box clears the bottom screen edge.
+    // Derived from the card's STABLE target y and its current zoom (actZ animates 1 -> 1.4), so the
+    // card rises smoothly and both the render AND the tap hit-test (CardGui::Contains uses actY)
+    // stay in sync. Only the focused card moves; the rest of the hand keeps its baseline position.
+    for (vector<CardView*>::iterator it = cards.begin(); it != cards.end(); ++it)
+    {
+        CardView* cv = *it;
+        if (cv && cv->actZ > 1.05f)
+            cv->actY = cv->y - (cv->actZ - 1.0f) * 40.0f;
+    }
 }
 
 void GuiHandSelf::Render()

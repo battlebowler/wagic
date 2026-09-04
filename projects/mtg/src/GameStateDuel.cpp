@@ -402,6 +402,10 @@ void GameStateDuel::ConstructOpponentMenu()
         {
             if (!tournamentSelection)
             {
+                // Random first — it's the most-used pick, so keep it at the top of the list.
+                opponentMenu->Add(MENUITEM_RANDOM_AI, "Random");
+                if (mParent->players[0] ==  PLAYER_TYPE_HUMAN)
+                   opponentMenu->Add(MENUITEM_RANDOM_AI_HARD, "Random (Not easy)",_("Selects a random AI deck with hard or normal difficulty.").c_str());
                 if (!tournament->isGauntlet())
                 {
                     if (mParent->players[0] ==  PLAYER_TYPE_HUMAN){
@@ -412,9 +416,6 @@ void GameStateDuel::ConstructOpponentMenu()
                 }
                 if (mParent->players[0] ==  PLAYER_TYPE_CPU)
                     opponentMenu->Add(MENUITEM_GAUNTLET,"Gauntlet",_("Prove your mettle against each and every opponent, one at a time.").c_str());
-                opponentMenu->Add(MENUITEM_RANDOM_AI, "Random");
-                if (mParent->players[0] ==  PLAYER_TYPE_HUMAN)
-                   opponentMenu->Add(MENUITEM_RANDOM_AI_HARD, "Random (Not easy)",_("Selects a random AI deck with hard or normal difficulty.").c_str());
             }
             else
             {
@@ -688,8 +689,22 @@ void GameStateDuel::Update(float dt)
         /* The next state displays the "Choose number of games" menu
         and waits for input. (PSY) */
     case DUEL_STATE_CHOOSE_NUMBER_OF_GAMES:
+    {
+        // Standard on-screen Back button (bottom-right): backs out to the main menu, same as the
+        // menu's "Cancel" row. Checked before the menu's own Update so the tap isn't double-handled.
+        int bcx = -1, bcy = -1;
+        float bx, by, bw, bh;
+        getDuelSetupBackRect(bx, by, bw, bh);
+        if (cnogmenu && mEngine->GetLeftClickCoordinates(bcx, bcy) &&
+            bcx >= bx && bcx <= bx + bw && bcy >= by && bcy <= by + bh)
+        {
+            mEngine->ResetInput();
+            ButtonPressed(DUEL_MENU_CHOOSE_NUMBER_OF_GAMES, CNOGMENU_ITEM_CANCEL);
+            break;
+        }
         cnogmenu->Update(dt);
         break;
+    }
 
         // The next state waits until cnogmenu is fully closed
     case DUEL_STATE_CNOGMENU_IS_CLOSING:
@@ -1384,6 +1399,20 @@ void GameStateDuel::Render()
      case DUEL_STATE_CANCEL_CNOGMENU:
         if (cnogmenu)
             cnogmenu->Render();
+        // Standard red-pill Back button (bottom-right) on the "How many games per match?" screen.
+        if (mGamePhase == DUEL_STATE_CHOOSE_NUMBER_OF_GAMES && cnogmenu)
+        {
+            JRenderer * br = JRenderer::GetInstance();
+            float bx, by, bw, bh;
+            getDuelSetupBackRect(bx, by, bw, bh);
+            float iw = bw - 10.0f, ih = bh - 10.0f;
+            br->FillRoundRect(bx + 1, by + 1, iw, ih, 5.0f, ARGB(220, 5, 5, 5));
+            br->FillRoundRect(bx, by, iw, ih, 5.0f, ARGB(255, 140, 23, 23));
+            br->DrawRoundRect(bx, by, iw, ih, 5.0f, ARGB(255, 5, 5, 5));
+            mFont->SetScale(1.0f);
+            mFont->SetColor(ARGB(255, 255, 255, 255));
+            mFont->DrawString(_("Back"), bx + 4.0f, by + 2.0f);
+        }
         break;
 
     case DUEL_STATE_CHOOSE_DECK1:
