@@ -56,6 +56,7 @@ enum DECK_VIEWER_MENU_ITEMS
     MENU_ITEM_NO = 21,
     MENU_ITEM_FILTER_BY = 22,
     MENU_ITEM_TOGGLE_VIEW = 23,
+    MENU_ITEM_SET_AVATAR = 24,
     MENUITEM_MORE_INFO = kInfoMenuID
 };
 
@@ -102,6 +103,15 @@ private:
     bool isAIDeckSave;
     bool mSwitching;
     bool mPendingSell;
+
+    // Per-deck avatar picker (full-screen scrollable grid overlay). Assigns #AVATAR: to the deck.
+    bool mAvatarPicker;
+    float mAvatarScrollPx;   // smooth pixel scroll offset for the avatar grid
+    float mAvatarDragLastY;  // last drag Y for scroll delta (< -9000 = idle)
+    std::vector<std::string> mAvatarFiles; // available avatar filenames (enumerated on open)
+    void openAvatarPicker();     // enumerate avatars + show the overlay
+    bool updateAvatarPicker(float dt); // handle taps/scroll while the overlay is up (true = consumed)
+    void renderAvatarPicker();   // draw the overlay
 
     enum AvailableView{
         CAROUSEL_VIEW,

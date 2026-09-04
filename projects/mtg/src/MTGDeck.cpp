@@ -901,6 +901,7 @@ MTGDeck::MTGDeck(MTGAllCards * _allcards)
     database = _allcards;
     filename = "";
     meta_name = "";
+    meta_avatar = "";
     meta_commander = false;
 }
 
@@ -963,6 +964,12 @@ MTGDeck::MTGDeck(const string& config_file, MTGAllCards * _allcards, int meta_on
                 if (found != string::npos)
                 {
                     meta_unlockRequirements = s.substr(found + 7);
+                    continue;
+                }
+                found = s.find("AVATAR:"); // player-chosen avatar image for this deck (e.g. avatar42.jpg)
+                if (found != string::npos)
+                {
+                    meta_avatar = trim(s.substr(found + 7));
                     continue;
                 }
                 found = s.find("FOIL:");
@@ -1424,6 +1431,11 @@ int MTGDeck::save(const string& destFileName, bool useExpandedDescriptions, cons
                 found = desc.find_first_of("\n");
             }
             file << "#DESC:" << desc << "\n";
+        }
+
+        if (meta_avatar.size())
+        {
+            file << "#AVATAR:" << meta_avatar << "\n";
         }
 
         bool saveDetailedDeckInfo = options.get( Options::SAVEDETAILEDDECKINFO )->number == 1;

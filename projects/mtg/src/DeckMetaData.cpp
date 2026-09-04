@@ -39,7 +39,9 @@ void DeckMetaData::LoadDeck()
 
         mDeckLoaded = true;
         if (!mIsAI)
-            mAvatarFilename = "avatar.jpg";
+            // Use the deck's own chosen avatar (#AVATAR: in the deck file) when set; otherwise the
+            // default player avatar. See the Deck Editor "Set Avatar" picker.
+            mAvatarFilename = trim(deck.meta_avatar).size() ? trim(deck.meta_avatar) : "avatar.jpg";
         else
         {
             ostringstream avatarFilename;

@@ -161,7 +161,9 @@ Player * Player::opponent()
 HumanPlayer::HumanPlayer(GameObserver *observer, string file, string fileSmall, bool isPremade, MTGDeck * deck) :
     Player(observer, file, fileSmall, deck)
 {
-    mAvatarName = "avatar.jpg";
+    // Use the deck's own chosen avatar (#AVATAR:, set via the Deck Editor "Set Avatar" picker) for
+    // the in-duel player portrait; fall back to the default when the deck hasn't set one.
+    mAvatarName = (mDeck && mDeck->meta_avatar.size()) ? mDeck->meta_avatar : "avatar.jpg";
     playMode = MODE_HUMAN;
     premade = isPremade;
     // Foils are applied once from GameObserver::startGame, after the deck is finalized and

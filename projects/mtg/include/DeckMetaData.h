@@ -58,6 +58,7 @@ public:
     // setters
     void setColorIndex(const string& colorIndex);
     void setDeckName( const string& newDeckTitle );
+    void setAvatarFilename( const string& filename ) { mAvatarFilename = filename; }
     void Invalidate();
 
     string mStatsFilename;

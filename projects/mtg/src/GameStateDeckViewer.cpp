@@ -91,6 +91,9 @@ GameStateDeckViewer::GameStateDeckViewer(GameApp* parent) :
     isAIDeckSave = false;
     mSwitching = false;
     mPendingSell = false;
+    mAvatarPicker = false;
+    mAvatarScrollPx = 0.0f;
+    mAvatarDragLastY = -9999.0f;
     welcome_menu = NULL;
     myCollection = NULL;
     myDeck = NULL;
@@ -274,6 +277,7 @@ void GameStateDeckViewer::buildEditorMenu()
     deckMenu->Add(MENU_ITEM_FILTER_BY, _("Filter By..."), _("Narrow down the list of cards. "));
     deckMenu->Add(MENU_ITEM_SWITCH_DECKS_NO_SAVE, _("Switch Decks"), _("No changes. View another deck."));
     deckMenu->Add(MENU_ITEM_SAVE_RENAME, _("Rename Deck"), _("Change the name of the deck"));
+    deckMenu->Add(MENU_ITEM_SET_AVATAR, _("Set Avatar"), _("Choose this deck's avatar image."));
     deckMenu->Add(MENU_ITEM_SAVE_RETURN_MAIN_MENU, _("Save & Quit Editor"), _("Save changes. Return to the main menu"));
     deckMenu->Add(MENU_ITEM_SAVE_AS_AI_DECK, _("Save As AI Deck"), _("All changes are final."));
     deckMenu->Add(MENU_ITEM_MAIN_MENU, _("Quit Editor"), _("No changes. Return to the main menu."));
@@ -596,6 +600,158 @@ void GameStateDeckViewer::saveDeck()
     pricelist->save();
 }
 
+// ============================ Per-deck avatar picker ============================
+// Full-screen scrollable grid of the theme's avatar images. Tapping one assigns it to the deck
+// (#AVATAR:, persisted on Save & Quit) and updates the live display. Reuses the same touch
+// drag-scroll pattern as the Trophy Room.
+
+static const int kAvCols = 8;                                   // avatars per row
+static float kAvTop()    { return SCREEN_HEIGHT_F * (30.0f / 272.0f); }        // below the title bar
+static float kAvMargin() { return SCREEN_WIDTH_F  * (8.0f  / 480.0f); }
+static float kAvCellW()  { return (SCREEN_WIDTH_F - 2.0f * kAvMargin()) / kAvCols; }
+static float kAvCellH()  { return kAvCellW() * (50.0f / 37.0f) + 4.0f; }       // avatar aspect + gap
+static void  getAvatarBackRect(float& x, float& y, float& w, float& h)
+{
+    w = SCREEN_WIDTH_F * (52.0f / 480.0f);
+    h = SCREEN_HEIGHT_F * (20.0f / 272.0f);
+    x = SCREEN_WIDTH_F - kAvMargin() - w;
+    y = SCREEN_HEIGHT_F * (5.0f / 272.0f);
+}
+
+void GameStateDeckViewer::openAvatarPicker()
+{
+    if (!myDeck || !myDeck->parent) return;
+    // Enumerate available avatars once. "avatar.jpg" (the default) goes first, then avatar1..N.
+    mAvatarFiles.clear();
+    mAvatarFiles.push_back("avatar.jpg");
+    for (int i = 1; i <= 300; i++)
+    {
+        char name[32];
+        sprintf(name, "avatar%d.jpg", i);
+        if (FileExists(WResourceManager::Instance()->avatarFile(name)))
+            mAvatarFiles.push_back(name);
+    }
+    mAvatarScrollPx = 0.0f;
+    mAvatarDragLastY = -9999.0f;
+    mAvatarPicker = true;
+    mEngine->ResetInput();
+}
+
+bool GameStateDeckViewer::updateAvatarPicker(float dt)
+{
+    // Back / cancel closes the picker without changing the avatar.
+    if (mEngine->GetButtonClick(JGE_BTN_MENU) || mEngine->GetButtonClick(JGE_BTN_CANCEL) || mEngine->GetButtonClick(JGE_BTN_SEC))
+    {
+        mAvatarPicker = false;
+        mEngine->ResetInput();
+        return true;
+    }
+
+    const float top = kAvTop(), cellW = kAvCellW(), cellH = kAvCellH(), margin = kAvMargin();
+    int rows = ((int)mAvatarFiles.size() + kAvCols - 1) / kAvCols;
+    float gridH = SCREEN_HEIGHT_F - top - 4.0f;
+    float maxScroll = rows * cellH - gridH;
+    if (maxScroll < 0.0f) maxScroll = 0.0f;
+
+    // Drag to scroll (content follows the finger 1:1).
+    bool dragged = false;
+    int dgx = 0, dgy = 0;
+    if (mEngine->GetDragCoordinates(dgx, dgy))
+    {
+        if (mAvatarDragLastY > -9000.0f)
+            mAvatarScrollPx -= (float)(dgy - mAvatarDragLastY);
+        mAvatarDragLastY = (float)dgy;
+        dragged = true;
+    }
+    else
+        mAvatarDragLastY = -9999.0f;
+    if (mAvatarScrollPx < 0.0f) mAvatarScrollPx = 0.0f;
+    if (mAvatarScrollPx > maxScroll) mAvatarScrollPx = maxScroll;
+
+    // Tap: Back button, or an avatar cell.
+    int cx = -1, cy = -1;
+    if (!dragged && mEngine->GetLeftClickCoordinates(cx, cy))
+    {
+        float bx, by, bw, bh;
+        getAvatarBackRect(bx, by, bw, bh);
+        if (cx >= bx && cx <= bx + bw && cy >= by && cy <= by + bh)
+        {
+            mAvatarPicker = false;
+            mEngine->ResetInput();
+            return true;
+        }
+        if (cy >= top && cx >= margin && cx <= SCREEN_WIDTH_F - margin)
+        {
+            int col = (int)((cx - margin) / cellW);
+            int row = (int)((cy - top + mAvatarScrollPx) / cellH);
+            int idx = row * kAvCols + col;
+            if (col >= 0 && col < kAvCols && idx >= 0 && idx < (int)mAvatarFiles.size())
+            {
+                // Assign in memory (written to #AVATAR: on Save & Quit) and refresh the cached
+                // metadata so the deck screens show it right away.
+                myDeck->parent->meta_avatar = mAvatarFiles[idx];
+                DeckMetaData* md = DeckManager::GetInstance()->getDeckMetaDataById(myDeck->parent->meta_id, false);
+                if (md) md->setAvatarFilename(mAvatarFiles[idx]);
+                mAvatarPicker = false;
+                mEngine->ResetInput();
+                return true;
+            }
+        }
+    }
+    return true;
+}
+
+void GameStateDeckViewer::renderAvatarPicker()
+{
+    JRenderer* r = JRenderer::GetInstance();
+    WFont* font = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+
+    // Dim the editor behind, then a title bar.
+    r->FillRect(0, 0, SCREEN_WIDTH_F, SCREEN_HEIGHT_F, ARGB(225, 8, 10, 14));
+    r->FillRect(0, 0, SCREEN_WIDTH_F, kAvTop() - 2.0f, ARGB(255, 30, 34, 42));
+    font->SetScale(1.0f);
+    font->SetColor(ARGB(255, 240, 240, 245));
+    font->DrawString(_("Choose Avatar").c_str(), kAvMargin(), SCREEN_HEIGHT_F * (7.0f / 272.0f));
+
+    // Back button (top-right).
+    {
+        float bx, by, bw, bh;
+        getAvatarBackRect(bx, by, bw, bh);
+        r->FillRoundRect(bx, by, bw - 10.0f, bh - 10.0f, 5.0f, ARGB(255, 140, 23, 23));
+        r->DrawRoundRect(bx, by, bw - 10.0f, bh - 10.0f, 5.0f, ARGB(255, 5, 5, 5));
+        font->SetColor(ARGB(255, 255, 255, 255));
+        font->DrawString(_("Back"), bx + 4.0f, by + 2.0f);
+    }
+
+    const float top = kAvTop(), cellW = kAvCellW(), cellH = kAvCellH(), margin = kAvMargin();
+    const float avW = cellW - 6.0f;
+    const float avH = avW * (50.0f / 37.0f);
+    string current = (myDeck && myDeck->parent && myDeck->parent->meta_avatar.size())
+                     ? myDeck->parent->meta_avatar : "avatar.jpg";
+
+    for (int i = 0; i < (int)mAvatarFiles.size(); i++)
+    {
+        int col = i % kAvCols, row = i / kAvCols;
+        float x = margin + col * cellW;
+        float y = top + row * cellH - mAvatarScrollPx;
+        if (y + cellH < top || y > SCREEN_HEIGHT_F) continue; // cull off-screen (skip loading)
+
+        // Selection highlight.
+        if (mAvatarFiles[i] == current)
+            r->FillRect(x, y, cellW, cellH - 2.0f, ARGB(255, 52, 70, 104));
+
+        JQuadPtr q = WResourceManager::Instance()->RetrieveTempQuad(mAvatarFiles[i], TEXTURE_SUB_AVATAR);
+        if (q && q->mTex)
+        {
+            float s = (avW / q->mWidth < avH / q->mHeight) ? avW / q->mWidth : avH / q->mHeight;
+            q->SetColor(ARGB(255, 255, 255, 255));
+            float ax = x + (cellW - q->mWidth * s) * 0.5f;
+            float ay = y + (cellH - 2.0f - q->mHeight * s) * 0.5f;
+            r->RenderQuad(q.get(), ax, ay, 0.0f, s, s);
+        }
+    }
+}
+
 /**
  save the deck in a readable format to allow people to edit the file offline
  */
@@ -724,7 +880,14 @@ void GameStateDeckViewer::toggleView()
 }
 
 void GameStateDeckViewer::Update(float dt)
-{   
+{
+    // The avatar picker overlay is modal: while it's up it consumes all input and nothing else in
+    // the editor updates.
+    if (mAvatarPicker)
+    {
+        updateAvatarPicker(dt);
+        return;
+    }
     if (options.keypadActive())
     {
         options.keypadUpdate(dt);
@@ -1853,6 +2016,10 @@ void GameStateDeckViewer::Render()
     // (STAGE_MENU), which draw their own bottom buttons instead.
     if (mStage != STAGE_WELCOME && mStage != STAGE_MENU)
         RenderButtons();
+
+    // Drawn last so it sits above everything while active.
+    if (mAvatarPicker)
+        renderAvatarPicker();
 }
 
 int GameStateDeckViewer::loadDeck(int deckid)
@@ -2138,6 +2305,10 @@ void GameStateDeckViewer::ButtonPressed(int controllerId, int controlId)
                 options.keypadStart(myDeck->parent->meta_name, &newDeckname);
                 options.keypadTitle("Rename deck");
             }
+            break;
+
+        case MENU_ITEM_SET_AVATAR:
+            openAvatarPicker();
             break;
 
         case MENU_ITEM_SAVE_AS_AI_DECK:

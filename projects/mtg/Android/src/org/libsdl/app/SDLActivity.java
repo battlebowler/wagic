@@ -116,6 +116,11 @@ public class SDLActivity extends Activity implements OnKeyListener {
     // Admin request codes
     private static final int REQUEST_PICK_ZIP  = 9001;
     private static final int REQUEST_EXPORT_ZIP = 9002;
+    private static final int REQUEST_EXPORT_SAVES_ZIP = 9003;
+
+    // Export Saves Only: just the user's profiles, decks, stats and settings — not the whole User
+    // folder (which also holds downloaded sets/card images/themes). Import restores these in place.
+    private static final String[] SAVES_ONLY_FOLDERS = { "settings", "player", "profiles" };
 
     static {
         System.loadLibrary("SDL");
@@ -182,7 +187,9 @@ public class SDLActivity extends Activity implements OnKeyListener {
         final String[] options = {
                 "Import Data",
                 "Export Data",
+                "Export Saves Only",
                 "Download Cards",
+                "Download Core",
                 "About"
         };
 
@@ -194,13 +201,15 @@ public class SDLActivity extends Activity implements OnKeyListener {
                         switch (which) {
                             case 0: adminPickZip();    break;
                             case 1: adminExportData(); break;
-                            case 2:
+                            case 2: adminExportSavesData(); break;
+                            case 3:
                                 if (availableSets == null) loadAvailableSets();
                                 else if (loadResInProgress) progressBarDialogRes.show();
                                 else if (downloadInProgress) cardDownloader.show();
                                 else downloadCardImages();
                                 break;
-                            case 3: showAbout(); break;
+                            case 4: adminDownloadCore(); break;
+                            case 5: showAbout(); break;
                         }
                     }
                 })
@@ -349,6 +358,78 @@ public class SDLActivity extends Activity implements OnKeyListener {
         }).start();
     }
 
+    // --- Export saves only (settings + player + profiles) ---
+
+    private void adminExportSavesData() {
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.setType("application/zip");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.putExtra(Intent.EXTRA_TITLE, "wagic_saves.zip");
+        try {
+            startActivityForResult(Intent.createChooser(intent, "Save profile & collection as..."), REQUEST_EXPORT_SAVES_ZIP);
+        } catch (android.content.ActivityNotFoundException e) {
+            new AlertDialog.Builder(this)
+                    .setTitle("No file manager found")
+                    .setMessage("Please install a file manager app and try again.")
+                    .setPositiveButton("OK", null)
+                    .show();
+        }
+    }
+
+    private void adminExportSavesZip(final Uri uri) {
+        final ProgressDialog progress = new ProgressDialog(this);
+        progress.setTitle("Exporting saves...");
+        progress.setMessage("Please wait...");
+        progress.setIndeterminate(true);
+        progress.setCancelable(false);
+        progress.show();
+
+        final Handler handler = new Handler();
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String resultMessage;
+                try {
+                    // Base is the User folder so entry paths stay relative to it (settings/..,
+                    // player/.., profiles/..) and Import restores them into the same place.
+                    File sourceDir = new File(getUserStorageLocation());
+                    OutputStream os = getContentResolver().openOutputStream(uri);
+                    ZipOutputStream zos = new ZipOutputStream(os);
+                    int included = 0;
+                    for (String folder : SAVES_ONLY_FOLDERS) {
+                        File sub = new File(sourceDir, folder);
+                        if (sub.exists() && sub.isDirectory()) {
+                            zipDirectory(sourceDir, sub, zos);
+                            included++;
+                        }
+                    }
+                    zos.close();
+                    os.close();
+                    resultMessage = (included > 0)
+                            ? "Saves export completed!\n\nIncluded: settings, player, profiles."
+                            : "Nothing to export: no save folders found.";
+                } catch (Exception e) {
+                    Log.e(TAG, "Admin saves export failed: " + e.getMessage());
+                    resultMessage = "Export failed:\n" + e.getMessage();
+                }
+
+                final String msg = resultMessage;
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        progress.dismiss();
+                        new AlertDialog.Builder(SDLActivity.this)
+                                .setTitle("Export Result")
+                                .setMessage(msg)
+                                .setPositiveButton("OK", null)
+                                .show();
+                    }
+                });
+            }
+        }).start();
+    }
+
     private void zipDirectory(File baseDir, File currentDir, ZipOutputStream zos) throws IOException {
         File[] files = currentDir.listFiles();
         if (files == null) return;
@@ -382,6 +463,8 @@ public class SDLActivity extends Activity implements OnKeyListener {
             adminImportZip(uri);
         } else if (requestCode == REQUEST_EXPORT_ZIP) {
             adminExportZip(uri);
+        } else if (requestCode == REQUEST_EXPORT_SAVES_ZIP) {
+            adminExportSavesZip(uri);
         }
     }
 
@@ -1038,12 +1121,41 @@ public class SDLActivity extends Activity implements OnKeyListener {
                 .create().show();
     }
 
+    // Manual "Download Core" from the Admin Panel: force-refresh the core file on demand. The launch
+    // flow now only downloads a missing/version-changed core, so this is the escape hatch to pull a
+    // fresh core WITHOUT a version bump — e.g. after rebuilding your own core with the same filename.
+    public void adminDownloadCore() {
+        final File coreFile = new File(getSystemStorageLocation() + RES_FILENAME);
+        new AlertDialog.Builder(this)
+                .setTitle("Download Core File")
+                .setMessage("Re-download the core file (" + RES_FILENAME + ")?\n\nThis can be a large download and will replace the installed core.")
+                .setPositiveButton("Download", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        if (coreFile.exists()) coreFile.delete();
+                        FrameLayout layout = new FrameLayout(SDLActivity.this);
+                        setContentView(layout, new LayoutParams(LayoutParams.FILL_PARENT, LayoutParams.FILL_PARENT));
+                        startDownload();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
     public void initializeGame() {
         String coreFileLocation = getSystemStorageLocation() + RES_FILENAME;
         File file = new File(coreFileLocation);
         if (file.exists()) {
-            forceResDownload(file);
+            // The core for THIS version is already installed (RES_FILENAME is version-specific), so
+            // go straight into the game — no download nag. Previously this branch prompted "Do you
+            // want to download latest core file?" on EVERY launch, which was pure noise when the core
+            // was already present. A genuinely newer app build changes RES_FILENAME, so its core will
+            // be missing and hit the download path below. (To force a re-download without a version
+            // bump — e.g. after rebuilding your own core — use Admin Panel -> "Download Core".)
+            mainDisplay();
         } else {
+            // The expected (versioned) core isn't present: a fresh install, or the app was updated to
+            // a newer core version. The game can't run without it, so download it (the progress
+            // dialog shows the download; no extra prompt needed).
             FrameLayout layout = new FrameLayout(this);
             setContentView(layout, new LayoutParams(LayoutParams.FILL_PARENT, LayoutParams.FILL_PARENT));
             startDownload();

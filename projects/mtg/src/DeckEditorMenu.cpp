@@ -70,8 +70,12 @@ void DeckEditorMenu::Render()
         const float avX = ipX + SCREEN_WIDTH_F * (12.0f / 480.0f);
         const float avY = ipY + SCREEN_HEIGHT_F * (12.0f / 272.0f);
 
-        // Player decks all use the generic "avatar.jpg" portrait (see DeckMetaData::LoadDeck).
-        JQuadPtr quad = WResourceManager::Instance()->RetrieveTempQuad("avatar.jpg", TEXTURE_SUB_AVATAR);
+        // Use the deck's own chosen avatar (#AVATAR:) when set, else the default portrait. Read
+        // straight from the live MTGDeck so the "Set Avatar" picker's choice shows immediately in
+        // the editor (no save/reopen needed).
+        string avatarName = (selectedDeck->parent && selectedDeck->parent->meta_avatar.size())
+                            ? selectedDeck->parent->meta_avatar : "avatar.jpg";
+        JQuadPtr quad = WResourceManager::Instance()->RetrieveTempQuad(avatarName, TEXTURE_SUB_AVATAR);
         if (quad.get())
         {
             // Uniform scale keeps the avatar's native aspect (no 16:9 horizontal stretch).

@@ -222,6 +222,7 @@ public:
     map<int, int> foilCount;
     string meta_desc;
     string meta_name;
+    string meta_avatar; // player-chosen avatar image filename for this deck ("" = default avatar.jpg)
     bool meta_commander;
     vector<string> meta_AIHints;
     vector<string> Sideboard;
