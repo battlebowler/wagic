@@ -280,6 +280,7 @@ void GameStateDeckViewer::buildEditorMenu()
     deckMenu->Add(MENU_ITEM_SET_AVATAR, _("Set Avatar"), _("Choose this deck's avatar image."));
     deckMenu->Add(MENU_ITEM_SAVE_RETURN_MAIN_MENU, _("Save & Quit Editor"), _("Save changes. Return to the main menu"));
     deckMenu->Add(MENU_ITEM_SAVE_AS_AI_DECK, _("Save As AI Deck"), _("All changes are final."));
+    deckMenu->Add(MENU_ITEM_DELETE_DECK, _("Delete Deck"), _("Permanently delete this deck."));
     deckMenu->Add(MENU_ITEM_MAIN_MENU, _("Quit Editor"), _("No changes. Return to the main menu."));
     deckMenu->Add(MENU_ITEM_TOGGLE_VIEW, _("Toggle View"), _("Toggle view grid/carousel."));
     // No "Cancel" row: closing the options menu is the on-screen Back button now (STAGE_MENU).
@@ -2311,6 +2312,19 @@ void GameStateDeckViewer::ButtonPressed(int controllerId, int controlId)
             openAvatarPicker();
             break;
 
+        case MENU_ITEM_DELETE_DECK:
+            if (myDeck && myDeck->parent)
+            {
+                char b[300];
+                sprintf(b, _("Delete \"%s\"?").c_str(), myDeck->parent->meta_name.c_str());
+                SAFE_DELETE(subMenu);
+                subMenu = NEW SimpleMenu(JGE::GetInstance(), WResourceManager::Instance(), MENU_DECK_DELETE, this,
+                                         Fonts::MAIN_FONT, SCREEN_WIDTH_F / 2 - 90, SCREEN_HEIGHT_F / 2 - 30, b);
+                subMenu->Add(MENU_ITEM_YES, _("Yes, delete").c_str());
+                subMenu->Add(MENU_ITEM_NO, _("No").c_str(), "", true);
+            }
+            break;
+
         case MENU_ITEM_SAVE_AS_AI_DECK:
             // find the next unused ai deck number
             // warn user that once saved, no edits can be made
@@ -2373,6 +2387,56 @@ void GameStateDeckViewer::ButtonPressed(int controllerId, int controlId)
             subMenu->Close();
             break;
         }
+        break; // end MENU_CARD_PURCHASE (previously fell through to the next case)
+
+        case MENU_DECK_DELETE: // Yes/No confirmation for deleting the edited deck
+        switch (controlId)
+        {
+        case MENU_ITEM_YES:
+            if (myDeck && myDeck->parent)
+            {
+                int n = myDeck->parent->meta_id;
+                DeckManager * dm = DeckManager::GetInstance();
+                JFileSystem * fs = JFileSystem::GetInstance();
+                string dir = options.profileFile();   // "profiles/<name>" or "player" (Default)
+                char rel[400], rel2[400];
+
+                // Delete the deck file AND drop its cached metadata — getDeckMetaDataByFilename
+                // returns the cache first, so without this the deleted deck keeps showing.
+                sprintf(rel, "%s/deck%i.txt", dir.c_str(), n);
+                fs->Remove(rel);
+                dm->DeleteMetaData(rel, false);
+                sprintf(rel, "%s/stats/player_deck%i.txt", dir.c_str(), n);
+                if (fileExists(rel)) fs->Remove(rel);
+
+                // Renumber every later deck down by one so deckN.txt stays contiguous (BuildDeckList
+                // stops at the first gap, and new decks reuse size()+1 which would collide otherwise).
+                for (int i = n + 1; ; i++)
+                {
+                    sprintf(rel, "%s/deck%i.txt", dir.c_str(), i);
+                    if (!fileExists(rel)) break;
+                    sprintf(rel2, "%s/deck%i.txt", dir.c_str(), i - 1);
+                    fs->Rename(rel, rel2);
+                    dm->DeleteMetaData(rel, false);   // drop the stale cache entry for the old name
+                    char s1[400], s2[400];
+                    sprintf(s1, "%s/stats/player_deck%i.txt", dir.c_str(), i);
+                    sprintf(s2, "%s/stats/player_deck%i.txt", dir.c_str(), i - 1);
+                    if (fileExists(s1)) fs->Rename(s1, s2);
+                }
+
+                if (subMenu) subMenu->Close();
+                // Return to the main menu so every screen (deck editor + Play) re-scans from disk on
+                // next entry — the deleted deck is gone everywhere immediately, matching a normal
+                // "Save & Quit" return (an in-session list refresh alone left stale cached copies).
+                mParent->DoTransition(TRANSITION_FADE, GAME_STATE_MENU);
+            }
+            else if (subMenu) subMenu->Close();
+            break;
+        case MENU_ITEM_NO:
+            if (subMenu) subMenu->Close();
+            break;
+        }
+        break;
 
         case SBMENU_CHOICE: // sideboard
         switch (controlId)

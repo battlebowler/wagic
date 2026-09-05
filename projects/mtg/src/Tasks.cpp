@@ -499,17 +499,19 @@ void TaskList::Render()
         r->RenderQuad(mBg[6], 0, vPos + SCREEN_HEIGHT - 64, 0, sW, sH); //BL
         r->RenderQuad(mBg[8], SCREEN_WIDTH - 64, vPos + SCREEN_HEIGHT - 64, 0, sW, sH); //BR
 
-        //Stretch the sides
-        float stretchV = (144.0f / 128.0f) * sH;
-        float stretchH = (176.0f / 128.0f) * sW;
-        r->RenderQuad(mBg[3], 0, vPos + 64, 0, sW, stretchV); //L
-        r->RenderQuad(mBg[5], SCREEN_WIDTH - 64, vPos + 64, 0, sW, stretchV); //R
-        r->RenderQuad(mBg[1], 64, vPos, 0, stretchH, sH); //T1
-        r->RenderQuad(mBg[1], 240, vPos, 0, stretchH, sH); //T1
-        r->RenderQuad(mBg[7], 64, vPos + 208, 0, stretchH, sH); //B1
-        r->RenderQuad(mBg[7], 240, vPos + 208, 0, stretchH, sH); //B1
-        r->RenderQuad(mBg[4], 64, vPos + 64, 0, stretchH, stretchV); //Center1
-        r->RenderQuad(mBg[4], 240, vPos + 64, 0, stretchH, stretchV); //Center2
+        // Proper 9-slice: stretch the edges and center to fill the WHOLE screen. The old code drew
+        // the middle tiles at hardcoded x=64/240 (a ~480-wide PSP assumption), which left a gap on
+        // the right at 16:9 — the "split" board. hScale/vScale stretch a 2-unit tile to the middle
+        // span exactly (see the size math: mBg[1]/[3]/[4] are 2 units on their stretched axis).
+        float midW = (float)(SCREEN_WIDTH - 128);
+        float midH = (float)(SCREEN_HEIGHT - 128);
+        float hScale = midW * sW / 128.0f;
+        float vScale = midH * sH / 128.0f;
+        r->RenderQuad(mBg[1], 64, vPos, 0, hScale, sH);                          //Top edge
+        r->RenderQuad(mBg[7], 64, vPos + SCREEN_HEIGHT - 64, 0, hScale, sH);     //Bottom edge
+        r->RenderQuad(mBg[3], 0, vPos + 64, 0, sW, vScale);                      //Left edge
+        r->RenderQuad(mBg[5], SCREEN_WIDTH - 64, vPos + 64, 0, sW, vScale);      //Right edge
+        r->RenderQuad(mBg[4], 64, vPos + 64, 0, hScale, vScale);                 //Center
 
         f2->SetColor(ARGB(255, 55, 46, 34));
         f = f2;

@@ -835,6 +835,9 @@ public:
     virtual void setModal(bool val);
 
     void setData();
+    // Enlarge every row by a factor (used by the Options screen to give the settings tabs the same
+    // chunky card rows as the User/Profile tab).
+    void scaleItemsHeight(float f) { for (size_t i = 0; i < items.size(); ++i) if (items[i]) items[i]->setHeight(items[i]->getHeight() * f); }
 
 protected:
     virtual void syncMove();

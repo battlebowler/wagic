@@ -623,20 +623,23 @@ void GameStateShop::load()
                             * smallSetPriceMultiplier(si ? si->totalCards() : 0));
         if (mFoilSingle[i]) mPrices[i] *= kFoilPriceMult;
         mCounts[i] = myCollection->countByName(c);
+        // Tightened single-card stock so cards actually run out (you can't spam-buy to complete a
+        // set); more copies of a card require paying the escalating "New Cards" refresh. Basic lands
+        // stay effectively unlimited.
         switch (c->getRarity())
         {
         case Constants::RARITY_C:
-            mInventory[i] = 2 + rand() % 8;
+            mInventory[i] = 2 + rand() % 2;  // commons: 2-3
             break;
         case Constants::RARITY_L:
-            mInventory[i] = 100;
+            mInventory[i] = 100;             // basic lands: unlimited
             break;
         default: //We're using some non-coded rarities (S) in cards.dat.
         case Constants::RARITY_U:
-            mInventory[i] = 1 + rand() % 5;
+            mInventory[i] = 1 + rand() % 2;  // uncommons: 1-2
             break;
         case Constants::RARITY_R:
-            mInventory[i] = 1 + rand() % 2;
+            mInventory[i] = 1;               // rares: 1
             break;
         }
 

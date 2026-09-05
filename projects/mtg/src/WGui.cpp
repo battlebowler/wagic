@@ -42,9 +42,10 @@ PIXEL_TYPE WGuiBase::getColor(int type)
         default:
             if (type < WGuiColor::BACK) // labels: uniform near-white, no per-row focus emphasis
                 return ARGB(255, 236, 240, 246);
-            // row backgrounds: uniform dark panel fill — no per-row focus highlight on the Options
-            // settings tabs (the User tab is the custom Profiles manager and draws its own rows).
-            return ARGB(224, 16, 18, 24);
+            // row backgrounds: match the User tab's profile-card tone (26,30,40) with a touch of
+            // alpha so the wallpaper shows through, for a more cohesive look across the Options tabs.
+            // Still uniform (no per-row focus highlight) — the User tab draws its own richer rows.
+            return ARGB(200, 26, 30, 40);
         }
     }
     switch (type)
@@ -186,9 +187,27 @@ void WDecoStyled::subBack(WGuiBase * item)
     JRenderer * renderer = JRenderer::GetInstance();
     if (mStyle & DS_STYLE_BACKLESS)
         return;
+
+    // Options screen (gWGuiDarkList): draw each row as an INSET CARD — side margins, a gap between
+    // rows, and a blue accent bar on the focused row — to match the User/Profile tab's card look,
+    // instead of edge-to-edge full-width bars. (gWGuiDarkList is set only on the Options screen.)
+    extern bool gWGuiDarkList;
+    if (gWGuiDarkList)
+    {
+        const float m = SCREEN_WIDTH_F * (10.0f / 480.0f);   // side margin
+        const float cx = m;
+        const float cw = SCREEN_WIDTH_F - 2.0f * m;
+        const float cy = item->getY() - 2.0f;
+        const float ch = item->getHeight() - 3.0f;           // small gap between cards
+        bool focused = item->hasFocus();
+        renderer->FillRect(cx, cy, cw, ch, focused ? ARGB(235, 34, 46, 70) : ARGB(220, 22, 26, 34));
+        if (focused)
+            renderer->FillRect(cx, cy, 5.0f, ch, ARGB(255, 92, 152, 236)); // active accent bar
+        return;
+    }
+
     //TODO: if(mStyle & DS_STYLE_EDGED) Draw the edged box ala SimpleMenu
-    else
-    { //Draw standard style
+    {  //Draw standard style
         WGuiSplit * split = dynamic_cast<WGuiSplit*> (item);
         if (split && split->left->Visible() && split->right->Visible())
         {
@@ -277,6 +296,21 @@ void WGuiMenu::subBack(WGuiBase * item)
 {
     if (!item) return;
     JRenderer * renderer = JRenderer::GetInstance();
+
+    // Options screen (gWGuiDarkList, set only there): draw each row as ONE solid inset card that
+    // spans the row, matching the User/Profile tab's card design (solid fill, side margins, a gap
+    // between rows, and a blue accent bar on the focused row) instead of the old full-width bars.
+    extern bool gWGuiDarkList;
+    if (gWGuiDarkList)
+    {
+        const float m = SCREEN_WIDTH_F * (10.0f / 480.0f);   // side margin
+        const float cx = m;
+        const float cw = SCREEN_WIDTH_F - 2.0f * m;
+        const float cy = item->getY();
+        const float ch = item->getHeight() - 4.0f;           // gap between cards
+        renderer->FillRect(cx, cy, cw, ch, ARGB(228, 20, 24, 32)); // flat card, no focus highlight
+        return;
+    }
 
     WGuiSplit * split = dynamic_cast<WGuiSplit*> (item);
     if (split && split->left->Visible() && split->right->Visible())

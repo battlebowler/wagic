@@ -94,7 +94,7 @@ void GuiHandOpponent::Render()
 }
 
 GuiHandSelf::GuiHandSelf(GameObserver* observer, MTGHand* hand) :
-    GuiHand(observer, hand), state(Closed), backpos(ClosedX, SCREEN_HEIGHT - 250, 1.0, 0, 255)
+    GuiHand(observer, hand), state(Closed), mHidden(false), mRowCenterY(SCREEN_HEIGHT_F - 34.0f), backpos(ClosedX, SCREEN_HEIGHT - 250, 1.0, 0, 255)
 {
     limitor = NEW HandLimitor(this);
     if (OptionHandDirection::HORIZONTAL == options[Options::HANDDIRECTION].number)
@@ -121,6 +121,18 @@ GuiHandSelf::~GuiHandSelf()
 void GuiHandSelf::Repos()
 {
     float y = 48.0;
+
+    // Handle-collapsed: park every card off the right edge so it neither draws nor hit-tests,
+    // freeing the battlefield behind the hand. UpdateNow so the tap hit-test sees it immediately.
+    if (mHidden)
+    {
+        for (vector<CardView*>::iterator it = cards.begin(); it != cards.end(); ++it)
+        {
+            (*it)->x = SCREEN_WIDTH + 300.0f;
+            (*it)->UpdateNow();
+        }
+        return;
+    }
 
     if (Closed == state && OptionClosedHand::VISIBLE == options[Options::CLOSEDHAND].number)
     {
@@ -211,6 +223,41 @@ void GuiHandSelf::Repos()
     }
 }
 
+void GuiHandSelf::getHandleRect(float& x, float& y, float& w, float& h) const
+{
+    // A tall vertical bar running along the LEFT side of the hand cards -- the seam between the
+    // battlefield/avatar and where the hand begins -- so it reads as the hand's own grab edge.
+    // Placed from fixed layout constants (not live card x) so it stays put when the hand is
+    // collapsed off-screen.
+    w = SCREEN_WIDTH_F * (14.0f / 480.0f);
+    if (OptionHandDirection::HORIZONTAL == options[Options::HANDDIRECTION].number)
+    {
+        // Hand runs along the bottom edge; drop a vertical bar matching the hand cards' visible
+        // height into the gap between the rightmost hand card and the bottom-right avatar. Wide
+        // enough for two rotated (sideways) text lines: "CLOSE"/"OPEN" and "HAND".
+        // Sit a bit inside the hand cards' top/bottom, centered on the sampled card center.
+        // FillRoundRect draws from y down to y+h+2*radius.
+        w = 32.0f;
+        h = 42.0f;
+        y = mRowCenterY - 23.0f;
+        x = SCREEN_WIDTH_F - 92.0f;
+    }
+    else
+    {
+        // Vertical hand on the right: a tall bar along the hand column's left edge.
+        const float handLeft = LeftRowX - CardGui::Width * 0.5f; // left edge of the hand column
+        x = handLeft - w - 2.0f;
+        y = 40.0f;
+        h = SCREEN_HEIGHT_F - 40.0f - y;
+    }
+}
+
+void GuiHandSelf::ToggleHidden()
+{
+    mHidden = !mHidden;
+    Repos(); // park cards off-screen (hidden) or lay them back out (shown)
+}
+
 bool GuiHandSelf::CheckUserInput(JButton key)
 {
     JButton trigger = (options[Options::REVERSETRIGGERS].number ? JGE_BTN_PREV : JGE_BTN_NEXT);
@@ -261,10 +308,57 @@ void GuiHandSelf::Update(float dt)
         if (cv && cv->actZ > 1.05f)
             cv->actY = cv->y - (cv->actZ - 1.0f) * 40.0f;
     }
+
+    // Sample the row center from a non-enlarged, on-screen card so the handle bar tracks the
+    // cards' exact vertical center (the card frame renders centered on the card's y).
+    if (!mHidden)
+        for (vector<CardView*>::iterator it = cards.begin(); it != cards.end(); ++it)
+            if ((*it) && (*it)->actZ < 1.05f && (*it)->x < SCREEN_WIDTH_F)
+            {
+                mRowCenterY = (*it)->actY; // the card frame renders centered on actY
+                break;
+            }
 }
 
 void GuiHandSelf::Render()
 {
+    // The tap-to-toggle handle is always drawn (on top of the hand / battlefield) so the player
+    // can collapse the hand to reach the cards behind it, then bring it back. No auto-hide.
+    {
+        JRenderer* r = JRenderer::GetInstance();
+        float hx, hy, hw, hh;
+        getHandleRect(hx, hy, hw, hh);
+        // Match the phase bar: dark fill + warm gold outline.
+        r->FillRoundRect(hx, hy, hw - 2.0f, hh, 2.0f, ARGB(235, 16, 16, 20));
+        r->DrawRoundRect(hx, hy, hw - 2.0f, hh, 2.0f, ARGB(255, 176, 148, 84));
+        WFont* hf = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+        if (hf)
+        {
+            // Normal (unrotated) text, two lines stacked and centered in the box.
+            const char* w1 = mHidden ? "Open" : "Close";
+            const char* w2 = "Hand";
+            hf->SetRotation(0.0f);
+            hf->SetScale(1.0f);
+            const float fH = hf->GetHeight();
+            const float longer = MAX(hf->GetStringWidth(w1), hf->GetStringWidth(w2));
+            float sc = (longer > 0.0f) ? ((hw - 4.0f) * 0.9f / longer) : 1.0f;
+            if (sc > 0.85f) sc = 0.85f;
+            hf->SetScale(sc);
+            hf->SetColor(ARGB(255, 220, 230, 245));
+
+            const float lineH = fH * sc;
+            const float cx = hx + (hw - 2.0f) * 0.5f + 2.5f;   // nudge right
+            const float top = hy + (hh - 2.0f * lineH) * 0.5f + 1.0f; // nudge down
+            hf->DrawString(w1, cx, top, JGETEXT_CENTER);
+            hf->DrawString(w2, cx, top + lineH, JGETEXT_CENTER);
+
+            hf->SetScale(1.0f);
+        }
+    }
+
+    if (mHidden)
+        return; // hand collapsed: draw only the handle, nothing else
+
     //Empty hand
     if (state == Open && cards.size() == 0)
     {

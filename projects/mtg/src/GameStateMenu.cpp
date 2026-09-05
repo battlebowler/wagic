@@ -233,7 +233,7 @@ void GameStateMenu::fillScroller()
     for (vector<Task*>::iterator it = tl.tasks.begin(); it != tl.tasks.end(); ++it)
     {
         if (!*it) continue;
-        string d = (*it)->getShortDesc();
+        string d = (*it)->getDesc();          // full task description (not just the short title)
         if (d.size()) { scroller->Add(d); added++; }
     }
     if (added == 0)

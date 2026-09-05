@@ -118,6 +118,19 @@ void DuelLayers::CheckUserInput(int isAI)
                     action->CheckUserInput(phaseTrigger);
                 break;
             }
+            // Hand handle: a tap on the right-edge grip collapses/restores the player's hand.
+            // Checked before card dispatch so it wins over any card the grip overlaps.
+            if (hand && jge->GetLeftClickCoordinates(x, y))
+            {
+                float hgx, hgy, hgw, hgh;
+                hand->getHandleRect(hgx, hgy, hgw, hgh);
+                if (x >= hgx && x <= hgx + hgw && y >= hgy && y <= hgy + hgh)
+                {
+                    jge->LeftClickedProcessed();
+                    hand->ToggleHidden();
+                    break;
+                }
+            }
             if (stack->CheckUserInput(key)) {
                 jge->LeftClickedProcessed();
                 break;

@@ -67,6 +67,7 @@ void GameStateOptions::Start()
     optionsList->Add(NEW WGuiButton(NEW WGuiHeader("Back to Main Menu"), -102, GameStateOptionsConst::kBackToMainMenuID, this));
     optionsList->Add(NEW WGuiButton(NEW WGuiHeader("Save And Exit"), -102, GameStateOptionsConst::kSaveAndBackToMainMenuID, this));
     optionsTabs = NEW WGuiTabMenu();
+    optionsList->scaleItemsHeight(1.4f);
     optionsTabs->Add(optionsList);
 
     optionsList = NEW WGuiList("Misc");
@@ -86,6 +87,7 @@ void GameStateOptions::Start()
     //prefetch
     if(WResourceManager::Instance()->IsThreaded())
         optionsList->Add(NEW OptionInteger(Options::CARDPREFETCHING, "Enable Prefetching"));
+    optionsList->scaleItemsHeight(1.4f);
     optionsTabs->Add(optionsList);
 
     optionsList = NEW WGuiList("Game");
@@ -99,6 +101,7 @@ void GameStateOptions::Start()
     optionsList->Add(NEW OptionInteger(Options::DISABLECARDS, "Disable card images"));
     optionsList->Add(NEW OptionInteger(Options::TRANSITIONS, "Disable screen transitions"));
     optionsList->Add(NEW OptionInteger(Options::OSD, "Display InGame extra information"));
+    optionsList->scaleItemsHeight(1.4f);
     optionsTabs->Add(optionsList);
 
     optionsList = NEW WGuiList("User");
@@ -110,6 +113,7 @@ void GameStateOptions::Start()
     optionsList->Add(NEW WDecoCheat(NEW OptionInteger(Options::OPTIMIZE_HAND, "Optimize Starting Hand")));
     optionsList->Add(NEW WDecoCheat(NEW OptionInteger(Options::CHEATMODEAIDECK, "Unlock All Ai Decks")));
 
+    optionsList->scaleItemsHeight(1.4f);
     optionsTabs->Add(optionsList);
 
     optionsList = NEW WGuiList("Advanced");
@@ -126,6 +130,7 @@ void GameStateOptions::Start()
     WDecoEnum * oASPhases = NEW WDecoEnum(NEW OptionInteger(Options::ASPHASES, "Phase Skip Automation", Constants::ASKIP_FULL, 1,
                     Constants::ASKIP_NONE, "", Constants::ASKIP_NONE));
     optionsList->Add(oASPhases);
+    optionsList->scaleItemsHeight(1.4f);
     optionsTabs->Add(optionsList);
 
     WDecoEnum * oFirstPlayer = NEW WDecoEnum(NEW OptionInteger(Options::FIRSTPLAYER, "First Turn Player", Constants::WHO_R, 1,
@@ -137,10 +142,12 @@ void GameStateOptions::Start()
     optionsList->Add(oKickerPay);
 #ifndef IOS
     optionsList = NEW WGuiKeyBinder("Key Bindings", this);
+    optionsList->scaleItemsHeight(1.4f);
     optionsTabs->Add(optionsList);
 #endif
     optionsList = NEW WGuiList("Credits");
     optionsList->failMsg = "";
+    optionsList->scaleItemsHeight(1.4f);
     optionsTabs->Add(optionsList);
     mCreditsTab = optionsList; // remember it so credits render only on this tab
 
@@ -347,6 +354,15 @@ void GameStateOptions::Render()
         }
         if (pos < -20)
             timer = 0;
+    }
+
+    // Backing panel behind the settings content so every tab reads as the same dark card as the
+    // (nice-looking) User tab, which draws its own panel below. The tab bar sits above PM_TOP and
+    // stays visible; a little alpha lets the wallpaper hint through.
+    if (optionsTabs->Current() != mUserTab)
+    {
+        const float PM_TOP = 32.0f;
+        JRenderer::GetInstance()->FillRect(0, PM_TOP, SCREEN_WIDTH_F, SCREEN_HEIGHT_F - PM_TOP, ARGB(235, 12, 14, 18));
     }
 
     // Render the tabs + active settings list in the Trophy-Room dark palette.

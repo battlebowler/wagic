@@ -138,7 +138,7 @@ void GuiPhaseBar::Render()
     //string phaseNameToTranslate = observer->phaseRing->phaseName(displayedPhaseId%kPhases + 1);
     string phaseNameToTranslate = observer->phaseRing->phaseName(observer->phaseRing->getCurrentPhase()->id);
     phaseNameToTranslate = _(phaseNameToTranslate);
-    sprintf(buf, _("(%s%s) %s").c_str(), currentP.c_str(), interrupt.c_str(),phaseNameToTranslate.c_str());
+    sprintf(buf, _("Turn %i - (%s%s) %s").c_str(), observer->turn, currentP.c_str(), interrupt.c_str(),phaseNameToTranslate.c_str());
 #if !defined (PSP)
     // Phase banner: a drawn rounded rect sized to the text (top-right), replacing the fakebar.png
     // texture. It auto-fits the phase string as it changes, and extends past the right edge so only

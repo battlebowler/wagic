@@ -49,6 +49,8 @@ public:
     virtual float GetStringWidth(const char *s) const = 0;
     // Set font tracking.
     virtual void SetTracking(float tracking) = 0;
+    // Rotate rendered glyphs (radians). Default no-op; only bitmap-line fonts honor it.
+    virtual void SetRotation(float) {}
     // Set Base for the character set to use.
     virtual void SetBase(int base) = 0;
     // Format text.
@@ -110,6 +112,11 @@ public:
     void SetTracking(float tracking)
     {
         it->SetTracking(tracking);
+    }
+    ;
+    void SetRotation(float rot)
+    {
+        it->SetRotation(rot);
     }
     ;
     void SetBase(int base)

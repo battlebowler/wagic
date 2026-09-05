@@ -197,7 +197,15 @@ void JLBFont::DrawString(const char *string, float x, float y, int align, float 
         }
         mQuad->SetTextureRect(xPos, mYPos[index], charWidth/mTextureScale, mHeight/mTextureScale);
         mRenderer->RenderQuad(mQuad, dx, dy, mRotation, mScale*mTextureScale, mScale*mTextureScale);
-        dx += delta;
+        if (mRotation != 0.0f)
+        {
+            // Advance the pen along the rotated text baseline instead of straight right, so a
+            // rotated string reads as one continuous line (used for the vertical hand handle).
+            dx += delta * cosf(mRotation);
+            dy += delta * sinf(mRotation);
+        }
+        else
+            dx += delta;
         p++;
     }
 }

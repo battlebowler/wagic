@@ -330,11 +330,11 @@ void GuiGameZone::Render()
         JRenderer * br = JRenderer::GetInstance();
         float bw = GuiGameZone::Width * actZ;
         float bh = GuiGameZone::Height * actZ;
-        // Flat grey panel matching the interrupt dialog (89,89,89) with a light border;
-        // focused zone gets a warm highlight border.
-        br->FillRect(actX, actY, bw, bh, ARGB((int)actA, 89, 89, 89));
-        br->DrawRect(actX, actY, bw, bh, ARGB((int)actA,
-                     mHasFocus ? 240 : 210, mHasFocus ? 220 : 210, mHasFocus ? 120 : 210));
+        // Dark panel + warm gold border matching the phase bar and hand handle;
+        // focused zone gets a brighter gold border.
+        br->FillRect(actX, actY, bw, bh, ARGB((int)actA, 16, 16, 20));
+        br->DrawRect(actX, actY, bw, bh, mHasFocus ? ARGB((int)actA, 224, 196, 132)
+                                                   : ARGB((int)actA, 176, 148, 84));
         width = bw;
         height = bh;
     }

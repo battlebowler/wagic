@@ -1545,12 +1545,9 @@ void GameStateDuel::Render()
         if (game)
         {
             r->FillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, ARGB(100,0,0,0));
-            char buffer[4096];
-            sprintf(buffer, _("Turn:%i").c_str(), game->turn);
-            mFont->SetColor(ARGB(255,255,255,255));
-            mFont->DrawString(buffer, SCREEN_WIDTH / 2, 0, JGETEXT_CENTER);
+            // (Turn counter moved into the phase pill, see GuiPhaseBar — no longer drawn here.)
         }
-        if (menu) 
+        if (menu)
         {
             menu->Render();
 

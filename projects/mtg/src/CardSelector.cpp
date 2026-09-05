@@ -84,7 +84,7 @@ void CardSelector::Add(CardSelector::Target* target)
         c->zoom = 1.0f;
     c = dynamic_cast<CardView*> (active);
     if (c)
-        c->zoom = 1.4f;
+        c->zoom = 1.25f;
     cards.push_back(target);
 }
 
@@ -101,7 +101,7 @@ void CardSelector::Remove(CardSelector::Target* card)
                 active = closest<CardSelectorDiff> (cards, limitor, active);
                 c = dynamic_cast<CardView*> (active);
                 if (c)
-                    c->zoom = 1.4f;
+                    c->zoom = 1.25f;
             }
             if (active == *it)
                 active = NULL;
@@ -157,7 +157,7 @@ void CardSelector::Pop()
         {
             CardView* c = dynamic_cast<CardView*> (active);
             if (c)
-                c->zoom = 1.4f;
+                c->zoom = 1.25f;
         } //Is this needed, I think it is one in Entering() ?
         if (oldactive)
             oldactive->Leaving(JGE_BTN_NONE);
@@ -313,7 +313,7 @@ bool CardSelector::CheckUserInput(JButton key)
         {
             PlayGuiObject* c = dynamic_cast<PlayGuiObject*> (active);
             if (c)
-                c->zoom = 1.4f;
+                c->zoom = 1.25f;
         }
         if (oldactive)
             oldactive->Leaving(JGE_BTN_NONE);
@@ -364,7 +364,7 @@ void CardSelector::HoverAt(float x, float y)
     {
         PlayGuiObject* c = dynamic_cast<PlayGuiObject*> (active);
         if (c)
-            c->zoom = 1.4f;
+            c->zoom = 1.25f;
     }
     if (oldactive)
         oldactive->Leaving(JGE_BTN_NONE);
@@ -460,7 +460,7 @@ void CardSelector::Limit(LimitorFunctor<PlayGuiObject>* limitor, CardView::Selec
             {
                 CardView* c = dynamic_cast<CardView*> (active);
                 if (c)
-                    c->zoom = 1.4f;
+                    c->zoom = 1.25f;
             }
             if (oldactive)
                 oldactive->Leaving(JGE_BTN_NONE);

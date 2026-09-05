@@ -139,7 +139,7 @@ void CreditBonus::Render(float x, float y, WFont * font)
 {
     char buffer[512];
     sprintf(buffer, "%s: %i", text.c_str(), value);
-    font->DrawString(buffer, x, y);
+    font->DrawString(buffer, x, y, JGETEXT_CENTER); // x is the horizontal center (results screen)
 }
 
 static std::string kBgFile = "";
@@ -624,72 +624,90 @@ void Credits::Render()
         }
     }
 
-    float y = 130;
+    // Everything is centered and uses the same sharp font (f, MAIN_FONT) at its native scale (1.0)
+    // for a clean, crisp, consistent results screen. The bitmap fonts blur when upscaled, so the
+    // headline gets emphasis from COLOR (gold) rather than a larger scale. A semi-transparent rounded
+    // panel sits behind the whole block as a backing.
+    const float cx = SCREEN_WIDTH_F / 2.0f;
+    f->SetScale(1.0f);
+    const float lineH = f->GetHeight() + 1.0f;
+    float y = (showMsg == 1) ? 60.0f : 120.0f;
 
-    // Left inset so the results clear a front-camera hole-punch on the left edge (landscape).
-    // The primary result message is centered; the detail lines are inset to match.
-    const float lx = SCREEN_WIDTH_F * (30.0f / 480.0f);
+    // Backing panel sized to the block (headline + bonuses + up to ~3 stat lines + a little pad).
+    {
+        int lineCount = 1 + (int)bonus.size() + 3;
+        float blockH = lineCount * lineH + 20.0f;
+        float blockW = SCREEN_WIDTH_F * 0.60f;
+        float rad = 6.0f;
+        float bx = cx - blockW / 2.0f;
+        float byy = y - 10.0f;
+        JRenderer::GetInstance()->FillRoundRect(bx, byy, blockW - 2.0f * rad, blockH - 2.0f * rad, rad, ARGB(165, 8, 10, 14));
+        JRenderer::GetInstance()->DrawRoundRect(bx, byy, blockW - 2.0f * rad, blockH - 2.0f * rad, rad, ARGB(180, 176, 148, 84));
+    }
 
-    if (showMsg == 1)
-        y = 50;
+    // Headline (Congratulations / defeated / winner) — gold, native scale (sharp).
+    f->SetColor(ARGB(255, 255, 218, 120));
+    f->DrawString(buffer, cx, y, JGETEXT_CENTER);
+    f->SetColor(ARGB(255, 255, 255, 255));
+    y += lineH + 4.0f;
+
+    // Credit bonuses.
     vector<CreditBonus *>::iterator it;
     for (it = bonus.begin(); it < bonus.end(); ++it)
     {
-        (*it)->Render(lx, y, f3);
-        y += 12;
+        (*it)->Render(cx, y, f);
+        y += 13.0f;
     }
-    f2->DrawString(buffer, SCREEN_WIDTH_F / 2, y, JGETEXT_CENTER);
-    y += 15;
-
-    //!!
 
     if (mMatch){
         if (mGamesPlayed>0){
             sprintf(buffer, _("Games Won: %i of %i (%i %%)").c_str(), mGamesWon,mGamesPlayed, (int)(mGamesWon*100/mGamesPlayed));
-            f->DrawString(buffer, lx, y);
-            y += 10;
+            f->DrawString(buffer, cx, y, JGETEXT_CENTER);
+            y += 13;
         }
         if (value>0 && mGamesPlayed>0){
             sprintf(buffer, _("Credits per game: %i").c_str(), (int) (value / mGamesPlayed));
-            f->DrawString(buffer, lx, y);
-            y += 10;
+            f->DrawString(buffer, cx, y, JGETEXT_CENTER);
+            y += 13;
         }
         showMsg = 0;
 
     } else if (mTournament){
         if (mGamesPlayed>0){
             sprintf(buffer, _("Games Won: %i of %i (%i %%)").c_str(),mGamesWon, mGamesPlayed,(int)(mGamesWon*100/mGamesPlayed));
-            f->DrawString(buffer, lx, y);
-            y += 10;
+            f->DrawString(buffer, cx, y, JGETEXT_CENTER);
+            y += 13;
         }
         if (mMatchesPlayed>0){
             sprintf(buffer, _("Matches Won: %i of %i (%i %%)").c_str(),mMatchesWon, mMatchesPlayed,(int)(mMatchesWon*100/mMatchesPlayed));
-            f->DrawString(buffer, lx, y);
-            y += 10;
+            f->DrawString(buffer, cx, y, JGETEXT_CENTER);
+            y += 13;
         }
         if (value>0 && mGamesPlayed>0){
             sprintf(buffer, _("Credits per game: %i").c_str(), (int) (value / mGamesPlayed));
-            f->DrawString(buffer, lx, y);
-            y += 10;
+            f->DrawString(buffer, cx, y, JGETEXT_CENTER);
+            y += 13;
         }
         showMsg = 0;
     }
     else  if (observer->didWin(p1) && this->gameLength != 0)
     {
         sprintf(buffer, _("Game length: %i turns (%i seconds)").c_str(), observer->turn, this->gameLength);
-        f->DrawString(buffer, lx, y);
-        y += 10;
+        f->DrawString(buffer, cx, y, JGETEXT_CENTER);
+        y += 13;
         sprintf(buffer, _("Credits per minute: %i").c_str(), (int) (60 * value / this->gameLength));
-        f->DrawString(buffer, lx, y);
-        y += 10;
+        f->DrawString(buffer, cx, y, JGETEXT_CENTER);
+        y += 13;
         showMsg = 0;
     }
 
     if (showMsg == 1)
     {
-        f2->DrawString(_("There's more!").c_str(), lx, y + 15);
-        f->DrawString(_("Mods, additional cards, updates and more at:").c_str(), lx, y + 30);
-        f2->DrawString("Discord and GitHub: Wagic game", lx, y + 42);
+        f->SetScale(1.2f);
+        f->DrawString(_("There's more!").c_str(), cx, y + 15, JGETEXT_CENTER);
+        f->SetScale(1.0f);
+        f->DrawString(_("Mods, additional cards, updates and more at:").c_str(), cx, y + 32, JGETEXT_CENTER);
+        f->DrawString("Discord and GitHub: Wagic game", cx, y + 45, JGETEXT_CENTER);
     }
 
 }

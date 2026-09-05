@@ -82,6 +82,16 @@ public:
         return state;
     }
 
+    // Touch: a persistent handle the player taps to collapse the hand off-screen (so the
+    // cards in play behind it become reachable) and tap again to bring it back. No auto-hide.
+    bool mHidden;
+    // Vertical center of the hand-card row, sampled from a live card so the handle bar lines up
+    // exactly with the cards' top/bottom (kept while collapsed, when the cards are parked away).
+    float mRowCenterY;
+    void ToggleHidden();
+    // Fills the handle's screen rect; always available so the tap dispatcher can hit-test it.
+    void getHandleRect(float& x, float& y, float& w, float& h) const;
+
     HandLimitor* limitor;
 };
 
