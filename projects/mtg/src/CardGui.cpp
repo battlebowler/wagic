@@ -503,9 +503,22 @@ void CardGui::Render()
 
         if (showName)
         {
+            // Position the name on the ACTUAL rendered card, not the logical 74x106 footprint.
+            // The card art renders at height (actZ * kSmallCardArtH * kCardScale); using the big
+            // logical Width/Height here placed the label far up-left of the small card, so it read
+            // as a name floating detached on the battlefield. Center it at the card's top instead.
+            float rh = actZ * kSmallCardArtH * kCardScale;
             mFont->SetColor(ARGB(static_cast<unsigned char>(actA), 0, 0, 0));
             mFont->SetScale(DEFAULT_MAIN_FONT_SCALE * 0.5f * actZ);
-            mFont->DrawString(_(card->getName()), actX - actZ * Width / 2 + 1, actY - actZ * Height / 2 + 1);
+            // Rotate the name with the card (actT) so a tapped card's name lies sideways too, like
+            // its frame/art. Anchor at the (rotated) top edge, centered along the reading direction.
+            mFont->SetRotation(actT);
+            const float dxu = cosf(actT), dyu = sinf(actT);          // reading direction
+            const float px = actX + sinf(actT) * (rh * 0.5f - 2.0f); // "top" edge midpoint (perp)
+            const float py = actY - cosf(actT) * (rh * 0.5f - 2.0f);
+            const float sw = mFont->GetStringWidth(_(card->getName()).c_str());
+            mFont->DrawString(_(card->getName()), px - dxu * sw * 0.5f, py - dyu * sw * 0.5f, JGETEXT_LEFT);
+            mFont->SetRotation(0.0f);
             mFont->SetScale(DEFAULT_MAIN_FONT_SCALE);
         }
 
