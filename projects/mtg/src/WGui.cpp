@@ -575,10 +575,19 @@ void WDecoEnum::Render()
     WFont * mFont = WResourceManager::Instance()->GetWFont(Fonts::OPTION_FONT);
     mFont->SetScale(SCALE);
     mFont->SetColor(getColor(WGuiColor::TEXT));
-    mFont->DrawString(_(getDisplay()).c_str(), getX() + 2, getY() + 3);
+    // Match the inset card (WGuiMenu::subBack) on the Options screen so text sits inside the box.
+    extern bool gWGuiDarkList;
+    float lx = getX() + 2, vr = getWidth() - 5;
+    if (gWGuiDarkList)
+    {
+        const float m = SCREEN_WIDTH_F * (10.0f / 480.0f);
+        lx = m + 10.0f;
+        vr = SCREEN_WIDTH_F - m - 10.0f;
+    }
+    mFont->DrawString(_(getDisplay()).c_str(), lx, getY() + 3);
 
     OptionInteger* opt = dynamic_cast<OptionInteger*> (it);
-    if (opt) mFont->DrawString(_(lookupVal(opt->value)).c_str(), getWidth() - 5, getY() + 3, JGETEXT_RIGHT);
+    if (opt) mFont->DrawString(_(lookupVal(opt->value)).c_str(), vr, getY() + 3, JGETEXT_RIGHT);
 }
 
 WDecoEnum::WDecoEnum(WGuiBase * _it, EnumDefinition *_edef) :

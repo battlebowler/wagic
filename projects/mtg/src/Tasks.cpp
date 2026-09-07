@@ -513,20 +513,25 @@ void TaskList::Render()
         r->RenderQuad(mBg[5], SCREEN_WIDTH - 64, vPos + 64, 0, sW, vScale);      //Right edge
         r->RenderQuad(mBg[4], 64, vPos + 64, 0, hScale, vScale);                 //Center
 
-        f2->SetColor(ARGB(255, 55, 46, 34));
-        f = f2;
     }
     else
     {
         r->FillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, ARGB(128,0,0,0));
         r->FillRect(10, 10 + vPos, SCREEN_WIDTH - 10, SCREEN_HEIGHT - 10, ARGB(128,0,0,0));
     }
+    // Task entries use the crisp MAIN_FONT (f) in the "Task Board" cream color — MAGIC_FONT (f2)
+    // is soft/blurry when scaled, which is why the board text looked fuzzy.
+    f->SetColor(ARGB(255, 219, 206, 151));
 
     float posX = 40, posY = vPos + 20;
     char buffer[300];
     string title = _("Task Board");
 
-    f3->DrawString(title.c_str(), static_cast<float> ((SCREEN_WIDTH - 20) / 2 - title.length() * 4), posY);
+    // Title in the crisp MAIN_FONT (f) too, scaled up for a heading. Kept modest (1.6x) so the
+    // upscaled bitmap stays reasonably sharp rather than the soft MENU_FONT.
+    f->SetScale(1.6f);
+    f->DrawString(title.c_str(), SCREEN_WIDTH / 2, posY, JGETEXT_CENTER);
+    f->SetScale(1.0f);
     posY += 30;
 
     if (0 == tasks.size())
@@ -537,25 +542,23 @@ void TaskList::Render()
 
     for (vector<Task*>::iterator it = tasks.begin(); it != tasks.end(); it++)
     {
+        // Semi-transparent backing behind each task so the cream text reads against the cork,
+        // styled like the Trophy Room panels (ARGB 150,12,14,18) but a touch less opaque.
+        r->FillRect(posX - 16, posY - 3, SCREEN_WIDTH - 2 * (posX - 16), 30, ARGB(110, 12, 14, 18));
+
         sprintf(buffer, "%s", (*it)->getShortDesc().c_str());
-        f2->DrawString(buffer, posX, posY);
-        if (mBgTex)
-        {
-            f->SetScale(.8f);
-        }
+        f->SetScale(1.2f);                    // title slightly larger
+        f->DrawString(buffer, posX, posY);
+        f->SetScale(1.0f);
         sprintf(buffer, _("Days left: %i").c_str(), (*it)->getExpiration());
-        f->DrawString(buffer, SCREEN_WIDTH - 190, posY);
+        f->DrawString(buffer, SCREEN_WIDTH - 190, posY + 2);
         sprintf(buffer, _("Reward: %i").c_str(), (*it)->getReward());
-        f->DrawString(buffer, SCREEN_WIDTH - 100, posY);
+        f->DrawString(buffer, SCREEN_WIDTH - 100, posY + 2);
         posY += 15;
 
         sprintf(buffer, "%s", (*it)->getDesc().c_str());
         f->DrawString(buffer, posX + 10, posY);
         posY += 15;
-        if (mBgTex)
-        {
-            f->SetScale(1);
-        }
         //r->DrawLine((SCREEN_WIDTH)/2 - 200, posY, (SCREEN_WIDTH)/2 + 200, posY, ARGB(128, 255, 255, 255));
     }
     f->SetScale(1);

@@ -14,6 +14,7 @@
 #include "WResourceManager.h"
 #include "utils.h"
 #include "WFont.h"
+#include "UITheme.h"
 #include "CardGui.h"
 #include "GridDeckView.h"
 #include "DeckDataWrapper.h"
@@ -85,8 +86,10 @@ namespace
         }
         w = (sw - 3.0f) + 10.0f;
         h = (fh - 4.0f) + 10.0f;
-        x = SCREEN_WIDTH_F - w - 4.0f;   // bottom-right
-        y = SCREEN_HEIGHT_F - h - 4.0f;
+        // Match the deck editor's Back placement (shared bottom-button row) instead of sitting
+        // flush in the very corner overlapping the last list row.
+        x = SCREEN_WIDTH_F - SCREEN_WIDTH_F * (10.0f / 480.0f) - w;
+        y = SCREEN_HEIGHT_F * UITheme::kBottomButtonRowYFrac;
     }
 }
 
@@ -156,7 +159,7 @@ GameStateAwards::GameStateAwards(GameApp* parent) :
     GameState(parent, "trophies"),
     listview(NULL), detailview(NULL), setSrc(NULL), menu(NULL),
     showMenu(false), saveMe(false), mState(STATE_LISTVIEW), mDetailItem(0),
-    mTab(TAB_CARDS), mDetailSel(0), mAchvFocus(0), mAchvDescScroll(0.0f), mFoilMode(false), mScrollPx(0.0f), mDragLastY(-9999.0f)
+    mTab(TAB_CARDS), mDetailSel(0), mAchvFocus(0), mAchvDescScroll(0.0f), mFoilMode(false), mDetailHasFoils(false), mScrollPx(0.0f), mDragLastY(-9999.0f)
 {
 
 }
@@ -262,7 +265,7 @@ void GameStateAwards::renderTabBar()
 
     // Foil filter toggle (only while viewing a set's card list): flips the list to show foil
     // ownership so you can see which foils you own vs are still missing.
-    if (mTab == TAB_CARDS && mState == STATE_DETAILS)
+    if (mTab == TAB_CARDS && mState == STATE_DETAILS && mDetailHasFoils)
         drawTabButton(SCREEN_WIDTH_F - kTabVisW - 12.0f, kTabY, kTabVisW, kTabVisH, "Foil", mFoilMode);
 }
 
@@ -274,8 +277,8 @@ bool GameStateAwards::handleTopBarTap(int cx, int cy)
     if (cy < 0 || cy > kTabY + kTabVisH + 4)
         return false;
 
-    // Foil filter toggle (only while viewing a set's card list).
-    if (mTab == TAB_CARDS && mState == STATE_DETAILS)
+    // Foil filter toggle (only while viewing a set's card list, and only for foil-capable sets).
+    if (mTab == TAB_CARDS && mState == STATE_DETAILS && mDetailHasFoils)
     {
         float fx = SCREEN_WIDTH_F - kTabVisW - 12.0f;
         if (cx >= fx && cx <= fx + kTabVisW)
@@ -968,6 +971,12 @@ bool GameStateAwards::enterSet(int setid)
     MTGSetInfo * si = setlist.getInfo(setid);
     if (!si)
         return false;
+
+    // Only offer the Foil toggle for sets that actually have foils; reset it otherwise so a
+    // non-foil set never opens stuck in foil mode.
+    mDetailHasFoils = si->hasFoils();
+    if (!mDetailHasFoils)
+        mFoilMode = false;
 
     // Every card in the set (from the game database), in collector order.
     WSrcCards * src = NEW WSrcCards();

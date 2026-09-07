@@ -23,7 +23,17 @@ void OptionInteger::Render()
     WFont * mFont = WResourceManager::Instance()->GetWFont(Fonts::OPTION_FONT);
     mFont->SetScale(SCALE);  // SCALING FIX: ensure font renders at correct size
     mFont->SetColor(getColor(WGuiColor::TEXT));
-    mFont->DrawString(_(displayValue).c_str(), x + 2, y + 3);
+    // On the Options screen the row background is an inset card (see WGuiMenu::subBack); pad the
+    // label/value in to sit inside that card instead of hugging the screen edge.
+    extern bool gWGuiDarkList;
+    float lx = x + 2, vr = width - 5;
+    if (gWGuiDarkList)
+    {
+        const float m = SCREEN_WIDTH_F * (10.0f / 480.0f);
+        lx = m + 10.0f;
+        vr = SCREEN_WIDTH_F - m - 10.0f;
+    }
+    mFont->DrawString(_(displayValue).c_str(), lx, y + 3);
     char buf[512];
 
     if (maxValue == 1)
@@ -40,7 +50,7 @@ void OptionInteger::Render()
         else
             sprintf(buf, "%i", value);
     }
-    mFont->DrawString(buf, width - 5, y + 3, JGETEXT_RIGHT);
+    mFont->DrawString(buf, vr, y + 3, JGETEXT_RIGHT);
 }
 
 OptionInteger::OptionInteger(int _id, string _displayValue, int _maxValue, int _increment, int _defV, string _sDef, int _minValue) :

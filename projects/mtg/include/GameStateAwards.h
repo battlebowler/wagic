@@ -40,6 +40,7 @@ private:
     int mAchvFocus;                                           // Trophies tab: which trophy's image is previewed
     float mAchvDescScroll;                                    // auto-scroll offset for a long focused description
     bool mFoilMode;                                           // Sets tab: show foil ownership (owned foil vs missing)
+    bool mDetailHasFoils;                                     // current detail set can have foils (hides the Foil toggle otherwise)
     std::vector<std::pair<std::string, bool> > mDetailRows;   // set detail: (card name, owned?)
     std::vector<MTGCard*> mDetailCards;                        // parallel card ptrs (for preview)
     std::vector<bool> mDetailFoil;                             // parallel: owned as foil?
