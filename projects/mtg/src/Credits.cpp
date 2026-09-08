@@ -633,14 +633,38 @@ void Credits::Render()
     const float lineH = f->GetHeight() + 1.0f;
     float y = (showMsg == 1) ? 60.0f : 120.0f;
 
-    // Backing panel sized to the block (headline + bonuses + up to ~3 stat lines + a little pad).
+    // Backing panel sized to the ACTUAL content, so the text always fits for every layout
+    // (win / loss / unlock differ, and the "There's more!" block sits well below the stats).
     {
-        int lineCount = 1 + (int)bonus.size() + 3;
-        float blockH = lineCount * lineH + 20.0f;
-        float blockW = SCREEN_WIDTH_F * 0.60f;
+        bool willShowMore = (showMsg == 1);
+        int statLines = 0;
+        if (mMatch)
+        {
+            if (mGamesPlayed > 0) statLines++;
+            if (value > 0 && mGamesPlayed > 0) statLines++;
+            willShowMore = false;
+        }
+        else if (mTournament)
+        {
+            if (mGamesPlayed > 0) statLines++;
+            if (mMatchesPlayed > 0) statLines++;
+            if (value > 0 && mGamesPlayed > 0) statLines++;
+            willShowMore = false;
+        }
+        else if (observer->didWin(p1) && this->gameLength != 0)
+        {
+            statLines = 2;
+            willShowMore = false;
+        }
+
+        float yy = y + (lineH + 4.0f) + bonus.size() * 13.0f + statLines * 13.0f;
+        float contentBottom = willShowMore ? (yy + 45.0f + lineH) : yy;  // "There's more!" last line at +45
+
         float rad = 6.0f;
+        float blockW = SCREEN_WIDTH_F * 0.60f;
         float bx = cx - blockW / 2.0f;
         float byy = y - 10.0f;
+        float blockH = (contentBottom - byy) + 12.0f;
         JRenderer::GetInstance()->FillRoundRect(bx, byy, blockW - 2.0f * rad, blockH - 2.0f * rad, rad, ARGB(165, 8, 10, 14));
         JRenderer::GetInstance()->DrawRoundRect(bx, byy, blockW - 2.0f * rad, blockH - 2.0f * rad, rad, ARGB(180, 176, 148, 84));
     }

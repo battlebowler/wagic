@@ -146,7 +146,10 @@ void Interruptible::Render(MTGCardInstance * source, JQuad * targetQuad, string 
 
     JQuadPtr quad = observer->getResourceManager()->RetrieveCard(source, CACHE_THUMB);
     JQuadPtr fakeborder = observer->getResourceManager()->GetQuad("white");
-    if (!quad.get())
+    // Fall back to the colored placeholder not just when the quad is null, but also when its
+    // texture hasn't loaded (RetrieveCard returns a textureless placeholder) — otherwise the
+    // source card renders as a blank white box in the stack/interrupt menu.
+    if (!quad.get() || !quad->mTex)
         quad = CardGui::AlternateThumbQuad(source);
     if (quad.get())
     {
@@ -299,19 +302,8 @@ void StackAbility::Render()
         }
     }
 
-    //setborder test
-    if(myClones.size())
-    {
-        source->forcedBorderB = 1;
-        for(unsigned int kk = 0; kk < myClones.size(); kk++)
-        {
-            if(myClones[kk])
-            {
-                myClones[kk]->forcedBorderA = 1;
-                //JRenderer::GetInstance()->DrawLine(myClones[kk]->view->actX,myClones[kk]->view->actY,source->view->actX,source->view->actY,0.5f,ARGB(120, 255, 0, 0));
-            }
-        }
-    }
+    // (No source/target highlight borders — per the no-targeting-highlights preference.
+    // forcedBorderA/B are left unset so neither the red nor green outline is drawn.)
 
     if(source->has(Constants::HIDDENFACE) && fmLibrary)
         force = MTGAbility::HIDDENVIEW;

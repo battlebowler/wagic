@@ -6379,7 +6379,9 @@ AAMover::AAMover(GameObserver* observer, int _id, MTGCardInstance * _source, MTG
     if (_target)
         target = _target;
     andAbility = NULL;
-    if(!named.size() && source->controller()->isAI())
+    // Apply the friendly destination-based label ("Put in Play"/"Put in Hand"/...) for everyone,
+    // not just the AI — otherwise human players see the raw "Move" for put-into-play tutors.
+    if(!named.size())
         named = overrideNamed(destination);
     necro = false;
 }
