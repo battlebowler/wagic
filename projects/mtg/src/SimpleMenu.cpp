@@ -412,8 +412,11 @@ bool SimpleMenu::CheckUserInput(JButton key)
             if ( n >= mCount )
                 n = mCount - 1;
 
-            // check to see if the user clicked
-            if( n-mCurr > this->maxItems+1 )
+            // Page-jump guard for d-pad-style stepping only. A DIRECT TAP must land on the exact
+            // row tapped, no matter how far from the current cursor — otherwise tapping an item
+            // more than maxItems below the cursor (e.g. Power/Toughness/First Letter in the filter
+            // menu) wrongly snapped to mCurr+1 (Color).
+            if( !tappedItem && n-mCurr > this->maxItems+1 )
                 n = mCurr+1;//we don't want to increment pages at a time.
             if (n != mCurr && mObjects[mCurr] != NULL && mObjects[mCurr]->Leaving(JGE_BTN_DOWN))
             {

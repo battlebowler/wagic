@@ -255,7 +255,8 @@ void WGuiHeader::Render()
     float currentScale = mFont->GetScale();
     mFont->SetScale(SCALE_NORMAL);
     mFont->SetColor(getColor(WGuiColor::TEXT));
-    mFont->DrawString(_(displayValue).c_str(), x + width / 2, y, JGETEXT_CENTER);
+    // Vertically center in the row box (same rule as every option row).
+    mFont->DrawString(_(displayValue).c_str(), x + width / 2, y + (getHeight() - mFont->GetHeight()) * 0.5f, JGETEXT_CENTER);
     mFont->SetScale(currentScale);
 }
 
@@ -510,38 +511,39 @@ bool WGuiList::CheckUserInput(JButton key)
     JGE * mEngine = JGE::GetInstance();
     int i, j;
 
-    if ((key == JGE_BTN_OK) && mEngine->GetLeftClickCoordinates(i, j))
-    {   // a dude clicked somwhere, we're gonna select the closest object from where he clicked
-        int n = currentItem;
-        unsigned int distance2;
-        unsigned int minDistance2 = -1;
+    if (mEngine->GetLeftClickCoordinates(i, j))
+    {
+        // Precise, window-aware hit-test: pick the row the tap actually lands inside, only among
+        // the items currently rendered on-screen ([startWindow, endWindow)). This list windows its
+        // items when scrolled and does NOT reposition off-screen rows, so a "closest Y" search over
+        // all items would match a scrolled-off row's stale Y and steal the tap. We fully own the tap
+        // here (consume it) so the base WGuiMenu pass can't re-select against those stale positions.
         int begin = (startWindow == -1) ? 0 : startWindow;
-        int end = (endWindow == -1) ? items.size() : endWindow;
-        for(int k = begin; k < end; k++)
+        int end = (endWindow == -1) ? (int) items.size() : endWindow;
+        if (end > (int) items.size()) end = (int) items.size();
+        int n = -1;
+        for (int k = begin; k < end; k++)
         {
-          WGuiBase* pItem = (items[k]);
-          // Row-based: match on the vertical distance only, so a tap anywhere along a
-          // row's width selects it (previously the horizontal distance to the item's
-          // left anchor made off-to-the-side taps miss, needing several tries).
-          distance2 = static_cast<unsigned int>((pItem->getY() - j) * (pItem->getY() - j));
-          if (distance2 < minDistance2 && pItem->Selectable())
-          {
-              minDistance2 = distance2;
-              n = k;
-          }
+            WGuiBase* pItem = items[k];
+            if (!pItem || !pItem->Selectable() || !pItem->Visible()) continue;
+            float iy = pItem->getY();
+            float ih = pItem->getHeight();
+            if (j >= iy - 2.0f && j <= iy + ih + 2.0f) { n = k; break; }
         }
 
-        if (n != currentItem && items[n]->Selectable())
+        if (n >= 0)
         {
-            setSelected(n);
-            mEngine->LeftClickedProcessed();
-            if (sync) syncMove();
-            // Fall through to WGuiMenu so the newly-selected item is also activated by
-            // the OK that accompanies the tap: one-tap select+activate.
+            if (n != currentItem) { setSelected(n); if (sync) syncMove(); }
+            mEngine->LeftClickedProcessed();   // consume so WGuiMenu doesn't re-select on stale Y
+            return WGuiMenu::CheckUserInput(key); // activates currentItem via the accompanying OK
         }
+
+        // Tap missed every row (scrollbar / gap): consume it and do nothing, rather than snapping
+        // to the nearest row and toggling the wrong option.
+        mEngine->LeftClickedProcessed();
+        return true;
     }
 
-//    mEngine->LeftClickedProcessed();
     return WGuiMenu::CheckUserInput(key);
 }
 
@@ -584,10 +586,12 @@ void WDecoEnum::Render()
         lx = m + 10.0f;
         vr = SCREEN_WIDTH_F - m - 10.0f;
     }
-    mFont->DrawString(_(getDisplay()).c_str(), lx, getY() + 3);
+    // Vertically center label/value in the (now taller) row box, like the header rows.
+    float ty = getY() + (getHeight() - mFont->GetHeight()) * 0.5f;
+    mFont->DrawString(_(getDisplay()).c_str(), lx, ty);
 
     OptionInteger* opt = dynamic_cast<OptionInteger*> (it);
-    if (opt) mFont->DrawString(_(lookupVal(opt->value)).c_str(), vr, getY() + 3, JGETEXT_RIGHT);
+    if (opt) mFont->DrawString(_(lookupVal(opt->value)).c_str(), vr, ty, JGETEXT_RIGHT);
 }
 
 WDecoEnum::WDecoEnum(WGuiBase * _it, EnumDefinition *_edef) :

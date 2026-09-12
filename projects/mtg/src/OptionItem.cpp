@@ -33,7 +33,10 @@ void OptionInteger::Render()
         lx = m + 10.0f;
         vr = SCREEN_WIDTH_F - m - 10.0f;
     }
-    mFont->DrawString(_(displayValue).c_str(), lx, y + 3);
+    // Vertically center the label/value in the row box (rows are taller now via scaleItemsHeight,
+    // so the old y+3 top-anchor left the text floating high). Matches the centered header rows.
+    float ty = y + (getHeight() - mFont->GetHeight()) * 0.5f;
+    mFont->DrawString(_(displayValue).c_str(), lx, ty);
     char buf[512];
 
     if (maxValue == 1)
@@ -50,7 +53,7 @@ void OptionInteger::Render()
         else
             sprintf(buf, "%i", value);
     }
-    mFont->DrawString(buf, vr, y + 3, JGETEXT_RIGHT);
+    mFont->DrawString(buf, vr, ty, JGETEXT_RIGHT);
 }
 
 OptionInteger::OptionInteger(int _id, string _displayValue, int _maxValue, int _increment, int _defV, string _sDef, int _minValue) :
@@ -91,12 +94,22 @@ void OptionSelect::Render()
     WFont * mFont = WResourceManager::Instance()->GetWFont(Fonts::OPTION_FONT);
     mFont->SetScale(SCALE);  // SCALING FIX: ensure font renders at correct size
     mFont->SetColor(getColor(WGuiColor::TEXT));
-    mFont->DrawString(_(displayValue).c_str(), x, y + 2);
+    float ty = y + (getHeight() - mFont->GetHeight()) * 0.5f; // center in the row box
+    // Same inset as the other option rows so the text sits inside the Options screen's card.
+    extern bool gWGuiDarkList;
+    float lx = x, vr = x + width - 10;
+    if (gWGuiDarkList)
+    {
+        const float m = SCREEN_WIDTH_F * (10.0f / 480.0f);
+        lx = m + 10.0f;
+        vr = SCREEN_WIDTH_F - m - 10.0f;
+    }
+    mFont->DrawString(_(displayValue).c_str(), lx, ty);
 
     if (value < selections.size())
-        mFont->DrawString(_(selections[value]).c_str(), x + width - 10, y + 2, JGETEXT_RIGHT);
+        mFont->DrawString(_(selections[value]).c_str(), vr, ty, JGETEXT_RIGHT);
     else
-        mFont->DrawString(_("Unset").c_str(), x + width - 10, y + 2, JGETEXT_RIGHT);
+        mFont->DrawString(_("Unset").c_str(), vr, ty, JGETEXT_RIGHT);
 }
 
 void OptionSelect::setData()
@@ -583,26 +596,39 @@ void OptionKey::Render()
     mFont->SetColor(getColor(WGuiColor::TEXT));
     JRenderer * renderer = JRenderer::GetInstance();
 
+    // Center text and the 16px key icons in the row box, and inset to the Options card edges
+    // (same rule as every other option row).
+    float ty = y + (getHeight() - mFont->GetHeight()) * 0.5f;
+    float iy = y + (getHeight() - 16.0f) * 0.5f;
+    extern bool gWGuiDarkList;
+    float lx = x + 4, vr = width - 4;
+    if (gWGuiDarkList)
+    {
+        const float m = SCREEN_WIDTH_F * (10.0f / 480.0f);
+        lx = m + 10.0f;
+        vr = SCREEN_WIDTH_F - m - 10.0f;
+    }
+
     if (LOCAL_KEY_NONE == from)
     {
         string msg = _("New binding...");
-        mFont->DrawString(msg, (SCREEN_WIDTH - mFont->GetStringWidth(msg.c_str())) / 2, y + 2);
+        mFont->DrawString(msg, (SCREEN_WIDTH - mFont->GetStringWidth(msg.c_str())) / 2, ty);
     }
     else
     {
         const KeyRep& rep = translateKey(from);
         if (rep.second)
-            renderer->RenderQuad(rep.second, x + 4, y + 3, 0, 16.0f / rep.second->mHeight, 16.0f / rep.second->mHeight);
+            renderer->RenderQuad(rep.second, lx, iy, 0, 16.0f / rep.second->mHeight, 16.0f / rep.second->mHeight);
         else
-            mFont->DrawString(rep.first, x + 4, y + 3, JGETEXT_LEFT);
+            mFont->DrawString(rep.first, lx, ty, JGETEXT_LEFT);
         const KeyRep& rep2 = translateKey(to);
         if (rep2.second)
         {
             float ratio = 16.0f / rep2.second->mHeight;
-            renderer->RenderQuad(rep2.second, x + width - (ratio * rep2.second->mWidth) - 2, y + 3, 0, ratio, ratio);
+            renderer->RenderQuad(rep2.second, vr - (ratio * rep2.second->mWidth), iy, 0, ratio, ratio);
         }
         else
-            mFont->DrawString(rep2.first, width - 4, y + 3, JGETEXT_RIGHT);
+            mFont->DrawString(rep2.first, vr, ty, JGETEXT_RIGHT);
     }
 }
 

@@ -107,6 +107,11 @@ Player::~Player()
 
 bool Player::loadAvatar(string file, string resName)
 {
+    // observer can be null while the Player is still being parsed (Rules::load ->
+    // parsePlayerState -> parseLine "avatar=..."), before it's wired to a game. Bail out
+    // safely; getIcon() reloads the avatar lazily once observer is set. (Fixes the Story-mode
+    // crash entering the first tutorial duel.)
+    if (!observer) return false;
     WResourceManager * rm = observer->getResourceManager();
     if(!rm) return false;
 

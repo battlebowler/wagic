@@ -24,7 +24,7 @@ static std::string kBgFile = "";
 
 GameStateOptions::GameStateOptions(GameApp* parent) :
     GameState(parent, "options"), mReload(false), grabber(NULL), mCreditsTab(NULL),
-    mProfilesDetail(-1), mProfilesScroll(0), mUserTab(NULL), optionsMenu(NULL), optionsTabs(NULL)
+    mProfilesDetail(-1), mProfilesScroll(0), mProfilesConfirmDelete(false), mUserTab(NULL), optionsMenu(NULL), optionsTabs(NULL)
 {
 }
 
@@ -109,9 +109,8 @@ void GameStateOptions::Start()
     // The entire User tab body is a full-screen touch Profiles manager (painted in renderProfilesModal,
     // driven by updateProfilesModal). This placeholder header just keeps the WGui tab non-empty behind it.
     optionsList->Add(NEW WGuiHeader("Profiles"));
-    optionsList->Add(NEW WDecoCheat(NEW OptionInteger(Options::CHEATMODE, "Enable Cheat Mode")));
-    optionsList->Add(NEW WDecoCheat(NEW OptionInteger(Options::OPTIMIZE_HAND, "Optimize Starting Hand")));
-    optionsList->Add(NEW WDecoCheat(NEW OptionInteger(Options::CHEATMODEAIDECK, "Unlock All Ai Decks")));
+    // (Cheat toggles moved to the Advanced tab: the User tab body is the custom Profiles manager,
+    // so WGui items added here never render — which had hidden the secret-profile cheat options.)
 
     optionsList->scaleItemsHeight(1.4f);
     optionsTabs->Add(optionsList);
@@ -130,16 +129,25 @@ void GameStateOptions::Start()
     WDecoEnum * oASPhases = NEW WDecoEnum(NEW OptionInteger(Options::ASPHASES, "Phase Skip Automation", Constants::ASKIP_FULL, 1,
                     Constants::ASKIP_NONE, "", Constants::ASKIP_NONE));
     optionsList->Add(oASPhases);
-    optionsList->scaleItemsHeight(1.4f);
-    optionsTabs->Add(optionsList);
+    // Cheat-profile toggles (only visible when the secret profile is active; WDecoCheat hides them
+    // otherwise). Placed here on the Advanced tab because it renders normally — unlike the custom
+    // User/Profiles tab where they were previously added and never showed.
+    optionsList->Add(NEW WDecoCheat(NEW OptionInteger(Options::CHEATMODE, "Enable Cheat Mode")));
+    optionsList->Add(NEW WDecoCheat(NEW OptionInteger(Options::OPTIMIZE_HAND, "Optimize Starting Hand")));
+    optionsList->Add(NEW WDecoCheat(NEW OptionInteger(Options::CHEATMODEAIDECK, "Unlock All Ai Decks")));
 
+    // These two were previously added AFTER scaleItemsHeight/Add, so they kept the default (small)
+    // row height. Add them here so they're scaled like the rest of the Advanced tab.
     WDecoEnum * oFirstPlayer = NEW WDecoEnum(NEW OptionInteger(Options::FIRSTPLAYER, "First Turn Player", Constants::WHO_R, 1,
                     Constants::WHO_P, "", Constants::WHO_P));
     optionsList->Add(oFirstPlayer);
-    
+
     WDecoEnum * oKickerPay = NEW WDecoEnum(NEW OptionInteger(Options::KICKERPAYMENT, "Kicker Cost", Constants::KICKER_CHOICE, 1,
         Constants::KICKER_ALWAYS, "", Constants::KICKER_ALWAYS));
     optionsList->Add(oKickerPay);
+
+    optionsList->scaleItemsHeight(1.4f);
+    optionsTabs->Add(optionsList);
 #ifndef IOS
     optionsList = NEW WGuiKeyBinder("Key Bindings", this);
     optionsList->scaleItemsHeight(1.4f);
@@ -525,7 +533,7 @@ void GameStateOptions::renderProfileCard(const ProfileRow & row, float x, float 
     small->SetColor(ARGB(255, 178, 184, 196));
     small->DrawString(row.stats.c_str(), tx, y + 8 + big->GetHeight(), JGETEXT_LEFT);
 
-    // Theme preview image (right), with the theme name tucked above its left edge.
+    // Theme preview image (right), with the theme name inside its top-right corner.
     sprintf(buf, "themes/%s/preview.png", row.theme.c_str());
     JQuadPtr pv = WResourceManager::Instance()->RetrieveTempQuad(buf, TEXTURE_SUB_EXACT);
     if (!pv || pv->mHeight <= 0)
@@ -541,8 +549,14 @@ void GameStateOptions::renderProfileCard(const ProfileRow & row, float x, float 
         float py = y + (h - pvH) / 2;
         r->RenderQuad(pv.get(), px, py, 0, s, s);
         small->SetScale(SCALE * 0.8f);
-        small->SetColor(ARGB(255, 205, 210, 220));
-        small->DrawString(row.theme.c_str(), px + pvW, py - small->GetHeight() - 1, JGETEXT_RIGHT);
+        // Name inside the preview's top-right corner, with a 1px dark shadow so it stays readable
+        // over whatever art the preview shows.
+        const float lblX = px + pvW - 3.0f;
+        const float lblY = py + 2.0f;
+        small->SetColor(ARGB(220, 0, 0, 0));
+        small->DrawString(row.theme.c_str(), lblX + 1.0f, lblY + 1.0f, JGETEXT_RIGHT);
+        small->SetColor(ARGB(255, 235, 240, 250));
+        small->DrawString(row.theme.c_str(), lblX, lblY, JGETEXT_RIGHT);
     }
 }
 
@@ -595,6 +609,9 @@ void GameStateOptions::renderProfilesModal()
         pmPill("Use This Profile", 10, by, W - 20, 30);
         pmPill("Select Theme  (tap to cycle)", 10, by + 36, W - 20, 30);
         pmPill("Back to List", 10, by + 72, W - 20, 30);
+        // Delete: never offered for the built-in "Default" profile. Two-tap confirm.
+        if (row.name != "Default")
+            pmPill(mProfilesConfirmDelete ? "Tap again to DELETE" : "Delete Profile", 10, by + 108, W - 20, 30);
     }
 }
 
@@ -624,20 +641,28 @@ void GameStateOptions::updateProfilesModal(float dt)
             {
                 int idx = (int) ((y - top + mProfilesScroll) / rowH);
                 int n = (int) mProfileRows.size();
-                if (idx >= 0 && idx < n) mProfilesDetail = idx;                       // open a profile
+                if (idx >= 0 && idx < n) { mProfilesDetail = idx; mProfilesConfirmDelete = false; } // open a profile
                 else if (idx == n) { options.keypadStart("", &newProfile); options.keypadTitle("New Profile"); }
             }
             else if (mProfilesDetail < (int) mProfileRows.size() && x >= 10 && x <= W - 10)
             {
                 const float by = PM_TOP + 76;
+                bool isDefault = (mProfileRows[mProfilesDetail].name == "Default");
                 if (y >= by && y <= by + 30)                                          // Use This Profile
                 {
                     options[Options::ACTIVE_PROFILE] = mProfileRows[mProfilesDetail].name;
                     mReload = true;
                     mProfilesDetail = -1;
+                    mProfilesConfirmDelete = false;
                 }
-                else if (y >= by + 36 && y <= by + 66) cycleProfileTheme(mProfilesDetail); // Select Theme
-                else if (y >= by + 72 && y <= by + 102) mProfilesDetail = -1;               // Back to List
+                else if (y >= by + 36 && y <= by + 66) { cycleProfileTheme(mProfilesDetail); mProfilesConfirmDelete = false; } // Select Theme
+                else if (y >= by + 72 && y <= by + 102) { mProfilesDetail = -1; mProfilesConfirmDelete = false; }               // Back to List
+                else if (!isDefault && y >= by + 108 && y <= by + 138)                // Delete Profile (two-tap confirm)
+                {
+                    if (mProfilesConfirmDelete) { deleteProfile(mProfilesDetail); mProfilesConfirmDelete = false; }
+                    else mProfilesConfirmDelete = true;
+                }
+                else mProfilesConfirmDelete = false;  // tapped elsewhere in the detail -> disarm delete
             }
             j->ResetInput(); // clear the tap + its paired OK so nothing double-fires or hangs the loop
         }
@@ -685,4 +710,46 @@ void GameStateOptions::cycleProfileTheme(int idx)
     WResourceManager::Instance()->Refresh();
 
     mProfileRows[idx].theme = next;
+}
+
+// Recursively delete a directory (and its contents) under the user path. JFileSystem::Remove maps
+// to std::remove, which unlinks files and rmdir's empty directories on the target platforms.
+static void removeProfileDirRecursive(const std::string& dir)
+{
+    JFileSystem * fs = JFileSystem::GetInstance();
+    std::vector<std::string> entries = fs->scanfolder(dir);
+    for (size_t i = 0; i < entries.size(); i++)
+    {
+        if (entries[i] == "." || entries[i] == "..") continue;
+        std::string child = dir + "/" + entries[i];
+        if (fs->DirExists(child))
+            removeProfileDirRecursive(child);
+        else
+            fs->Remove(child);
+    }
+    fs->Remove(dir); // remove the now-empty directory itself
+}
+
+void GameStateOptions::deleteProfile(int idx)
+{
+    if (idx < 0 || idx >= (int) mProfileRows.size()) return;
+    std::string name = mProfileRows[idx].name;
+    if (name == "Default") return; // never delete the built-in profile
+
+    // If we're deleting the active profile, fall back to Default so a valid profile stays selected.
+    if (options[Options::ACTIVE_PROFILE].str == name)
+    {
+        options[Options::ACTIVE_PROFILE] = std::string("Default");
+        options.reloadProfile();
+        mReload = true;
+    }
+
+    char dir[400];
+    sprintf(dir, "profiles/%s", name.c_str());
+    removeProfileDirRecursive(dir);
+
+    // Refresh the manager and return to the list.
+    buildProfileRows();
+    mProfilesDetail = -1;
+    mProfilesScroll = 0;
 }

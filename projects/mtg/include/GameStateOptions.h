@@ -44,12 +44,14 @@ private:
     std::vector<ProfileRow> mProfileRows;
     int   mProfilesDetail;       // index of the profile whose options panel is open; -1 = list view
     float mProfilesScroll;       // vertical scroll offset of the list, in virtual pixels
+    bool  mProfilesConfirmDelete; // detail view: Delete pill armed (needs a second tap to confirm)
     WGuiBase* mUserTab;          // the User tab; while it's the active tab its body IS the manager
     void  buildProfileRows();    // (re)gather name/theme/stats for every profile
     void  renderProfilesModal();
     void  updateProfilesModal(float dt);
     void  renderProfileCard(const ProfileRow& row, float x, float y, float w, float h);
     void  cycleProfileTheme(int idx); // advance idx's profile to the next theme and apply it
+    void  deleteProfile(int idx);     // permanently delete idx's profile (never "Default")
 
 public:
     SimpleMenu * optionsMenu;

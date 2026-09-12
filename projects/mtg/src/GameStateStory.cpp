@@ -138,7 +138,7 @@ void GameStateStory::OnScroll(int, int inYVelocity)
         int velocity = (inYVelocity < 0) ? (-1 * inYVelocity) : inYVelocity;
         while(velocity > 0)
         {
-            mEngine->HoldKey_NoRepeat(flickUpwards ? JGE_BTN_DOWN : JGE_BTN_UP);
+            mEngine->HoldKey_NoRepeat(flickUpwards ? JGE_BTN_UP : JGE_BTN_DOWN);
             velocity -= 100;
         }
     }

@@ -1138,6 +1138,22 @@ void GameStateDeckViewer::Update(float dt)
     }
     else if (mStage == STAGE_FILTERS)
     {
+        // On-screen Back button: apply the current filters and leave the filter screen. Checked
+        // BEFORE forwarding to filterMenu, because WGuiMenu snaps any tap to the nearest row and
+        // activates it — so a Back tap would otherwise reopen the highlighted filter.
+        int fcx = -1, fcy = -1;
+        if (mEngine->GetLeftClickCoordinates(fcx, fcy))
+        {
+            float bx, by, bw, bh; getDeckEditBackRect(bx, by, bw, bh);
+            if (fcx >= bx && fcx <= bx + bw && fcy >= by && fcy <= by + bh)
+            {
+                mEngine->ResetInput();
+                if (filterMenu) { filterMenu->Finish(true); filterMenu->Update(dt); }
+                mView->reloadIndexes();
+                mStage = STAGE_WAITING;
+                return;
+            }
+        }
         JButton key = mEngine->ReadButton();
         if (filterMenu)
         {
@@ -2008,6 +2024,12 @@ void GameStateDeckViewer::Render()
     {
         setButtonState(false);
         filterMenu->Render();
+        // On-screen Back pill (bottom-right, shared button row) to apply + leave the filter screen.
+        JRenderer * fbr = JRenderer::GetInstance();
+        WFont * fbf = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
+        float bx, by, bw, bh;
+        getDeckEditBackRect(bx, by, bw, bh);
+        drawDeckEditPill(fbr, fbf, _("Back").c_str(), bx, by, bw, bh);
     }
     
     if (options.keypadActive()) options.keypadRender();

@@ -44,16 +44,19 @@ StoryText::StoryText(string text, float _mX, float _mY, string _align, int _font
         align = JGETEXT_RIGHT;
         if (mX == 0) mX = SCREEN_WIDTH - 10;
     }
-    if (align == JGETEXT_LEFT && mX <= 0)
+    else
     {
-        mX += 10; //left margin
+        // Default (left) story text is centered on screen for the touch layout, matching the
+        // already-centered title/Continue instead of hugging the left edge.
+        align = JGETEXT_CENTER;
+        mX = SCREEN_WIDTH / 2;
     }
 }
 void StoryText::Render()
 {
     WFont * mFont = WResourceManager::Instance()->GetWFont(font);
     mFont->SetColor(ARGB(200,255,255,255));
-    mFont->SetScale(1.0);
+    mFont->SetScale(1.3f);   // larger for touch readability
     mFont->DrawString(text.c_str(), mX, mY, align);
 }
 
@@ -264,13 +267,13 @@ void StoryChoice::Update(float dt)
 void StoryChoice::Entering()
 {
     mHasFocus = true;
-    mTargetScale = 1.2f;
+    mTargetScale = 1.5f;   // focused choice (enlarged, touch-readable)
 }
 
 bool StoryChoice::Leaving(JButton)
 {
     mHasFocus = false;
-    mTargetScale = 1.0f;
+    mTargetScale = 1.3f;   // unfocused choice (matches enlarged story text)
     return true;
 }
 
@@ -292,9 +295,9 @@ ostream& StoryChoice::toString(ostream& out) const
 StoryChoice::StoryChoice(string pageId, string text, int JGOid, float mX, float mY, string _align, int _font, bool hasFocus) :
     StoryText(text, mX, mY, _align, _font, JGOid), pageId(pageId), mHasFocus(hasFocus)
 {
-    mScale = 1.0f;
-    mTargetScale = 1.0f;
-    if (hasFocus) mTargetScale = 1.2f;
+    mScale = 1.3f;
+    mTargetScale = 1.3f;
+    if (hasFocus) mTargetScale = 1.5f;
 }
 
 //Actually loads a duel
