@@ -44,6 +44,11 @@ static float kPSPScale  = 16.0f / (SCREEN_HEIGHT / 272.0f) * (38.0f / kSmallCard
 
 const float kWidthScaleFactor = 0.8f * (SCREEN_HEIGHT / 272.0f);
 
+// Small optical nudge for the generic-mana number so it reads centered in the pip art
+// (positive X = right, positive Y = up); applied on top of the geometric center.
+static const float kManaNumXNudge = 0.5f;
+static const float kManaNumYNudge = 0.75f;
+
 // Collectible-foil sheen (MTG "star-burst" style). Drawn additively over the card rect
 // centered at (cx,cy) with half-extents halfW/halfH: a subtle diagonal rainbow wash, plus
 // two crossing sets of fine diagonal streaks whose brightness is modulated by a "light"
@@ -955,18 +960,24 @@ void CardGui::AlternateRender(MTGCard * card, const Pos& pos, bool foil)
         {
             char buffer[10];
             sprintf(buffer, "%d", cost);
-            renderer->RenderQuad(manaIcons[0].get(), manaStartX - 12 * j * pos.actZ, manaY, 0, 0.4f * pos.actZ, 0.4f * pos.actZ);
+            float iconCX = manaStartX - 12 * j * pos.actZ; // pip center (manaIcons hotspot 16,16)
+            renderer->RenderQuad(manaIcons[0].get(), iconCX, manaY, 0, 0.4f * pos.actZ, 0.4f * pos.actZ);
+            // Center the number on the pip (top-left = center - (w/2, H*GetScale()/2)), then a
+            // small optical nudge up/right so the digit reads centered in the pip art.
             float w = font->GetStringWidth(buffer);
-            font->DrawString(buffer, manaStartX - 12 * j * pos.actZ - w / 2, manaY - 5 * pos.actZ);
+            font->DrawString(buffer, iconCX - w / 2.0f + kManaNumXNudge * pos.actZ,
+                             manaY - font->GetHeight() * font->GetScale() / 2.0f - kManaNumYNudge * pos.actZ);
             ++j;
         }
         if (manacost->hasX())
         {
             char buffer[10];
             sprintf(buffer, "X");
-            renderer->RenderQuad(manaIcons[0].get(), manaStartX - 12 * j * pos.actZ, manaY, 0, 0.4f * pos.actZ, 0.4f * pos.actZ);
+            float iconCX = manaStartX - 12 * j * pos.actZ;
+            renderer->RenderQuad(manaIcons[0].get(), iconCX, manaY, 0, 0.4f * pos.actZ, 0.4f * pos.actZ);
             float w = font->GetStringWidth(buffer);
-            font->DrawString(buffer, manaStartX - 12 * j * pos.actZ - w / 2, manaY - 5 * pos.actZ);
+            font->DrawString(buffer, iconCX - w / 2.0f + kManaNumXNudge * pos.actZ,
+                             manaY - font->GetHeight() * font->GetScale() / 2.0f - kManaNumYNudge * pos.actZ);
         }
         z = 0;
         while ((mh = manacost->getHybridCost(z)))
@@ -1142,10 +1153,13 @@ void CardGui::TinyCropRender(MTGCard * card, const Pos& pos, JQuad * quad, bool 
                 {
                     char buffer[10];
                     sprintf(buffer, "%d", cost);
-                    renderer->RenderQuad(manaIcons[0].get(), x + (-12 * j + Carditem->mPosX) * pos.actZ, pos.actY + (yOffset) * pos.actZ, 0, 0.4f * pos.actZ,
-                        0.4f * pos.actZ);
+                    float iconCX = x + (-12 * j + Carditem->mPosX) * pos.actZ; // pip center (hotspot 16,16)
+                    float iconCY = pos.actY + yOffset * pos.actZ;
+                    renderer->RenderQuad(manaIcons[0].get(), iconCX, iconCY, 0, 0.4f * pos.actZ, 0.4f * pos.actZ);
+                    // Center the number on the pip (same rule as AlternateRender), plus optical nudge.
                     float w = font->GetStringWidth(buffer);
-                    font->DrawString(buffer, x + (-12 * j + (Carditem->mPosX +1) - w / 2) * pos.actZ, pos.actY + (yOffset - 5) * pos.actZ);
+                    font->DrawString(buffer, iconCX - w / 2.0f + kManaNumXNudge * pos.actZ,
+                                     iconCY - font->GetHeight() * font->GetScale() / 2.0f - kManaNumYNudge * pos.actZ);
                     ++j;
                 }
                 //Has X?
@@ -1153,10 +1167,12 @@ void CardGui::TinyCropRender(MTGCard * card, const Pos& pos, JQuad * quad, bool 
                 {
                     char buffer[10];
                     sprintf(buffer, "X");
-                    renderer->RenderQuad(manaIcons[0].get(), x + (-12 * j + Carditem->mPosX) * pos.actZ, pos.actY + (yOffset) * pos.actZ, 0, 0.4f * pos.actZ,
-                        0.4f * pos.actZ);
+                    float iconCX = x + (-12 * j + Carditem->mPosX) * pos.actZ;
+                    float iconCY = pos.actY + yOffset * pos.actZ;
+                    renderer->RenderQuad(manaIcons[0].get(), iconCX, iconCY, 0, 0.4f * pos.actZ, 0.4f * pos.actZ);
                     float w = font->GetStringWidth(buffer);
-                    font->DrawString(buffer, x + (-12 * j + (Carditem->mPosX + 1) - w / 2) * pos.actZ, pos.actY + (yOffset - 5) * pos.actZ);
+                    font->DrawString(buffer, iconCX - w / 2.0f + kManaNumXNudge * pos.actZ,
+                                     iconCY - font->GetHeight() * font->GetScale() / 2.0f - kManaNumYNudge * pos.actZ);
                 }
     
             }

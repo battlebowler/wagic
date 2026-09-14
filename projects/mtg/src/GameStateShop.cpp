@@ -852,8 +852,16 @@ void GameStateShop::Update(float dt)
         }
         else if (boosterDisplay)
         {
-            if (btn == JGE_BTN_SEC)
-                deleteDisplay();
+            // Tap the on-screen Back button (bottom-right) to leave the pack view and return to the
+            // shop grid — checked before the drag/thumb handling so it isn't eaten as a swipe.
+            if (btn == JGE_BTN_SEC || shopMenuButton->ButtonPressed())
+            {
+                deleteDisplay(); // a pack is open: Back returns to the shop grid
+                // shopMenuButton queues its action key (JGE_BTN_MENU) when tapped; drain it so
+                // it doesn't fall through next frame and exit the shop to the main menu.
+                mEngine->ResetInput();
+                while (mEngine->ReadButton()) {}
+            }
             else
             {
                 // Finger-anchored browsing: while dragging across the reveal, inspect the
@@ -1050,7 +1058,47 @@ void GameStateShop::Render()
     if (mBg.get())
         r->RenderQuad(mBg.get(), 0, 0, 0, SCREEN_WIDTH_F / mBg->mWidth, SCREEN_HEIGHT_F / mBg->mHeight);
 
-    // (Removed the flickering "shop_light" candle-glow overlay per user request.)
+    // Candle-glow "flicker" overlay: a soft additive light that pulses (lightAlpha animates in
+    // Update). Theme-controlled: it shows ONLY when the active theme's OWN folder ships the
+    // shop_light texture (opt in by including it, opt out by deleting it). We must check the theme
+    // folder explicitly because the core pack always ships graphics/shop_light.jpg and graphicsFile
+    // falls back theme -> base, so relying on RetrieveTempQuad alone could never be turned off.
+#if defined (PSP)
+    const char * kFlickerFile = "pspshop_light.jpg";
+#else
+    const char * kFlickerFile = "shop_light.jpg";
+#endif
+    // A theme opts OUT of the flicker only by shipping its own shop background (shop.jpg) while
+    // deliberately omitting the flicker texture. A theme that has its own shop_light, or that uses
+    // the core graphics for the shop at all (like the base "MTG"/Default theme), flickers.
+    bool wantFlicker = true;
+    {
+        string theme = options[Options::ACTIVE_THEME].str;
+        if (theme.size() && theme != "Default")
+        {
+            JFileSystem* fs = JFileSystem::GetInstance();
+            char lpath[512], spath[512];
+            sprintf(lpath, "themes/%s/%s", theme.c_str(), kFlickerFile);
+            sprintf(spath, "themes/%s/shop.jpg", theme.c_str());
+            bool themeHasLight = fs->FileExists(lpath);
+            bool themeHasShop  = fs->FileExists(spath);
+            wantFlicker = themeHasLight || !themeHasShop;
+        }
+    }
+    JQuadPtr lightQuad = wantFlicker
+        ? WResourceManager::Instance()->RetrieveTempQuad(kFlickerFile, TEXTURE_SUB_5551)
+        : JQuadPtr();
+    if (lightQuad.get() && lightQuad->mTex)
+    {
+        r->EnableTextureFilter(false);
+        r->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE);          // additive glow
+        lightQuad->SetColor(ARGB(lightAlpha, 255, 255, 255)); // lightAlpha pulses 0..50 in Update()
+        lightQuad->SetHotSpot(0, lightQuad->mHeight);         // anchor bottom-left
+        r->RenderQuad(lightQuad.get(), 0, SCREEN_HEIGHT_F, 0,
+                      SCREEN_WIDTH_F / lightQuad->mWidth, SCREEN_HEIGHT_F / lightQuad->mHeight);
+        r->SetTexBlend(BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA);
+        r->EnableTextureFilter(true);
+    }
 
     // Flat vertical shop: a clean list of everything for sale (booster packs, then
     // cards), with the selected item previewed on the right. Replaces the old tabletop
@@ -1062,6 +1110,8 @@ void GameStateShop::Render()
     else if (boosterDisplay)
     {
         boosterDisplay->Render(true); // viewing a just-opened booster pack
+        // Back button is drawn at the very end of Render() so it sits in front of the
+        // bottom info bar / product banner instead of behind them.
     }
     else
     {
@@ -1199,6 +1249,10 @@ void GameStateShop::Render()
     // is hidden so it can't overlap or be mistaken for the board's exit.
     if ((!filterMenu || (filterMenu && filterMenu->isFinished())) && !boosterDisplay && mStage != STAGE_SHOP_TASKS)
         renderButtons();
+
+    // Pack view: draw the Back button last so it's in front of the bottom info bar / banner.
+    if (boosterDisplay)
+        shopMenuButton->Render();
 }
 
 void GameStateShop::ButtonPressed(int controllerId, int controlId)

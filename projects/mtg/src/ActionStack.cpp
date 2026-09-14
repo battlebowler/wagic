@@ -291,6 +291,20 @@ void StackAbility::Render()
         target = (Damageable *) _target;
     }
 
+    // No explicit target? Player-affecting abilities like "opponent draws" (Browbeat) derive the
+    // affected player from `who` (TargetChooser::CONTROLLER/OPPONENT/...) and leave ability->target
+    // null, so the stack showed only the source card. Ask the ability who it actually affects and,
+    // when that's a player, show that player's avatar next to the source.
+    if (!target && mytargetQuads.empty())
+    {
+        Targetable * affected = NULL;
+        if (ActivatedAbilityTP * tp = dynamic_cast<ActivatedAbilityTP *>(ability))      affected = tp->getTarget();
+        else if (InstantAbilityTP * tp = dynamic_cast<InstantAbilityTP *>(ability))     affected = tp->getTarget();
+        else if (AbilityTP * tp = dynamic_cast<AbilityTP *>(ability))                   affected = tp->getTarget();
+        if (affected && affected != ability->source && dynamic_cast<Player *>(affected))
+            target = (Damageable *) affected;
+    }
+
     JQuadPtr quad;
     string alt2 = "";
     if (target)

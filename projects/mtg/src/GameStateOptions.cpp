@@ -487,7 +487,7 @@ void GameStateOptions::buildProfileRows()
         while (!theme.empty() && (theme[0] == ' ' || theme[0] == '=')) theme.erase(0, 1);
         while (!theme.empty() && (theme[theme.size() - 1] == '\r' || theme[theme.size() - 1] == '\n' || theme[theme.size() - 1] == ' '))
             theme.erase(theme.size() - 1);
-        row.theme = theme.empty() ? std::string("MTG") : theme;
+        row.theme = theme.empty() ? std::string("Default") : theme;
 
         PlayerData * pdata = NEW PlayerData(MTGCollection());
         char buf[256];

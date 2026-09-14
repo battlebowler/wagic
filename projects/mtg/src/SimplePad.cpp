@@ -247,13 +247,27 @@ void SimplePad::Update(float)
     {
         for (int i = 0; i < nbitems; i++)
         {
+            if (!keys[i]) continue;
+            // Only consider keys that are actually drawn, so a tap can't select a
+            // hidden Cancel / numpad key.
+            if (i == KPD_CANCEL && !bShowCancel) continue;
+            if (i >= KPD_0 && i <= KPD_DOT && !bShowNumpad) continue;
             unsigned int d = static_cast<unsigned int>(
                     (keys[i]->mY - (float)y) * (keys[i]->mY - (float)y) +
                     (keys[i]->mX - (float)x) * (keys[i]->mX - (float)x));
             if (d < minDistance) { minDistance = d; n = i; }
         }
-        MoveSelection(n);
-        JGE::GetInstance()->LeftClickedProcessed();
+        // Touch is the only input path while the keypad is up: a tap on a key both
+        // selects AND activates it right away, instead of relying on a separate
+        // JGE_BTN_OK event (which doesn't arrive on touch). This makes every key
+        // tappable — including Confirm and Cancel to close the keypad.
+        if (n >= 0 && n < nbitems && keys[n])
+        {
+            MoveSelection(n);
+            pressKey(keys[n]->id);
+        }
+        mEngine->ResetInput();
+        return;
     }
 
     JButton key = mEngine->ReadButton();

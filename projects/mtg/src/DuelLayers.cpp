@@ -88,16 +88,25 @@ void DuelLayers::CheckUserInput(int isAI)
             // Show it for a spell cast from hand too: that targeting is driven by the game's
             // targetChooser with no ActionElement waiting, so action->canCancel() is false
             // there even though cancelCurrentAction() (which deletes the targetChooser) works.
-            if (observer->getCurrentTargetChooser() && action &&
-                (action->canCancel() || !action->isWaitingForAnswer()) &&
-                jge->GetLeftClickCoordinates(x, y))
+            // Also cover the extra-cost payment phase (convoke/improvise/etc.): there's no
+            // targetChooser then, just mExtraPayment waiting for creature/artifact taps, and no
+            // way to back out on touch (the hardware "back" key JGE_BTN_SEC has no on-screen
+            // affordance). Route that Cancel to ActionLayer's JGE_BTN_SEC handler, which aborts
+            // the payment and clears any partial target list.
+            bool duringTargeting = observer->getCurrentTargetChooser() && action &&
+                                   (action->canCancel() || !action->isWaitingForAnswer());
+            bool duringExtraPayment = action && observer->mExtraPayment != NULL;
+            if ((duringTargeting || duringExtraPayment) && jge->GetLeftClickCoordinates(x, y))
             {
                 float ccx, ccy, ccw, cch;
                 getCancelRect(ccx, ccy, ccw, cch);
                 if (x >= ccx && x <= ccx + ccw && y >= ccy && y <= ccy + cch)
                 {
                     jge->LeftClickedProcessed();
-                    observer->cancelCurrentAction();
+                    if (duringExtraPayment)
+                        action->CheckUserInput(JGE_BTN_SEC); // abort + refund the extra-cost payment
+                    else
+                        observer->cancelCurrentAction();
                     break;
                 }
             }
@@ -275,8 +284,9 @@ void DuelLayers::Render()
     // backed out of. A spell cast from hand targets via the game's targetChooser with no
     // ActionElement waiting (canCancel() is false there), so also show it whenever a
     // targetChooser is active and nothing is forcing the target (isWaitingForAnswer NULL).
-    if (observer && observer->getCurrentTargetChooser() && action &&
-        (action->canCancel() || !action->isWaitingForAnswer()))
+    if (observer && action &&
+        ((observer->getCurrentTargetChooser() && (action->canCancel() || !action->isWaitingForAnswer()))
+         || observer->mExtraPayment))
     {
         JRenderer * r = JRenderer::GetInstance();
         WFont * f = WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT);
