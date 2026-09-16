@@ -58,7 +58,7 @@ android {
 
     signingConfigs {
         release {
-            storeFile file('assets/_keystore')
+            storeFile file('assets/_keystore/wagic-release.keystore')
             storePassword props['WAGIC_STORE_PASSWORD']
             keyAlias    props['WAGIC_KEY_ALIAS']
             keyPassword props['WAGIC_KEY_PASSWORD']
