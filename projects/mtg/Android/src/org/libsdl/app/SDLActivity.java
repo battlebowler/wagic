@@ -89,6 +89,15 @@ import javax.microedition.khronos.egl.EGLSurface;
 public class SDLActivity extends Activity implements OnKeyListener {
     private static final String TAG = SDLActivity.class.getCanonicalName();
 
+    // ---- Launch update check (battlebowler fork) -------------------------------------------------
+    // This build's mod version. Releases on GitHub are tagged "wagic-v0.25.5-battlebowler" (=1),
+    // "...battlebowlerv2" (=2), "...battlebowlerv3" (=3), ... On launch we fetch the latest release
+    // and, if its number is higher than this, offer a link to download it.
+    // *** BUMP THIS to match the version number each time you cut a new GitHub release. ***
+    public static final int MOD_VERSION = 4;
+    private static final String LATEST_RELEASE_JSON =
+            "https://api.github.com/repos/battlebowler/wagic/releases/latest";
+
     // Main components
     private static SDLActivity mSingleton;
     private static SDLSurface mSurface;
@@ -1101,6 +1110,7 @@ public class SDLActivity extends Activity implements OnKeyListener {
         StorageOptions.determineStorageOptions(mContext);
         checkStorageLocationPreference();
         prepareOptionMenu(null);
+        checkForUpdate(); // launch: offer a link if a newer GitHub release exists (silent on failure)
     }
 
     public void forceResDownload(final File oldRes) {
@@ -1139,6 +1149,78 @@ public class SDLActivity extends Activity implements OnKeyListener {
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
+    }
+
+    // On launch: fetch the latest GitHub release off the main thread and, if it's newer than this
+    // build's MOD_VERSION, offer a download link. Fails silently on no network / parse errors.
+    public void checkForUpdate() {
+        new Thread(new Runnable() {
+            public void run() {
+                try {
+                    java.net.HttpURLConnection c =
+                            (java.net.HttpURLConnection) new URL(LATEST_RELEASE_JSON).openConnection();
+                    c.setRequestProperty("User-Agent", "WagicBattlebowler");
+                    c.setRequestProperty("Accept", "application/vnd.github+json");
+                    c.setConnectTimeout(8000);
+                    c.setReadTimeout(8000);
+                    if (c.getResponseCode() != 200) return;
+                    java.io.BufferedReader br =
+                            new java.io.BufferedReader(new java.io.InputStreamReader(c.getInputStream()));
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = br.readLine()) != null) sb.append(line);
+                    br.close();
+                    org.json.JSONObject o = new org.json.JSONObject(sb.toString());
+                    final String tag = o.optString("tag_name", "");
+                    final String url = o.optString("html_url", "");
+                    final String relName = o.optString("name", "");
+                    final int remote = parseModVersion(tag);
+                    if (remote <= MOD_VERSION || url.length() == 0) return;
+                    // Respect a version the user chose to skip.
+                    SharedPreferences prefs = getSharedPreferences("wagic", MODE_PRIVATE);
+                    if (prefs.getInt("skipUpdateVersion", 0) >= remote) return;
+                    final String label = (relName.length() > 0) ? relName : tag;
+                    runOnUiThread(new Runnable() {
+                        public void run() { showUpdateDialog(label, url, remote); }
+                    });
+                } catch (Exception e) {
+                    // no network / API error / parse failure -> stay quiet
+                }
+            }
+        }).start();
+    }
+
+    // "wagic-v0.25.5-battlebowler" -> 1 ; "...battlebowlerv3" -> 3 ; unknown -> 0
+    private int parseModVersion(String tag) {
+        if (tag == null) return 0;
+        int i = tag.indexOf("battlebowler");
+        if (i < 0) return 0;
+        String rest = tag.substring(i + "battlebowler".length());
+        if (rest.startsWith("v")) rest = rest.substring(1);
+        if (rest.length() == 0) return 1;
+        try { return Integer.parseInt(rest.trim()); } catch (Exception e) { return 0; }
+    }
+
+    private void showUpdateDialog(String label, final String url, final int remote) {
+        try {
+            new AlertDialog.Builder(this)
+                    .setTitle("Update available")
+                    .setMessage("A newer version (" + label + ") is available. Open the download page?")
+                    .setPositiveButton("Update", new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface d, int w) {
+                            try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
+                            catch (Exception e) { /* no browser */ }
+                        }
+                    })
+                    .setNegativeButton("Later", null)
+                    .setNeutralButton("Skip this version", new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface d, int w) {
+                            getSharedPreferences("wagic", MODE_PRIVATE).edit()
+                                    .putInt("skipUpdateVersion", remote).apply();
+                        }
+                    })
+                    .show();
+        } catch (Exception e) { /* activity gone */ }
     }
 
     public void initializeGame() {
