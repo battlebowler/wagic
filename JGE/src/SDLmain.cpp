@@ -667,6 +667,15 @@ void SdlApp::OnTouchEvent(const SDL_TouchFingerEvent& event)
         mLastTouchX = event.x;
         mLastTouchY = event.y;
 
+        // Once the finger has travelled beyond a small tap tolerance from the down point, it's a
+        // drag, not a tap: suppress the tap-on-release even if it hasn't yet covered a full scroll
+        // step. Without this, a short swipe (< one scroll step) falls through to FINGERUP as a tap
+        // and mis-fires an action (e.g. adding/removing a card in the deck editor).
+        if (!mTouchMoved &&
+            (fabsf(event.x - mMouseDownX) > 0.03f * (float)actualWidth ||
+             fabsf(event.y - mMouseDownY) > 0.03f * (float)actualHeight))
+            mTouchMoved = true;
+
         // Commit whole steps along the dominant axis of the current drag. Direction is
         // "direct" (the selection follows the finger): drag left moves selection left,
         // drag up moves selection up.

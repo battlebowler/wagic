@@ -952,9 +952,8 @@ void GameStateDeckViewer::Update(float dt)
         case JGE_BTN_UP:
         case JGE_BTN_DOWN:
         {
-            // The global swipe->direction mapping (content-follows-finger) is inverted
-            // relative to how this card grid scrolls, so swiping felt backwards on both
-            // axes in the deck editor. Flip the direction before dispatching.
+            // Deck Editor swipe is reversed relative to the global finger-follows mapping
+            // (per user preference): flip each direction before dispatching to the card grid.
             JButton navButton = button;
             if (button == JGE_BTN_LEFT) navButton = JGE_BTN_RIGHT;
             else if (button == JGE_BTN_RIGHT) navButton = JGE_BTN_LEFT;
