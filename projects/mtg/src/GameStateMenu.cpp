@@ -16,6 +16,7 @@
 #include "DeckStats.h"
 #include "PlayerData.h"
 #include "Tasks.h"
+#include "InteractiveButton.h"
 #include "utils.h"
 #include "WFont.h"
 #include <JLogger.h>
@@ -65,6 +66,8 @@ GameStateMenu::GameStateMenu(GameApp* parent) :
     timeIndex = 0;
     mVolume = 0;
     scroller = NULL;
+    mTaskBoard = NULL;
+    mTaskBoardBack = NULL;
     langChoices = false;
     primitivesLoadCounter = -1;
     bgTexture = NULL;
@@ -134,6 +137,8 @@ void GameStateMenu::Destroy()
     SAFE_DELETE(gameTypeMenu);
     WResourceManager::Instance()->Release(bgTexture);
     SAFE_DELETE(scroller);
+    SAFE_DELETE(mTaskBoard);
+    SAFE_DELETE(mTaskBoardBack);
 }
 
 void GameStateMenu::Start()
@@ -551,6 +556,33 @@ void GameStateMenu::Update(float dt)
 #endif //NETWORK_SUPPORT
 
     timeIndex += dt * 2;
+
+    // Task board opened from the home-screen ticker: modal overlay. While it's up, route input
+    // only to it (tap Back or press Back/Cancel to close), and skip the rest of the menu update.
+    if (mTaskBoard)
+    {
+        JGE * eng = JGE::GetInstance();
+        if (mTaskBoardBack && mTaskBoardBack->ButtonPressed())
+            mTaskBoard->End();
+        else
+        {
+            JButton tb = eng->ReadButton();
+            mTaskBoard->Update(dt);
+            if (mTaskBoard->getState() != TaskList::TASKS_INACTIVE)
+            {
+                if (tb == JGE_BTN_SEC || tb == JGE_BTN_CANCEL || tb == JGE_BTN_PREV || tb == JGE_BTN_MENU)
+                    mTaskBoard->End();
+            }
+        }
+        if (mTaskBoard && mTaskBoard->getState() == TaskList::TASKS_INACTIVE)
+        {
+            SAFE_DELETE(mTaskBoard);
+            SAFE_DELETE(mTaskBoardBack);
+        }
+        eng->ResetInput();
+        return;
+    }
+
     switch (MENU_STATE_MAJOR & currentState)
     {
         case MENU_STATE_MAJOR_LANG:
@@ -641,6 +673,20 @@ void GameStateMenu::Update(float dt)
         {
             if (!scrollerSet)
                 fillScroller();
+            // Tap the tasks ticker (top strip, right half) to open the task board.
+            {
+                int tX = -1, tY = -1;
+                if (mEngine->GetLeftClickCoordinates(tX, tY) && tY <= 30 && tX >= SCREEN_WIDTH / 2 + 60)
+                {
+                    mEngine->LeftClickedProcessed();
+                    while (mEngine->ReadButton()) {} // consume queued buttons from the tap
+                    if (!mTaskBoard) { mTaskBoard = NEW TaskList(); mTaskBoard->Start(); }
+                    if (!mTaskBoardBack)
+                        mTaskBoardBack = NEW InteractiveButton(NULL, 1, Fonts::MAIN_FONT, "Back",
+                            SCREEN_WIDTH_F - 150, SCREEN_HEIGHT_F - 20, JGE_BTN_SEC);
+                    break;
+                }
+            }
             ensureMGuiController();
             if (mGuiController)
             {
@@ -966,6 +1012,19 @@ void GameStateMenu::Render()
     }
 
     if (options.keypadActive()) options.keypadRender();
+
+    // Task board overlay (opened from the ticker) draws on top of everything, with a Back button.
+    if (mTaskBoard)
+    {
+        mTaskBoard->Render();
+        if (mTaskBoardBack)
+        {
+            std::vector<InteractiveButton*> backRow;
+            backRow.push_back(mTaskBoardBack);
+            InteractiveButton::layoutRowRight(backRow, SCREEN_WIDTH_F - 10.0f, SCREEN_HEIGHT_F - 20.0f, 12.0f);
+            mTaskBoardBack->Render();
+        }
+    }
 }
 
 void GameStateMenu::ButtonPressed(int controllerId, int controlId)

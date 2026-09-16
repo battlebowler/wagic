@@ -12,6 +12,10 @@ class GameStateMenu: public GameState, public JGuiListener
 private:
     TextScroller * scroller;
     int scrollerSet;
+    // Task board opened by tapping the home-screen ticker (a modal overlay: while it's up it
+    // consumes input and nothing else in the menu updates). See Update()/Render().
+    class TaskList * mTaskBoard;
+    class InteractiveButton * mTaskBoardBack;
     int mPercentComplete;
     JGuiController* mGuiController;
     SimpleMenu* subMenuController;
