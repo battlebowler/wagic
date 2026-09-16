@@ -550,7 +550,12 @@ public class SDLActivity extends Activity implements OnKeyListener {
                 if (mSurface == null) mSingleton.initializeGame();
             }
         });
-        setStorage.create().show();
+        // Must choose a location and press OK: don't let a tap outside (or Back) dismiss this,
+        // which would skip initStorage()/initializeGame() and leave the app stuck until restart.
+        AlertDialog dlg = setStorage.create();
+        dlg.setCanceledOnTouchOutside(false);
+        dlg.setCancelable(false);
+        dlg.show();
     }
 
     private void importDeckOptions() {
