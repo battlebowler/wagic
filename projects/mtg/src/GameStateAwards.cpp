@@ -983,7 +983,7 @@ bool GameStateAwards::enterSet(int setid)
     src->addFilter(NEW WCFilterSet(setid));
     src->loadMatches(MTGCollection());
     src->bakeFilters();
-    src->Sort(WSrcCards::SORT_COLLECTOR);
+    src->Sort(WSrcCards::SORT_ALPHA);   // Trophy Room set list shown alphabetically by card name
 
     // The player's collection (cardId -> owned count) to mark each card owned vs missing.
     MTGDeck * coll = NEW MTGDeck(options.profileFile(PLAYER_COLLECTION).c_str(), MTGCollection());
