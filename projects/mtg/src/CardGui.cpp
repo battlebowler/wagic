@@ -49,6 +49,17 @@ const float kWidthScaleFactor = 0.8f * (SCREEN_HEIGHT / 272.0f);
 static const float kManaNumXNudge = 0.5f;
 static const float kManaNumYNudge = 0.75f;
 
+// A plain gray generic-mana pip (gray disc + dark rim), drawn in code rather than using the
+// shared colorless icon cell (manaIcons[0]). That cell holds the theme's artifact/diamond glyph
+// used elsewhere in the UI (deck color indicators, carousel); drawing our own circle here keeps
+// the image-less AlternateRender cards showing a clean numbered disc no matter what's in it.
+static void drawGenericManaPip(JRenderer * r, float cx, float cy, float z)
+{
+    float R = 6.4f * z; // matches the 32px pip quad drawn at 0.4*z
+    r->FillCircle(cx, cy, R, ARGB(255, 15, 15, 15));                 // dark rim
+    r->FillCircle(cx, cy, R - 1.5f * z, ARGB(255, 201, 201, 201));   // gray fill
+}
+
 // Collectible-foil sheen (MTG "star-burst" style). Drawn additively over the card rect
 // centered at (cx,cy) with half-extents halfW/halfH: a subtle diagonal rainbow wash, plus
 // two crossing sets of fine diagonal streaks whose brightness is modulated by a "light"
@@ -960,10 +971,10 @@ void CardGui::AlternateRender(MTGCard * card, const Pos& pos, bool foil)
         {
             char buffer[10];
             sprintf(buffer, "%d", cost);
-            float iconCX = manaStartX - 12 * j * pos.actZ; // pip center (manaIcons hotspot 16,16)
-            renderer->RenderQuad(manaIcons[0].get(), iconCX, manaY, 0, 0.4f * pos.actZ, 0.4f * pos.actZ);
+            float iconCX = manaStartX - 12 * j * pos.actZ; // pip center
+            drawGenericManaPip(renderer, iconCX, manaY, pos.actZ);
             // Center the number on the pip (top-left = center - (w/2, H*GetScale()/2)), then a
-            // small optical nudge up/right so the digit reads centered in the pip art.
+            // small optical nudge up/right so the digit reads centered in the pip.
             float w = font->GetStringWidth(buffer);
             font->DrawString(buffer, iconCX - w / 2.0f + kManaNumXNudge * pos.actZ,
                              manaY - font->GetHeight() * font->GetScale() / 2.0f - kManaNumYNudge * pos.actZ);
@@ -974,7 +985,7 @@ void CardGui::AlternateRender(MTGCard * card, const Pos& pos, bool foil)
             char buffer[10];
             sprintf(buffer, "X");
             float iconCX = manaStartX - 12 * j * pos.actZ;
-            renderer->RenderQuad(manaIcons[0].get(), iconCX, manaY, 0, 0.4f * pos.actZ, 0.4f * pos.actZ);
+            drawGenericManaPip(renderer, iconCX, manaY, pos.actZ);
             float w = font->GetStringWidth(buffer);
             font->DrawString(buffer, iconCX - w / 2.0f + kManaNumXNudge * pos.actZ,
                              manaY - font->GetHeight() * font->GetScale() / 2.0f - kManaNumYNudge * pos.actZ);
