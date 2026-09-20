@@ -380,7 +380,12 @@ void WGuiList::Render()
     int adjustedCurrent = 0;
     int start = 0, nowPos = 0, vHeight = 0;
     int nbitems = (int) items.size();
-    
+
+    // Inter-row spacing. The Options screen (gWGuiDarkList) draws rows as inset cards and reads
+    // better a bit tighter; every other list keeps the original 5px gap.
+    extern bool gWGuiDarkList;
+    const int rowGap = gWGuiDarkList ? 1 : 5;
+
     //List is empty.
     if (!items.size() && failMsg != "")
     {
@@ -425,14 +430,14 @@ void WGuiList::Render()
         {
             if (!items[start]->Visible()) continue;
 
-            vHeight += static_cast<int> (items[start]->getHeight() + 5);
+            vHeight += static_cast<int> (items[start]->getHeight() + rowGap);
             if (vHeight >= (SCREEN_HEIGHT - 60) / 2) break;
         }
         vHeight = 0;
         if (start >= 0) for (nowPos = nbitems; nowPos > 1; nowPos--)
         {
             if (!items[start]->Visible()) continue;
-            vHeight += static_cast<int> (items[nowPos - 1]->getHeight() + 5);
+            vHeight += static_cast<int> (items[nowPos - 1]->getHeight() + rowGap);
         }
 
         if (vHeight <= SCREEN_HEIGHT - 40 && nowPos < start) start = nowPos;
@@ -454,7 +459,7 @@ void WGuiList::Render()
 
             if (pos < start)
             {
-                vHeight += static_cast<int> (items[pos]->getHeight() + 5);
+                vHeight += static_cast<int> (items[pos]->getHeight() + rowGap);
                 continue;
             }
 
@@ -464,7 +469,7 @@ void WGuiList::Render()
                 items[pos]->setWidth(width - 10);
             else
                 items[pos]->setWidth(width);
-            nowPos += static_cast<int> (items[pos]->getHeight() + 5);
+            nowPos += static_cast<int> (items[pos]->getHeight() + rowGap);
             renderBack(items[pos]);
             items[pos]->Render();
             if (nowPos > SCREEN_HEIGHT) //Stop displaying things once we reach the bottom of the screen.

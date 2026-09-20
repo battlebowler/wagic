@@ -188,7 +188,13 @@ bool CardSelector::CheckUserInput(JButton key)
     {
         // Touch-first: a tap acts only on the element it actually lands on, rather
         // than snapping selection to the nearest card. Empty-space taps do nothing.
-        Target* tapped = hitTest<Target> (cards, limitor, static_cast<float> (x), static_cast<float> (y));
+        // Mirror HoverAt's hand priority so a tap on the open hand plays the hand card the
+        // preview was showing, not a battlefield card drawn behind it. Not while targeting.
+        Target* tapped = NULL;
+        if (!observer || !observer->getCurrentTargetChooser())
+            tapped = hitTestZone<Target> (cards, CardView::handZone, static_cast<float> (x), static_cast<float> (y));
+        if (!tapped)
+            tapped = hitTest<Target> (cards, limitor, static_cast<float> (x), static_cast<float> (y));
         // Consume the tap BEFORE dispatching. Rules like MTGAttackRule::reactToClick
         // re-enter CheckUserInput (e.g. with JGE_BTN_RIGHT) from inside ButtonPressed;
         // if the click coordinates were still pending, that re-entrant call would
@@ -346,7 +352,16 @@ void CardSelector::HoverAt(float x, float y)
 {
     // Finger-anchored browsing: move the selection to the card/element under the finger
     // as it drags, showing its preview, without activating it (tapping activates).
-    Target* hit = hitTest<Target> (cards, limitor, x, y);
+    // The player's hand renders on top of the battlefield, so give a hand card actually
+    // under the finger priority -- otherwise a battlefield card behind it (whose center can
+    // be nearer the finger) steals focus and the preview "fights" back and forth as you drag
+    // across the open hand. Skip the bias while choosing a target, where the limitor already
+    // restricts selection to legal targets (hand cards aren't among them).
+    Target* hit = NULL;
+    if (!observer || !observer->getCurrentTargetChooser())
+        hit = hitTestZone<Target> (cards, CardView::handZone, x, y);
+    if (!hit)
+        hit = hitTest<Target> (cards, limitor, x, y);
     if (!hit)
         return;
 

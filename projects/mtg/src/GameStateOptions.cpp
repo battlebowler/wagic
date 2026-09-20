@@ -294,9 +294,9 @@ void GameStateOptions::Render()
         JRenderer::GetInstance()->RenderQuad(wpQuad.get(), 0, 0, 0, SCREEN_WIDTH_F / wpQuad->mWidth, SCREEN_HEIGHT_F / wpQuad->mHeight);
     }
 #endif
-    // Light scrim over the wallpaper: enough to keep labels legible, but sheer enough that the
-    // wallpaper clearly shows through (the option rows/tabs draw their own solid backdrops on top).
-    JRenderer::GetInstance()->FillRect(0, 0, SCREEN_WIDTH_F, SCREEN_HEIGHT_F, ARGB(115, 12, 14, 18));
+    // No full-screen scrim over the wallpaper: match the Trophy Room, which shows its backdrop at
+    // full brightness. The option rows, tabs, and modals all draw their own solid backdrops on top,
+    // so the wallpaper only shows through in the gaps -- same as the Trophy Room's card grid.
     const char * const CreditsText[] = {
         "Wagic, The Homebrew?! by Wololo",
         "",
@@ -364,13 +364,16 @@ void GameStateOptions::Render()
             timer = 0;
     }
 
-    // Backing panel behind the settings content so every tab reads as the same dark card as the
-    // (nice-looking) User tab, which draws its own panel below. The tab bar sits above PM_TOP and
-    // stays visible; a little alpha lets the wallpaper hint through.
-    if (optionsTabs->Current() != mUserTab)
+    // Match the Trophy Room's shading exactly (GameStateAwards): a solid top-bar strip behind the tab
+    // buttons, then a TRANSLUCENT shade (alpha 150, not an opaque panel) over the content area so the
+    // wallpaper shows through like the Trophy Room's list -- this is what keeps the two screens equally
+    // dim. Mirrors renderTabBar's FillRect(0,0,W,tabBottom,ARGB(210,8,8,12)) + renderCollectionList's
+    // FillRect(0,top,W,...,ARGB(150,12,14,18)). The User tab draws its own opaque profiles panel below.
     {
         const float PM_TOP = 32.0f;
-        JRenderer::GetInstance()->FillRect(0, PM_TOP, SCREEN_WIDTH_F, SCREEN_HEIGHT_F - PM_TOP, ARGB(235, 12, 14, 18));
+        JRenderer::GetInstance()->FillRect(0, 0, SCREEN_WIDTH_F, PM_TOP, ARGB(210, 8, 8, 12));
+        if (optionsTabs->Current() != mUserTab)
+            JRenderer::GetInstance()->FillRect(0, PM_TOP, SCREEN_WIDTH_F, SCREEN_HEIGHT_F - PM_TOP, ARGB(150, 12, 14, 18));
     }
 
     // Render the tabs + active settings list in the Trophy-Room dark palette.
