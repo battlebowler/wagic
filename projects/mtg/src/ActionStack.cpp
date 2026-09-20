@@ -246,6 +246,92 @@ void StackAbility::Render()
     vector<JQuadPtr> mytargetQuads;
     vector<MTGCardInstance*> myClones;
 
+    // Player-focused actions (e.g. "opponent draws"): the affected target is a PLAYER -- either an
+    // explicit player target, or (when there's no explicit target) a player derived from `who`
+    // (CONTROLLER/OPPONENT/...). In that case show ONLY that player's avatar + the action text, not a
+    // blank source card. We SKIP this only when the target is a CARD (that keeps the normal
+    // source-card > target-card render). Note: getNextTarget() returns the first entry of the action
+    // target list, which for "opponent draws" is the affected Player -- so it must NOT be treated as
+    // a "card target". getNextTarget(NULL) is side-effect free (indexes from `previous`).
+    Targetable * effTarget = ability->target;
+    if (!effTarget && ability->getActionTc())
+        effTarget = ability->getActionTc()->getNextTarget();
+    // A card target that IS the source card is a self-reference (no real target) -- abilities like
+    // "opponent draws" set ability->target = the source. Treat that (and null / a player) as "no card
+    // target", mirroring the existing `_target != ability->source` test below.
+    bool realCardTarget = dynamic_cast<MTGCardInstance *>(effTarget) && (effTarget != ability->source);
+    if (source && !realCardTarget)
+    {
+        // Prefer an explicit player target; otherwise ask the (possibly wrapped) ability who it
+        // affects, descending through NestedAbility wrappers (a trigger/choice wraps the AADrawer).
+        Targetable * affected = dynamic_cast<Player *>(effTarget) ? effTarget : NULL;
+        MTGAbility * a = ability;
+        for (int depth = 0; a && !affected && depth < 6; depth++)
+        {
+            if (a->source) // getTarget() dereferences source for CONTROLLER/OPPONENT/OWNER
+            {
+                if (ActivatedAbilityTP * tp = dynamic_cast<ActivatedAbilityTP *>(a))      affected = tp->getTarget();
+                else if (InstantAbilityTP * tp = dynamic_cast<InstantAbilityTP *>(a))     affected = tp->getTarget();
+                else if (AbilityTP * tp = dynamic_cast<AbilityTP *>(a))                   affected = tp->getTarget();
+            }
+            if (affected) break;
+            NestedAbility * na = dynamic_cast<NestedAbility *>(a);
+            a = na ? na->ability : NULL; // unwrap one level and try again
+        }
+        if (Player * pl = dynamic_cast<Player *>(affected))
+        {
+            JRenderer * renderer = JRenderer::GetInstance();
+            WFont * mFont = observer->getResourceManager()->GetWFont(Fonts::MAIN_FONT);
+            mFont->SetColor(ARGB(255, 255, 255, 255));
+            mFont->SetScale(DEFAULT_MAIN_FONT_SCALE);
+            JQuadPtr av = pl->getIcon();
+            if (av.get())
+            {
+                float backupX = av->mHotSpotX, backupY = av->mHotSpotY;
+                av->SetColor(ARGB(255, 255, 255, 255));
+                av->SetHotSpot(av->mWidth / 2, av->mHeight / 2);
+                float scale = mHeight / av->mHeight;
+                renderer->RenderQuad(av.get(), x + (av->mWidth * scale / 2), y + (av->mHeight * scale / 2), 0, scale, scale);
+                av->SetHotSpot(backupX, backupY);
+            }
+            // The card's label is written from the ability CONTROLLER's perspective ("opponent draws"
+            // = the controller's opponent). Re-express it for the local (human) viewer so the wording
+            // matches the avatar: "You draw ..." when the affected player is the viewer, else
+            // "Opponent ...". Only rewrites when the label leads with a "opponent"/"you" subject.
+            string label = action;
+            {
+                Player * viewer = (observer->players[0] && !observer->players[0]->isAI()) ? observer->players[0]
+                                : (observer->players[1] && !observer->players[1]->isAI()) ? observer->players[1]
+                                : observer->players[0];
+                bool affectsViewer = (pl == viewer);
+                string low = label;
+                for (size_t i = 0; i < low.size(); ++i) low[i] = (char) tolower((unsigned char) low[i]);
+                string predicate;
+                bool hadSubject = true;
+                if (low.compare(0, 9, "opponent ") == 0)   predicate = label.substr(9);
+                else if (low.compare(0, 4, "you ") == 0)    predicate = label.substr(4);
+                else                                        hadSubject = false;
+                if (hadSubject)
+                {
+                    if (affectsViewer)
+                    {
+                        // Second person: drop a trailing 's' from the first verb word (draws->draw).
+                        size_t sp = predicate.find(' ');
+                        string firstWord = (sp == string::npos) ? predicate : predicate.substr(0, sp);
+                        if (!firstWord.empty() && firstWord[firstWord.size() - 1] == 's')
+                            firstWord.erase(firstWord.size() - 1);
+                        string rest = (sp == string::npos) ? "" : predicate.substr(sp);
+                        label = "You " + firstWord + rest;
+                    }
+                    else
+                        label = "Opponent " + predicate;
+                }
+            }
+            mFont->DrawString(_(label).c_str(), x + 55, y + GetVerticalTextOffset(), JGETEXT_LEFT);
+            return;
+        }
+    }
+
     int fmLibrary = 0;
     int force = 0;
 
@@ -294,7 +380,8 @@ void StackAbility::Render()
     // No explicit target? Player-affecting abilities like "opponent draws" (Browbeat) derive the
     // affected player from `who` (TargetChooser::CONTROLLER/OPPONENT/...) and leave ability->target
     // null, so the stack showed only the source card. Ask the ability who it actually affects and,
-    // when that's a player, show that player's avatar next to the source.
+    // when that's a player, show that player's avatar next to the source. (The common no-card-target
+    // case is handled earlier by the avatar-only path; this remains as a fallback.)
     if (!target && mytargetQuads.empty())
     {
         Targetable * affected = NULL;
