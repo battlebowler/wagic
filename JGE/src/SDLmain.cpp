@@ -703,16 +703,42 @@ void SdlApp::OnTouchEvent(const SDL_TouchFingerEvent& event)
     else if (event.type == SDL_FINGERUP)
     {
         g_engine->DragProcessed();
-        // A tap: the finger never dragged far enough to scroll. Only honour it if the
-        // down position was inside the game viewport; use that (reliable) down position
-        // rather than the up coordinate (which SDL fills with the last motion point).
-        if (!mTouchMoved &&
-            mMouseDownY >= viewPort.y && mMouseDownY <= viewPort.y + viewPort.h &&
-            mMouseDownX >= viewPort.x && mMouseDownX <= viewPort.x + viewPort.w)
+        // Tap vs swipe is decided by NET displacement between finger-down and finger-up, NOT by
+        // whether the finger ever crossed the tap tolerance mid-gesture. mTouchMoved latches as soon
+        // as the finger wobbles past 3%, so a tap that jitters (or briefly moved then settled back)
+        // used to be discarded -- the cause of menu options needing a second tap (the first "tap+drag"
+        // just scrolled). Judging by net down->up distance, a settled tap still selects while a real
+        // swipe (large net move, e.g. the deck-editor carousel) is still not treated as a tap.
+        // event.x/y at FINGERUP hold the up position (SDL's last motion point), in the same device
+        // pixels as mMouseDownX/Y.
+        bool netTap = (fabsf(event.x - mMouseDownX) <= 0.03f * (float) actualWidth &&
+                       fabsf(event.y - mMouseDownY) <= 0.03f * (float) actualHeight);
+        bool inVP = (mMouseDownY >= viewPort.y && mMouseDownY <= viewPort.y + viewPort.h &&
+                     mMouseDownX >= viewPort.x && mMouseDownX <= viewPort.x + viewPort.w);
+        // A tap-only popup menu (SimpleMenu) is open: it doesn't scroll-by-swipe, so a finger LIFT
+        // inside the view should select the item under the finger even if the gesture moved (a drag).
+        // Use the UP position in that case (where the finger actually lifted, i.e. on the option).
+        extern int gSimpleMenuOpenCount;
+        bool upInVP = (event.y >= viewPort.y && event.y <= viewPort.y + viewPort.h &&
+                       event.x >= viewPort.x && event.x <= viewPort.x + viewPort.w);
+        // While a tap-only popup menu is open, a finger LIFT inside the view selects the item under
+        // the finger even for a drag/edge-swipe (users reach the centered menu by dragging in from the
+        // right edge). This is safe against the menu-opening swipe: the menu is created only AFTER that
+        // gesture's finger-up (the Back key arrives later), so its finger-up sees gSimpleMenuOpenCount==0.
+        bool menuLiftSelect = (gSimpleMenuOpenCount > 0) && !(netTap && inVP) && upInVP;
+        // Normal tap: use the down position (reliable). Menu drag-lift: use the up position.
+        if (netTap && inVP)
         {
             g_engine->LeftClicked(
                 ((mMouseDownX - viewPort.x) * SCREEN_WIDTH) / actualWidth,
                 ((mMouseDownY - viewPort.y) * SCREEN_HEIGHT) / actualHeight);
+            g_engine->HoldKey_NoRepeat(JGE_BTN_OK);
+        }
+        else if (menuLiftSelect)
+        {
+            g_engine->LeftClicked(
+                ((event.x - viewPort.x) * SCREEN_WIDTH) / actualWidth,
+                ((event.y - viewPort.y) * SCREEN_HEIGHT) / actualHeight);
             g_engine->HoldKey_NoRepeat(JGE_BTN_OK);
         }
     }

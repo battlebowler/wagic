@@ -34,9 +34,16 @@ JTexture* SimpleMenu::spadeLTex = NULL;
 JTexture* SimpleMenu::jewelTex = NULL;
 JTexture* SimpleMenu::sideTex = NULL;
 
+// Number of SimpleMenu popups currently alive. SDLmain reads this so that, while a tap-only popup
+// menu is open, a finger LIFT inside the game view selects the item under the finger even if the
+// gesture moved (a drag/swipe) -- these menus don't scroll-by-swipe, so "drag onto an option and
+// lift" should select rather than be discarded as a swipe.
+int gSimpleMenuOpenCount = 0;
+
 SimpleMenu::SimpleMenu(JGE* jge, WResourceManager* resourceManager, int id, JGuiListener* listener, int fontId, float x, float y, const char * _title, int _maxItems, bool centerHorizontal, bool centerVertical)
     : JGuiController(jge, id, listener), fontId(fontId), mCenterHorizontal(centerHorizontal), mCenterVertical(centerVertical), stars(0)
 {
+    gSimpleMenuOpenCount++;
     autoTranslate = true;
     isMultipleChoice = false;
     mInterruptStyle = false;
@@ -75,6 +82,7 @@ SimpleMenu::SimpleMenu(JGE* jge, WResourceManager* resourceManager, int id, JGui
 
 SimpleMenu::~SimpleMenu()
 {
+    if (gSimpleMenuOpenCount > 0) gSimpleMenuOpenCount--;
     SAFE_DELETE(stars);
 }
 
@@ -387,23 +395,39 @@ bool SimpleMenu::CheckUserInput(JButton key)
         if (mObjects.size())
         {
             bool tappedItem = false;
-            // Hit-test only the rows actually visible in the window, at their scrolled
-            // positions (matching Render). No edge-scroll branches: scrolling is done by
-            // dragging, and the old edge branch swallowed taps on menus that don't overflow.
+            // Hit-test the rows actually visible in the window, at their scrolled positions
+            // (matching Render). We also track the NEAREST visible row to the tap so a near-miss --
+            // e.g. a tap a couple px into the top/bottom margin, or in the tiny gap the render's
+            // vertical padding leaves -- still selects instead of doing nothing (the old cause of the
+            // "first tap does nothing, tap again" feel). No edge-scroll branches: scrolling is by drag.
             float listTop = mY + SimpleMenuConst::kVerticalMargin;
             float listBottom = mY + mHeight - (SimpleMenuConst::kLineHeight / 2);
+            int nearest = -1;
+            float nearestDist = 1e9f;
             for (int i = 0; i < mCount; i++)
             {
                 SimpleMenuItem * smi = static_cast<SimpleMenuItem*>(mObjects[i]);
                 if (!smi) continue;
                 float itemTop = smi->getY() - mScrollPx;
-                if (itemTop < listTop - 1.0f) continue;                                    // above the window
-                if (itemTop + SimpleMenuConst::kLineHeight > listBottom + 1.0f) continue;   // below the window
+                if (itemTop + SimpleMenuConst::kLineHeight < listTop - 1.0f) continue;      // fully above the window
+                if (itemTop > listBottom + 1.0f) continue;                                  // fully below the window
+                float center = itemTop + SimpleMenuConst::kLineHeight * 0.5f;
+                float d = (y > center) ? (y - center) : (center - y);
+                if (d < nearestDist) { nearestDist = d; nearest = i; }
                 if ((y > itemTop) && (y <= itemTop + SimpleMenuConst::kLineHeight))
                 {
                     n = i;
                     tappedItem = true;
                 }
+            }
+            // Forgive a near-miss: if the tap landed inside the menu box (x within the panel, y within
+            // the list area plus one row of slack) but between/just outside the exact row bands, snap
+            // to the nearest visible row so a single tap still selects.
+            if (!tappedItem && nearest >= 0 && x >= mX && x <= mX + mWidth
+                && y >= mY - 1.0f && y <= listBottom + SimpleMenuConst::kLineHeight)
+            {
+                n = nearest;
+                tappedItem = true;
             }
 
             // check bounds of n.
@@ -412,24 +436,33 @@ bool SimpleMenu::CheckUserInput(JButton key)
             if ( n >= mCount )
                 n = mCount - 1;
 
-            // Page-jump guard for d-pad-style stepping only. A DIRECT TAP must land on the exact
-            // row tapped, no matter how far from the current cursor — otherwise tapping an item
-            // more than maxItems below the cursor (e.g. Power/Toughness/First Letter in the filter
-            // menu) wrongly snapped to mCurr+1 (Color).
-            if( !tappedItem && n-mCurr > this->maxItems+1 )
-                n = mCurr+1;//we don't want to increment pages at a time.
-            if (n != mCurr && mObjects[mCurr] != NULL && mObjects[mCurr]->Leaving(JGE_BTN_DOWN))
+            if (tappedItem)
             {
+                // One-tap: a tap that landed on a row focuses AND activates it in a single tap.
+                // Move focus straight to the tapped row (do NOT gate the move on Leaving()'s return,
+                // which previously left the cursor on the old row so the first tap only "focused" and
+                // a second tap was needed), then fire the listener for the tapped item's id.
+                // SimpleMenuItem::ButtonPressed() is always false (it reports mIsValidSelection, which
+                // menu items never set), so we must call the listener directly rather than gate on it.
+                if (n != mCurr && mObjects[mCurr] != NULL)
+                    mObjects[mCurr]->Leaving(JGE_BTN_DOWN);
                 mCurr = n;
-                mObjects[mCurr]->Entering();
-            }
-
-            // One-tap: if the tap landed on an actual item (not the scroll edges),
-            // activate it right away instead of waiting for a second confirming tap.
-            if (tappedItem && mObjects[mCurr] != NULL && mObjects[mCurr]->ButtonPressed())
-            {
-                if (mListener != NULL)
+                if (mObjects[mCurr] != NULL)
+                    mObjects[mCurr]->Entering();
+                if (mObjects[mCurr] != NULL && mListener != NULL)
                     mListener->ButtonPressed(mId, mObjects[mCurr]->GetId());
+            }
+            else
+            {
+                // Tap on the scroll edges / empty area: just move the cursor (page-jump guard for
+                // d-pad-style stepping), no activation.
+                if (n - mCurr > this->maxItems + 1)
+                    n = mCurr + 1; // we don't want to increment pages at a time.
+                if (n != mCurr && mObjects[mCurr] != NULL && mObjects[mCurr]->Leaving(JGE_BTN_DOWN))
+                {
+                    mCurr = n;
+                    mObjects[mCurr]->Entering();
+                }
             }
 
             mEngine->LeftClickedProcessed();
