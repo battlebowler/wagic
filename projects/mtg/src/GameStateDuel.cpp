@@ -152,6 +152,10 @@ GameState(parent, "duel")
     popupScreen = NULL;
     mGamePhase = DUEL_STATE_UNSET;
     taskList = NEW TaskList();
+    // On-screen Back button for the in-duel task board (opened from the game menu). Tapping it closes
+    // the board and returns to the game, so no swipe is needed. Positioned bottom-right; repositioned
+    // exactly by layoutRowRight when rendered.
+    taskBackButton = NEW InteractiveButton(NULL, kMenuButtonId, Fonts::MAIN_FONT, "Back", SCREEN_WIDTH_F - 150, SCREEN_HEIGHT_F - 20, JGE_BTN_SEC);
 
 #ifdef TESTSUITE
     testSuite = NULL;
@@ -184,6 +188,7 @@ GameState(parent, "duel")
 GameStateDuel::~GameStateDuel()
 {
     End();
+    SAFE_DELETE(taskBackButton);
     SAFE_DELETE(tournament);
     kBgFile = ""; //Reset the chosen background.
 }
@@ -573,6 +578,14 @@ static void getDuelSetupBeginRect(const char* beginLabel, const char* selectLabe
 
 void GameStateDuel::Update(float dt)
 {
+    // In-duel task board Back button: check it FIRST. While the board is up the duel sits in
+    // DUEL_STATE_PLAY, so the battlefield input (game->Update in the switch below) would otherwise
+    // consume the tap before the task-board handling at the end of this method ever sees it.
+    if (taskList && taskList->getState() == TaskList::TASKS_ACTIVE
+        && taskBackButton && taskBackButton->ButtonPressed())
+    {
+        taskList->End(); // slide the board out and resume the duel
+    }
     // On-screen Back button on the deck/opponent chooser (touch): step back one screen
     // (Opponent -> Choose Deck, Choose Deck -> Main Menu) instead of hunting a list item.
     if (((deckmenu && !deckmenu->isClosed()) || (opponentMenu && !opponentMenu->isClosed()))
@@ -1119,7 +1132,9 @@ void GameStateDuel::Update(float dt)
             }
            // this is handled elsewhere.
         }
-        if (mEngine->GetButtonClick(JGE_BTN_MENU))
+        // While the task board is up, a Back gesture must NOT open the game menu (that was the old
+        // swipe path for closing the board). The on-screen Back button is now the only way out.
+        if (mEngine->GetButtonClick(JGE_BTN_MENU) && !(taskList && taskList->getState() != TaskList::TASKS_INACTIVE))
         {
             if (!menu)
             {
@@ -1251,7 +1266,10 @@ void GameStateDuel::Update(float dt)
             mParent->SetNextState(GAME_STATE_MENU);
         }
     }
-    if(taskList && taskList->getState() == TaskList::TASKS_IN)
+    // Task board animation: Update must run for every non-inactive state (not just TASKS_IN) so the
+    // slide-OUT from End() completes to TASKS_INACTIVE -- otherwise the board would stick on close.
+    // (The Back button is handled at the top of Update, before the battlefield input eats the tap.)
+    if (taskList && taskList->getState() != TaskList::TASKS_INACTIVE)
         taskList->Update(dt);
 }
 
@@ -1562,8 +1580,19 @@ void GameStateDuel::Render()
             }
         }
     }
-    if(taskList && taskList->getState() == TaskList::TASKS_ACTIVE){
+    // Render the board for every non-inactive state so the slide-IN (TASKS_IN) and slide-OUT
+    // (TASKS_OUT) animations are visible -- gating on TASKS_ACTIVE alone made it just pop in/out.
+    if(taskList && taskList->getState() != TaskList::TASKS_INACTIVE){
         taskList->Render();
+        // On-screen Back button (bottom-right), same style/spot as the shop's task-board Back. Only
+        // while fully active, so it doesn't ride the slide animation.
+        if (taskBackButton && taskList->getState() == TaskList::TASKS_ACTIVE)
+        {
+            std::vector<InteractiveButton*> backRow;
+            backRow.push_back(taskBackButton);
+            InteractiveButton::layoutRowRight(backRow, SCREEN_WIDTH_F - 10.0f, SCREEN_HEIGHT_F - 20.0f, 12.0f);
+            taskBackButton->Render();
+        }
         if(menu)
             menu->Render();
     }

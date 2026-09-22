@@ -6,6 +6,7 @@
 #include "SimplePopup.h"
 #include "DeckMenu.h"
 #include "Tasks.h"
+#include "InteractiveButton.h"
 #include "MTGDeck.h"
 #include "GameObserver.h"
 #ifdef AI_CHANGE_TESTING
@@ -188,6 +189,7 @@ private:
     DeckMenu * opponentMenu;
     SimpleMenu * menu;
     TaskList * taskList;
+    InteractiveButton * taskBackButton; // on-screen Back for the in-duel task board (returns to the game)
     SimplePopup * popupScreen; // used for informational screens, modal
     static int selectedPlayerDeckId;
     static int selectedAIDeckId;

@@ -261,6 +261,10 @@ Task* Task::createFromStr(const string params, bool rand)
 TaskList::TaskList(string _fileName):
     fileName(_fileName), vPos(-SCREEN_HEIGHT), vPosInEasing(vPos), vPosOutEasing(vPos)
 {
+    // Start hidden. mState was previously uninitialized; callers that test getState() (e.g. the duel
+    // rendering/back-gesture gating) must see TASKS_INACTIVE until Start() actually opens the board,
+    // otherwise the board's dark overlay draws over the game and the Back-gesture stays blocked.
+    mState = TASKS_INACTIVE;
 
     if (fileName == "")
     {
