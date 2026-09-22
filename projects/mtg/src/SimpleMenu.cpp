@@ -34,6 +34,15 @@ JTexture* SimpleMenu::spadeLTex = NULL;
 JTexture* SimpleMenu::jewelTex = NULL;
 JTexture* SimpleMenu::sideTex = NULL;
 
+// Last JGEGetTime() at which any SimpleMenu actually drew itself. SDLmain reads this so the
+// "drag onto an option and lift = select" affordance applies ONLY while a popup is truly on-screen.
+// Keyed on Render() (not on object existence) so a dormant/leaked menu -- e.g. one alive but not
+// shown during the Options screen -- never triggers it.
+int gSimpleMenuShownTick = -100000;
+// True while the on-screen SimpleMenu is scrollable (content overflows). Drag-lift-select must apply
+// only to non-scrollable popups (short in-duel menu); on a scrollable list a drag is a scroll.
+bool gSimpleMenuScrollable = false;
+
 SimpleMenu::SimpleMenu(JGE* jge, WResourceManager* resourceManager, int id, JGuiListener* listener, int fontId, float x, float y, const char * _title, int _maxItems, bool centerHorizontal, bool centerVertical)
     : JGuiController(jge, id, listener), fontId(fontId), mCenterHorizontal(centerHorizontal), mCenterVertical(centerVertical), stars(0)
 {
@@ -196,6 +205,11 @@ void SimpleMenu::renderInterruptStyle()
 
 void SimpleMenu::Render()
 {
+    // Mark this popup as on-screen this frame for SDLmain's drag-lift-select gate. mScrollMax is
+    // computed in Update() earlier in the frame, so it is current here.
+    gSimpleMenuShownTick = JGEGetTime();
+    gSimpleMenuScrollable = (mScrollMax > 0.0f);
+
     if (mInterruptStyle) { renderInterruptStyle(); return; }
 
     WFont * titleFont = WResourceManager::Instance()->GetWFont(fontId);

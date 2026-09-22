@@ -707,11 +707,28 @@ void SdlApp::OnTouchEvent(const SDL_TouchFingerEvent& event)
         // selects. Only a clean tap (finger never dragged) activates, using the reliable down position.
         bool inVP = (mMouseDownY >= viewPort.y && mMouseDownY <= viewPort.y + viewPort.h &&
                      mMouseDownX >= viewPort.x && mMouseDownX <= viewPort.x + viewPort.w);
+        bool upInVP = (event.y >= viewPort.y && event.y <= viewPort.y + viewPort.h &&
+                       event.x >= viewPort.x && event.x <= viewPort.x + viewPort.w);
+        // A tap-only popup (SimpleMenu) is on-screen when it drew itself within the last few frames.
+        // These menus don't scroll-by-swipe, and users reach the centered in-duel menu by dragging in
+        // from the edge, so a finger LIFT onto an option should select even though the gesture dragged.
+        // Gated on Render() timing (not object existence) so a menu that merely exists off-screen -- e.g.
+        // during the Options screen -- never triggers this, and on non-scrollable menus only.
+        extern int gSimpleMenuShownTick;
+        extern bool gSimpleMenuScrollable;
+        bool menuOnScreen = (JGEGetTime() - gSimpleMenuShownTick) < 250;
         if (!mTouchMoved && inVP)
         {
             g_engine->LeftClicked(
                 ((mMouseDownX - viewPort.x) * SCREEN_WIDTH) / actualWidth,
                 ((mMouseDownY - viewPort.y) * SCREEN_HEIGHT) / actualHeight);
+            g_engine->HoldKey_NoRepeat(JGE_BTN_OK);
+        }
+        else if (mTouchMoved && menuOnScreen && !gSimpleMenuScrollable && upInVP)
+        {
+            g_engine->LeftClicked(
+                ((event.x - viewPort.x) * SCREEN_WIDTH) / actualWidth,
+                ((event.y - viewPort.y) * SCREEN_HEIGHT) / actualHeight);
             g_engine->HoldKey_NoRepeat(JGE_BTN_OK);
         }
     }
