@@ -353,8 +353,7 @@ bool WGuiMenu::yieldFocus()
 
 //WGuiList
 WGuiList::WGuiList(string name, WSyncable * syncme) :
-    WGuiMenu(JGE_BTN_DOWN, JGE_BTN_UP, false, syncme), startWindow(-1), endWindow(-1),
-    mScrollY(0.0f), mScrollTarget(0.0f), mScrollInit(false)
+    WGuiMenu(JGE_BTN_DOWN, JGE_BTN_UP, false, syncme), startWindow(-1), endWindow(-1)
 {
     failMsg = "NO OPTIONS AVAILABLE";
     width = SCREEN_WIDTH - 10;
@@ -376,12 +375,16 @@ void WGuiList::confirmChange(bool confirmed)
 void WGuiList::Render()
 {
     JRenderer * renderer = JRenderer::GetInstance();
+    int listHeight = 40;
+    int listSelectable = 0;
+    int adjustedCurrent = 0;
+    int start = 0, nowPos = 0, vHeight = 0;
     int nbitems = (int) items.size();
 
     // Inter-row spacing. The Options screen (gWGuiDarkList) draws rows as inset cards and reads
     // better a bit tighter; every other list keeps the original 5px gap.
     extern bool gWGuiDarkList;
-    const float rowGap = gWGuiDarkList ? 1.0f : 5.0f;
+    const int rowGap = gWGuiDarkList ? 1 : 5;
 
     //List is empty.
     if (!items.size() && failMsg != "")
@@ -409,97 +412,86 @@ void WGuiList::Render()
             }
         }
     }
-
-    // Smooth, eased PIXEL scrolling for EVERY vertical list (replaces the old whole-row windowed jump
-    // that used to follow). The selection is center-followed so the list scrolls on each step; content
-    // is clipped to the list's vertical band so a partially scrolled row doesn't bleed past the list.
-    // (WGuiListRow, the horizontal variant, overrides Render() and is unaffected. rowGap above is
-    // style-aware: 1px for the tight Options cards, 5px elsewhere.)
+    //Find out how large our list is, with all items and margin.
+    for (int pos = 0; pos < nbitems; pos++)
     {
-        const float viewTop = y;
-        const float viewH = (float) SCREEN_HEIGHT - viewTop;
-
-        // Cumulative top of each item within the content, and total content height.
-        std::vector<float> itemTop(nbitems, 0.0f);
-        float acc = 0.0f;
-        for (int i = 0; i < nbitems; i++)
+        listHeight += static_cast<int> (items[pos]->getHeight() + 1); //What does the +1 do exactly ?
+        if (items[pos]->Selectable())
         {
-            itemTop[i] = acc;
-            if (items[i] && items[i]->Visible())
-                acc += items[i]->getHeight() + rowGap;
+            listSelectable++;
+            if (pos < currentItem) adjustedCurrent++;
         }
-        const float contentH = acc;
-
-        // Target scroll: keep the current item roughly CENTERED in the view (so the list scrolls on
-        // every selection step, like the original windowed layout did -- otherwise moving within a
-        // page doesn't scroll and feels stuck). Clamp to content.
-        float target = 0.0f;
-        if (contentH > viewH && currentItem >= 0 && currentItem < nbitems && items[currentItem])
-        {
-            float cH = items[currentItem]->getHeight();
-            target = itemTop[currentItem] - (viewH - cH) * 0.5f;
-            if (target < 0.0f) target = 0.0f;
-            if (target > contentH - viewH) target = contentH - viewH;
-        }
-        mScrollTarget = target;
-
-        // Ease toward the target (frame-based; Render runs every frame). Snap on the first frame and
-        // on big jumps (fast scrolling / tab switches) so it stays responsive; ease small steps.
-        float diff = target - mScrollY;
-        if (!mScrollInit || fabs(diff) > 80.0f) { mScrollY = target; mScrollInit = true; }
-        else
-        {
-            mScrollY += diff * 0.5f;
-            if (fabs(target - mScrollY) < 0.5f) mScrollY = target;
-        }
-
-        const bool scrollable = (contentH > viewH);
-        const float itemW = scrollable ? (width - 10.0f) : width;
-
-        // Clip to the list's vertical band (full width; the dark cards span near full width).
-        renderer->SetClip(0, (int) viewTop, (int) SCREEN_WIDTH, (int) (viewH + 1.0f));
-
-        if (currentItem >= 0 && currentItem < nbitems && items[currentItem] && items[currentItem]->Visible())
-            items[currentItem]->Underlay();
-
-        int first = -1, last = -1;
-        for (int i = 0; i < nbitems; i++)
-        {
-            if (!items[i] || !items[i]->Visible()) continue;
-            float iy = viewTop + itemTop[i] - mScrollY;
-            if (iy + items[i]->getHeight() < viewTop - 1.0f || iy > viewTop + viewH + 1.0f)
-                continue; // fully off-screen
-            items[i]->setY(iy);
-            items[i]->setX(x);
-            items[i]->setWidth(itemW);
-            renderBack(items[i]);
-            items[i]->Render();
-            if (first < 0) first = i;
-            last = i;
-        }
-        startWindow = first;
-        endWindow = (last < 0) ? -1 : last + 1;
-
-        if (scrollable)
-        {
-            float trackH = viewH;
-            float thumbH = trackH * (viewH / contentH);
-            if (thumbH < 4.0f) thumbH = 4.0f;
-            float denom = (contentH - viewH);
-            float frac = (denom > 0.0f) ? (mScrollY / denom) : 0.0f;
-            if (frac < 0.0f) frac = 0.0f; if (frac > 1.0f) frac = 1.0f;
-            float thumbY = viewTop + frac * (trackH - thumbH);
-            renderer->FillRect(x + width - 2, viewTop, 2, trackH, getColor(WGuiColor::SCROLLBAR));
-            renderer->FillRoundRect(x + width - 5, thumbY, 5, thumbH, 1, getColor(WGuiColor::SCROLLBUTTON));
-        }
-
-        if (currentItem >= 0 && currentItem < nbitems && items[currentItem] && items[currentItem]->Visible())
-            items[currentItem]->Overlay();
-
-        renderer->SetClip(0, 0, 0, 0); // turn clipping back off
-        return;
     }
 
+    //Always fill screen
+    if (listHeight > SCREEN_HEIGHT)
+    {
+        for (start = currentItem; start > 0; start--)
+        {
+            if (!items[start]->Visible()) continue;
+
+            vHeight += static_cast<int> (items[start]->getHeight() + rowGap);
+            if (vHeight >= (SCREEN_HEIGHT - 60) / 2) break;
+        }
+        vHeight = 0;
+        if (start >= 0) for (nowPos = nbitems; nowPos > 1; nowPos--)
+        {
+            if (!items[start]->Visible()) continue;
+            vHeight += static_cast<int> (items[nowPos - 1]->getHeight() + rowGap);
+        }
+
+        if (vHeight <= SCREEN_HEIGHT - 40 && nowPos < start) start = nowPos;
+    }
+
+    vHeight = 0;
+    nowPos = 0;
+
+    //Render items.
+    if (start >= 0)
+    {
+        int pos;
+        //Render current underlay.
+        if (currentItem >= 0 && currentItem < nbitems && items[currentItem]->Visible()) items[currentItem]->Underlay();
+
+        for (pos = 0; pos < nbitems; pos++)
+        {
+            if (!items[pos]->Visible()) continue;
+
+            if (pos < start)
+            {
+                vHeight += static_cast<int> (items[pos]->getHeight() + rowGap);
+                continue;
+            }
+
+            items[pos]->setY(y + nowPos);
+            items[pos]->setX(x);
+            if (listHeight > SCREEN_HEIGHT && listSelectable > 1)
+                items[pos]->setWidth(width - 10);
+            else
+                items[pos]->setWidth(width);
+            nowPos += static_cast<int> (items[pos]->getHeight() + rowGap);
+            renderBack(items[pos]);
+            items[pos]->Render();
+            if (nowPos > SCREEN_HEIGHT) //Stop displaying things once we reach the bottom of the screen.
+            break;
+        }
+
+        startWindow = start;
+        endWindow = pos;
+
+        //Draw scrollbar
+        if (listHeight > SCREEN_HEIGHT && listSelectable > 1)
+        {
+            float barPosition = static_cast<float> (y - 5 + ((float) adjustedCurrent / listSelectable) * (SCREEN_HEIGHT - y));
+            float barLength = static_cast<float> ((SCREEN_HEIGHT - y) / listSelectable);
+            if (barLength < 4) barLength = 4;
+            renderer->FillRect(x + width - 2, y - 1, 2, SCREEN_HEIGHT - y, getColor(WGuiColor::SCROLLBAR));
+            renderer->FillRoundRect(x + width - 5, barPosition, 5, barLength, 1, getColor(WGuiColor::SCROLLBUTTON));
+        }
+
+        //Render current overlay.
+        if (currentItem >= 0 && currentItem < nbitems && items[currentItem]->Visible()) items[currentItem]->Overlay();
+    }
 }
 
 void WGuiList::setData()

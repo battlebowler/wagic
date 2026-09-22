@@ -2575,26 +2575,9 @@ void JRenderer::Enable3D()
 }
 
 
-void JRenderer::SetClip(int x, int y, int width, int height)
-{
-    // Clip subsequent drawing to a rectangle given in VIRTUAL, top-down coords (same space as
-    // FillRect/RenderQuad take their top-left x,y). Pass width<=0 or height<=0 to turn clipping off.
-    // The 2D pipeline is a plain ortho (glViewport = mActualWidth x mActualHeight, no rotation) with
-    // y flipped as SCREEN_HEIGHT_F - y, so glScissor -- which uses device pixels with a bottom-left
-    // origin -- maps as: sx = x*scaleW, sy = (SCREEN_HEIGHT_F - (y+height))*scaleH.
-    if (width <= 0 || height <= 0)
-    {
-        glDisable(GL_SCISSOR_TEST);
-        return;
-    }
-    float scaleW = mActualWidth / SCREEN_WIDTH_F;
-    float scaleH = mActualHeight / SCREEN_HEIGHT_F;
-    int sx = (int) (x * scaleW);
-    int sw = (int) (width * scaleW);
-    int sh = (int) (height * scaleH);
-    int sy = (int) ((SCREEN_HEIGHT_F - (float)(y + height)) * scaleH);
-    glEnable(GL_SCISSOR_TEST);
-    glScissor(sx, sy, sw, sh);
+void JRenderer::SetClip(int, int, int, int)
+{// NOT USED
+    //glScissor(x, y, width, height);
 }
 
 

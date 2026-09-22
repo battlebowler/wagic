@@ -34,16 +34,9 @@ JTexture* SimpleMenu::spadeLTex = NULL;
 JTexture* SimpleMenu::jewelTex = NULL;
 JTexture* SimpleMenu::sideTex = NULL;
 
-// Number of SimpleMenu popups currently alive. SDLmain reads this so that, while a tap-only popup
-// menu is open, a finger LIFT inside the game view selects the item under the finger even if the
-// gesture moved (a drag/swipe) -- these menus don't scroll-by-swipe, so "drag onto an option and
-// lift" should select rather than be discarded as a swipe.
-int gSimpleMenuOpenCount = 0;
-
 SimpleMenu::SimpleMenu(JGE* jge, WResourceManager* resourceManager, int id, JGuiListener* listener, int fontId, float x, float y, const char * _title, int _maxItems, bool centerHorizontal, bool centerVertical)
     : JGuiController(jge, id, listener), fontId(fontId), mCenterHorizontal(centerHorizontal), mCenterVertical(centerVertical), stars(0)
 {
-    gSimpleMenuOpenCount++;
     autoTranslate = true;
     isMultipleChoice = false;
     mInterruptStyle = false;
@@ -82,7 +75,6 @@ SimpleMenu::SimpleMenu(JGE* jge, WResourceManager* resourceManager, int id, JGui
 
 SimpleMenu::~SimpleMenu()
 {
-    if (gSimpleMenuOpenCount > 0) gSimpleMenuOpenCount--;
     SAFE_DELETE(stars);
 }
 

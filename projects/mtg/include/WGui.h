@@ -872,11 +872,6 @@ protected:
     bool mFocus;
     int startWindow;
     int endWindow;
-    // Smooth (eased) pixel scroll for the Options dark list (gWGuiDarkList). mScrollY animates
-    // toward mScrollTarget so selection moves glide instead of jumping a whole row.
-    float mScrollY;
-    float mScrollTarget;
-    bool mScrollInit;
 };
 
 /**
