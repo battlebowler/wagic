@@ -32,6 +32,11 @@ public:
     void Render();
     void Activate(PlayGuiObject* c);
     void Deactivate(PlayGuiObject* c);
+    // The rail (a player's revealed zone column) is up while a column is active -- note that tapping
+    // a zone clears the avatar's own mHasFocus but keeps the column shown, so callers must test this,
+    // not the avatar's focus. collapseRail() hides whichever column is shown.
+    bool isRailShown() const { return active != NULL; }
+    void collapseRail();
     int receiveEventPlus(WEvent*);
     int receiveEventMinus(WEvent*);
     bool CheckUserInput(JButton key);

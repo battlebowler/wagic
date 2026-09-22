@@ -213,18 +213,23 @@ ostream& GuiAvatar::toString(ostream& out) const
 
 void GuiGameZone::toggleDisplay()
 {
+    GameObserver * obs = cd->zone->owner->getObserver();
     if (showCards)
     {
-        cd->zone->owner->getObserver()->guiOpenDisplay = NULL;
+        obs->guiOpenDisplay = NULL;
         showCards = 0;
-        cd->zone->owner->getObserver()->OpenedDisplay = NULL;
+        obs->OpenedDisplay = NULL;
     }
-    else if(!cd->zone->owner->getObserver()->OpenedDisplay)//one display at a time please.
+    else
     {
-        cd->zone->owner->getObserver()->guiOpenDisplay = this;
+        // Switching zones: if another zone's list is already open, close it first, then open this one
+        // (previously a second display was blocked, so you couldn't switch by tapping another stack).
+        if (obs->guiOpenDisplay && obs->guiOpenDisplay != this)
+            obs->guiOpenDisplay->showCards = 0;
+        obs->guiOpenDisplay = this;
         showCards = 1;
         cd->init(zone);
-        cd->zone->owner->getObserver()->OpenedDisplay = cd;
+        obs->OpenedDisplay = cd;
     }
 }
 
@@ -432,12 +437,26 @@ bool GuiGameZone::CheckUserInput(JButton key)
         // card) and never closes, so intercept an icon tap here before handing off.
         GameObserver * g = zone ? zone->owner->getObserver() : NULL;
         int cx, cy;
-        if (g && g->getInput() && g->getInput()->GetLeftClickCoordinates(cx, cy)
-            && Contains(static_cast<float>(cx), static_cast<float>(cy)))
+        if (g && g->getInput() && g->getInput()->GetLeftClickCoordinates(cx, cy))
         {
-            g->getInput()->LeftClickedProcessed();
-            toggleDisplay();
-            return true;
+            // Tap on this zone's own icon → close the list ("toggle the stack the avatar revealed").
+            if (Contains(static_cast<float>(cx), static_cast<float>(cy)))
+            {
+                g->getInput()->LeftClickedProcessed();
+                toggleDisplay();
+                return true;
+            }
+            // Tap on a card in the open list → view it.
+            if (cd->tapAt(static_cast<float>(cx), static_cast<float>(cy)))
+            {
+                g->getInput()->LeftClickedProcessed();
+                return true;
+            }
+            // Any other tap (another zone's icon, a battlefield card, or empty space): DON'T consume
+            // it here. Let it fall through to the card selector, which switches to a tapped zone or,
+            // on an empty-space tap, closes the list and collapses the rail ("tap to get out of it
+            // all"). Previously cd->CheckUserInput swallowed every such tap, so nothing happened.
+            return false;
         }
         return cd->CheckUserInput(key);
     }

@@ -207,6 +207,18 @@ bool CardSelector::CheckUserInput(JButton key)
             observer->ButtonPressed(active);
             goto switch_active;
         }
+        // Nothing under the finger: a tap on empty space gets you "out of it all". Skip while
+        // targeting -- a tap there may aim at a player.
+        if (!observer || !observer->getCurrentTargetChooser())
+        {
+            // Close an open zone card-list (graveyard/exile/library/...) first.
+            if (observer && observer->OpenedDisplay && observer->guiOpenDisplay)
+                observer->guiOpenDisplay->toggleDisplay();
+            // Then collapse the avatar zone rail if it's showing. Use the rail's own shown-state, NOT
+            // avatar mHasFocus: tapping a zone clears the avatar's focus but leaves the rail revealed.
+            if (duel && duel->GetAvatars())
+                duel->GetAvatars()->collapseRail();
+        }
         return true; // consumed the tap; nothing was under the finger.
     }
 
@@ -363,6 +375,12 @@ void CardSelector::HoverAt(float x, float y)
     if (!hit)
         hit = hitTest<Target> (cards, limitor, x, y);
     if (!hit)
+        return;
+
+    // A drag over an avatar must NOT reveal/toggle its zone rail -- that's the tap's job. If we
+    // Entering() it here, the tap-release then sees it already focused and toggles it back off, so a
+    // single tap flashes the rail open then shut (needing a second tap). Leave avatars to the tap.
+    if (dynamic_cast<GuiAvatar*> (hit))
         return;
 
     timer = kPreviewFrames; // keep the preview alive while the finger hovers a card

@@ -250,6 +250,27 @@ bool CardDisplay::CheckUserInput(JButton key)
     return false;
 }
 
+bool CardDisplay::tapAt(float px, float py)
+{
+    // Only the cards currently visible in the window can be tapped; select the one whose rendered
+    // bounds contain the point so its big preview shows. Return false when the tap misses them all.
+    for (size_t i = 0; i < mObjects.size(); i++)
+    {
+        if (!mObjects[i]) continue;
+        if ((int) i < start_item || (int) i >= start_item + nb_displayed_items) continue;
+        CardGui * cg = dynamic_cast<CardGui *> (mObjects[i]);
+        if (cg && cg->Contains(px, py))
+        {
+            if ((int) i != mCurr && mObjects[mCurr] != NULL)
+                mObjects[mCurr]->Leaving(JGE_BTN_NONE);
+            mCurr = (int) i;
+            if (mObjects[mCurr] != NULL) mObjects[mCurr]->Entering();
+            return true;
+        }
+    }
+    return false;
+}
+
 void CardDisplay::hoverAt(float px, float py)
 {
     if (!mObjects.size()) return;

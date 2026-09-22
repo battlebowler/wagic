@@ -132,6 +132,12 @@ void GuiAvatars::Deactivate(PlayGuiObject* c)
     }
 }
 
+void GuiAvatars::collapseRail()
+{
+    // Hide whichever player's zone column is currently revealed (Deactivate clears its alpha + focus).
+    if (active) Deactivate(active);
+}
+
 int GuiAvatars::receiveEventPlus(WEvent* e)
 {
     return selfGraveyard->receiveEventPlus(e) | selfExile->receiveEventPlus(e) | selfSideboard->receiveEventPlus(e) | selfCommandZone->receiveEventPlus(e) | opponentExile->receiveEventPlus(e) | opponentCommandZone->receiveEventPlus(e) | opponentGraveyard->receiveEventPlus(e) | opponentHand->receiveEventPlus(e);

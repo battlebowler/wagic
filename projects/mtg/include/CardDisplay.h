@@ -27,6 +27,9 @@ public:
     // Finger-anchored browse for the in-duel zone card list: move the selection/preview to the
     // card nearest the drag point (like the hand). Does NOT consume the click.
     void hoverAt(float px, float py);
+    // Tap a specific card in the open list: if the point is inside a visible card, focus/view it and
+    // return true; return false if the tap missed all cards (caller treats it as "outside the list").
+    bool tapAt(float px, float py);
     void rotateLeft();
     void rotateRight();
     bool CheckUserInput(JButton key);
