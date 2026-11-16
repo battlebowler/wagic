@@ -123,7 +123,9 @@ void Task::randomize()
 {
     opponent = rand() % getAIDeckCount() + 1;
     opponentName = "";
-    setExpiration((rand() % 3) + 1);
+    // expiresIn counts down one per game played (passOneDay). Give tasks a longer life so they can
+    // actually be completed -- was 1-3 games, now 5-9.
+    setExpiration((rand() % 5) + 5);
     reward = computeReward();
 }
 
