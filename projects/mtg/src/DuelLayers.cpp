@@ -38,7 +38,11 @@ namespace
     {
         w = 62.0f;
         h = 20.0f;
-        x = SCREEN_WIDTH_F - w - 4.0f;
+        // Pull it well clear of the right edge: some devices overscan the right side (the phase
+        // text and top-right mana symbol get clipped there too), so a 4px margin left the box
+        // half off-screen. A ~24px margin keeps the whole button visible and its centered label
+        // reading centered.
+        x = SCREEN_WIDTH_F - w - 24.0f;
         y = SCREEN_HEIGHT_F * 0.44f;
     }
 
@@ -298,8 +302,12 @@ void DuelLayers::Render()
         {
             f->SetScale(1.0f);
             f->SetColor(ARGB(255, 255, 255, 255));
-            float ty = cy + (ch - f->GetHeight()) * 0.5f; // vertically centered in the button
-            f->DrawString(_("Cancel"), cx + cw * 0.5f, ty, JGETEXT_CENTER);
+            // GetHeight() is the full font cell (includes descender space); "Cancel" has no
+            // descenders, so centering the cell leaves the visible glyphs riding high — nudge the
+            // text down to optically center the caps. A small rightward nudge offsets the glyph
+            // advance padding that JGETEXT_CENTER leaves on the left.
+            float ty = cy + (ch - f->GetHeight()) * 0.5f + 3.0f;
+            f->DrawString(_("Cancel"), cx + cw * 0.5f + 1.5f, ty, JGETEXT_CENTER);
         }
     }
 }
