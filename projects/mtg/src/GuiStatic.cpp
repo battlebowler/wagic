@@ -59,12 +59,18 @@ void GuiAvatar::Render()
     currentpoisonCount = poisonCount;
     currentLife = life;
 
-    // Avatar drop shadow, offset down-right. Only valid for the TOP_LEFT (opponent) avatar, whose
-    // icon is anchored top-left and extends down-right so the shadow sits behind it. The BOTTOM_RIGHT
-    // (player) icon is anchored at its bottom-right and extends UP-LEFT, so the same offset threw the
-    // "shadow" outside the avatar into the screen corner — the stray black block. Skip it there.
+    // Avatar drop shadow, offset +2,+2 (down-right) behind the icon so both avatars catch light from
+    // the same top-left direction. The TOP_LEFT (opponent) icon is anchored top-left at (actX,actY), so
+    // its shadow top-left is (actX+2,actY+2). The BOTTOM_RIGHT (player) icon is anchored bottom-right
+    // and occupies (actX-W..actX, actY-H..actY), so its shadow top-left is (actX-W+2, actY-H+2) — the
+    // shadow peeks out past the avatar's bottom-right corner, matching the opponent. (The old code
+    // reused the opponent's (actX+2,actY+2) origin for the player, which placed the box entirely
+    // down-right off the icon into the screen corner — the stray black block. The 18px corner inset
+    // leaves room for the 2px peek.)
     if (corner == TOP_LEFT)
         r->FillRect(actX + 2, actY + 2, Width * actZ, Height * actZ, ARGB((int)(actA / 2), 0, 0, 0));
+    else if (corner == BOTTOM_RIGHT)
+        r->FillRect(actX - Width * actZ + 2, actY - Height * actZ + 2, Width * actZ, Height * actZ, ARGB((int)(actA / 2), 0, 0, 0));
 
     float x0 = actX;
     float y0 = actY;
