@@ -61,6 +61,8 @@ SimpleMenu::SimpleMenu(JGE* jge, WResourceManager* resourceManager, int id, JGui
     selectionT = 0;
     timeOpen = 0;
     mClosed = false;
+    mSelectFlash = 0.0f;
+    mSelectFlashIndex = -1;
     selectionTargetY = selectionY = y + SimpleMenuConst::kVerticalMargin;
 
     if(resourceManager)
@@ -329,9 +331,16 @@ void SimpleMenu::Render()
         // supplies the side description text.
         if (currentMenuItem->hasFocus())
             WResourceManager::Instance()->GetWFont(Fonts::MAIN_FONT)->DrawString(currentMenuItem->getDescription().c_str(), mX + mWidth + 10, mY + 15);
-        // Panel style: highlight the focused row so selection reads clearly on touch.
-        if (mPanelStyle && currentMenuItem->hasFocus())
-            renderer->FillRect(mX + 1.0f, currentY, mWidth - 2.0f, SimpleMenuConst::kLineHeight, UITheme::kSelection);
+        // No resting highlight on touch popups (there is no hover cursor to indicate): only the row
+        // the user actually TAPPED flashes the selection colour, fading out via mSelectFlash.
+        if (mPanelStyle && i == mSelectFlashIndex && mSelectFlash > 0.0f)
+        {
+            unsigned int sel = UITheme::kSelection;
+            unsigned int baseA = (sel >> 24) & 0xFF;
+            unsigned int a = (unsigned int)(baseA * mSelectFlash);
+            renderer->FillRect(mX + 1.0f, currentY, mWidth - 2.0f, SimpleMenuConst::kLineHeight,
+                               (sel & 0x00FFFFFF) | (a << 24));
+        }
         mFont->SetColor(ARGB(255, 255, 255, 255));
         currentMenuItem->RenderWithOffset(-mScrollPx);
         mFont->SetScale(SCALE_NORMAL);
@@ -455,6 +464,9 @@ bool SimpleMenu::CheckUserInput(JButton key)
                 mCurr = n;
                 if (mObjects[mCurr] != NULL)
                     mObjects[mCurr]->Entering();
+                // Flash the tapped row as selection confirmation (the only time the highlight shows).
+                mSelectFlash = 1.0f;
+                mSelectFlashIndex = mCurr;
                 if (mObjects[mCurr] != NULL && mListener != NULL)
                     mListener->ButtonPressed(mId, mObjects[mCurr]->GetId());
             }
@@ -487,6 +499,12 @@ void SimpleMenu::Update(float dt)
 {
     updateDragScroll();        // finger drag -> mScrollPx (content follows the finger)
     JGuiController::Update(dt);
+    // Fade out the tap-selection flash (~0.3s).
+    if (mSelectFlash > 0.0f)
+    {
+        mSelectFlash -= dt * 3.0f;
+        if (mSelectFlash < 0.0f) mSelectFlash = 0.0f;
+    }
     // Content-scroll bounds (overflow past the visible window); short menus stay at 0.
     mScrollMax = mCount * SimpleMenuConst::kLineHeight - maxItems * SimpleMenuConst::kLineHeight;
     if (mScrollMax < 0.0f) mScrollMax = 0.0f;

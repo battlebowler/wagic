@@ -22,6 +22,11 @@ private:
     float selectionT, selectionY;
     float timeOpen;
     bool mClosed;
+    // Touch selection flash: touch popups have no hover cursor, so no row is highlighted at rest.
+    // When a row is tapped it briefly flashes the selection colour as confirmation. mSelectFlash is a
+    // 0..1 countdown (drives the fade); mSelectFlashIndex is the row to flash.
+    float mSelectFlash;
+    int mSelectFlashIndex;
 
     bool mCenterHorizontal;
     bool mCenterVertical;

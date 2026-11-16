@@ -22,6 +22,7 @@ public:
     SimpleMenuItem(SimpleMenu* _parent, int id, int fontId, string text, float x, float y, bool hasFocus = false, bool autoTranslate = false);
 
     virtual void Entering();
+    virtual void setFocus(bool value);
     virtual void setDescription( const string& desc );
     virtual string getDescription() const;
     virtual ostream& toString(ostream& out) const;

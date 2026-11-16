@@ -14,6 +14,8 @@ SimpleMenuItem::SimpleMenuItem(SimpleMenu* _parent, int id, int fontId, string t
 {
     parent = (SimpleMenu *) _parent;
     mDescription = "";
+    // Uniform rows: undo the base ctor's enlarged target for a focused item (see setFocus).
+    mTargetScale = (getText().size() < 20) ? SCALE_LARGE_NORMAL : SCALE_NORMAL;
 }
 
 void SimpleMenuItem::Entering()
@@ -26,6 +28,15 @@ void SimpleMenuItem::Entering()
         menu->selectionTargetY = getY();
     }
 
+}
+
+void SimpleMenuItem::setFocus(bool value)
+{
+    SimpleButton::setFocus(value);
+    // Uniform rows on touch popups: the focused row keeps the same size as the others (no resting
+    // "selected" enlargement). Tapping is the only selection cue (a brief colour flash), so a row
+    // being focused must not look different at rest.
+    mTargetScale = (getText().size() < 20) ? SCALE_LARGE_NORMAL : SCALE_NORMAL;
 }
 
 

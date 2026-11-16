@@ -24,15 +24,15 @@ using std::string;
 class SimpleButton: public JGuiObject
 {
 private:
-    
-    float mScale;
-    float mTargetScale;
+
     bool mHasFocus;
     bool mIsValidSelection;
     float mX;
     float mY;
-    
+
 protected:
+    float mScale;
+    float mTargetScale;
     float mYOffset;
     JGuiController* parent;
     int mFontId;
